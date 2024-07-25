@@ -52,9 +52,11 @@ class Settings(BaseSettings):
     azure_api_key: str | None = os.environ.get("AZURE_API_KEY")
     embedding_model: str | None = os.environ.get("EMBEDDING_MODEL")
     azure_api_version: str | None = os.environ.get("AZURE_API_VERSION")
-    only_store_csv_files_locally: bool | None = os.environ.get(
-        "ONLY_STORE_CSV_FILES_LOCALLY", False
-    )
+
+    # TODO: Remove these
+    # only_store_csv_files_locally: bool | None = os.environ.get(
+    #     "ONLY_STORE_CSV_FILES_LOCALLY", False
+    # )
 
     def require(self, key: str) -> Any:
         val = self[key]
