@@ -1,0 +1,55 @@
+services:
+  engine:
+    container_name: engine
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${CORE_PORT:-80}:${CORE_PORT:-80}"
+    environment:
+      - CORE_PORT=${CORE_PORT:-80}
+    command: uvicorn dataherald.app:app --host 0.0.0.0 --port ${CORE_PORT:-80} --log-config log_config.yml --log-level debug --reload
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./dataherald:/app/dataherald
+    depends_on:
+      - mongodb
+    networks:
+      - dataherald_network
+    env_file: .env
+  mongodb:
+    container_name: mongodb
+    image: mongo:latest
+    restart: always
+    ports:
+      - 27017:27017
+    volumes:
+      - ./initdb.d/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
+      - ./dbdata/mongo_data/data:/data/db/
+      - ./dbdata/mongo_data/db_config:/data/configdb/
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "${MONGODB_DB_USERNAME}"
+      MONGO_INITDB_ROOT_PASSWORD: "${MONGODB_DB_PASSWORD}"
+      MONGO_INITDB_DATABASE: "${MONGODB_DB_NAME}"
+    networks:
+      - dataherald_network
+# uncomment if you want to use the s3 alternative minio instead of AWS S3
+# you need to setup a bucket in the web interface (http://localhost:9001)
+#  minio:
+#    container_name: s3
+#    image: minio/minio
+#    networks:
+#      - dataherald_network
+#    ports:
+#      - "9000:9000"
+#      - "9001:9001"
+#    volumes:
+#      - ./s3data:/data
+#    environment:
+#      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-dataherald}"
+#      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-dataherald"}
+#    command: server --console-address ":9001" /data
+networks:
+  dataherald_network:
+    external: true

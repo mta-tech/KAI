@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "kai"
+version = "0.1.0"
+description = "KAI stands for Knowledge Agent for Intelligence query. This project brings the Gen AI component to be able to embedded into the database so that it can perform analytics and document searches with natural language."
+authors = ["MTA"]
+license = "Apache-2.0 license"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
