@@ -57,7 +57,3 @@ lib64/
 include/
 bin/
 share/
-
-# Ner Model
-modules/ner/ner-english.pt
-
