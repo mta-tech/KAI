@@ -1,59 +1,75 @@
-__pycache__/
-.vscode/
-venv/
-*.zip
-.idea/*
-id_rsa
-dbdata/
-
-**/node_modules
-
-# Environments
-.env
-.env.test
-.venv
-env/
-ENV/
-env.bak/
-.DS_Store
-
-
-# .tfstate files
-*.tfstate
-*.tfstate.*
-
-# Crash log files
-crash.log
-crash.*.log
-
-**/.terraform/*
-.vercel
-
-# Python virtual environments
-.venv/
-venv/
-
-# PyCharm files
-.idea/
-.vscode/
-
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints/
-
-# Compiled Python files
+# Byte-compiled files
 *.pyc
 *.pyo
+*.pyd
 __pycache__/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+eggs/
+*.egg-info/
+*.egg
+
+# Virtual environment
+venv/
+ENV/
+env/
+.venv/
+.ENV/
+.venv/
+venv.bak/
+
+# IDEs and editors
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Test and coverage
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Pytest
+.cache/
+pytest_cache/
 
 # Logs
 *.log
 
 # Environment variables
 .env
+.envrc
 
-# Dependency directories
-env/
-lib64/
-include/
-bin/
-share/
+# Pyenv
+.python-version
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+.dmypy.json~
+
+# Miscellaneous
+*.DS_Store
+*.swp
+*~
+
+# Sphinx documentation
+docs/_build/
+
+# Ignore all files in the following directories
+*.git/
+*.github/
+*.gitignore
+
+# Cython debug symbols
+cython_debug/
