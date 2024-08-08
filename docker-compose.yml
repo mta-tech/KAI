@@ -1,0 +1,16 @@
+services:
+  typesense:
+    image: typesense/typesense:26.0
+    container_name: typesense
+    restart: on-failure
+    ports:
+      - "8108:8108"
+    volumes:
+      - ../data/typesense_data:/data
+    command: '--data-dir /data --api-key=${TYPESENSE_API_KEY} --enable-cors'
+    networks:
+      - kai_network
+      
+networks:
+  kai_network:
+    external: true

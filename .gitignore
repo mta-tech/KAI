@@ -73,3 +73,6 @@ docs/_build/
 
 # Cython debug symbols
 cython_debug/
+
+# Ignore typesense data
+./data/typesense_data
