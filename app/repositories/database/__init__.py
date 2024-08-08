@@ -1,23 +1,23 @@
-
-from abc import abstractmethod
 import typesense
+from app.core.config import Settings
 
+class DB:
+    _client = None
 
-class DB():
-    @abstractmethod
-    def __init__(self):
-        pass
-
-
-    @staticmethod
-    def init_client(api_key, host='localhost', port='8108', protocol='http', timeout=2):
-        client = typesense.Client({
+    @classmethod
+    def _initialize_client(cls):
+        cls._client = typesense.Client({
             'nodes': [{
-                'host': host,  
-                'port': port,  
-                'protocol': protocol 
+                'host': Settings.TYPESENSE_HOST,
+                'port': Settings.TYPESENSE_PORT,
+                'protocol': Settings.TYPESENSE_PROTOCOL
             }],
-            'api_key': api_key,
-            'connection_timeout_seconds': timeout
+            'api_key': Settings.TYPESENSE_API_KEY,
+            'connection_timeout_seconds': Settings.TYPESENSE_TIMEOUT
         })
-        return client
+
+    @classmethod
+    def get_client(cls):
+        if cls._client is None:
+            cls._initialize_client()
+        return cls._client

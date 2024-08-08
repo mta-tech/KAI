@@ -2,8 +2,6 @@ from enum import Enum
 
 class SupportedDatabase(Enum):
     POSTGRES = "POSTGRES"
-    MYSQL = "MYSQL"
-
 
 class TableDescriptionStatus(Enum):
     NOT_SCANNED = "NOT_SCANNED"

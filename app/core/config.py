@@ -7,7 +7,13 @@ class Settings(BaseSettings):
 
     APP_HOST:str 
     APP_PORT:int
-    APP_ENABLE_HOT_RELOAD:int = 1
+    APP_ENABLE_HOT_RELOAD:bool
+
+    TYPESENSE_API_KEY:str
+    TYPESENSE_HOST:str
+    TYPESENSE_PORT:int
+    TYPESENSE_PROTOCOL:str
+    TYPESENSE_TIMEOUT:int
 
     class Config:
         env_file = ".env"
