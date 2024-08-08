@@ -1,7 +1,9 @@
 from enum import Enum
 
+
 class SupportedDatabase(Enum):
     POSTGRES = "POSTGRES"
+
 
 class TableDescriptionStatus(Enum):
     NOT_SCANNED = "NOT_SCANNED"
@@ -9,6 +11,7 @@ class TableDescriptionStatus(Enum):
     DEPRECATED = "DEPRECATED"
     SCANNED = "SCANNED"
     FAILED = "FAILED"
+
 
 class SQLGenerationStatus(Enum):
     NONE = "NONE"

@@ -1,9 +1,9 @@
-from app.repositories.database import DB
+from app.storage import DB
 
 class TypeSenseDB:
     @staticmethod
     def create_collection(collection):
-        client = DB.get_client() 
+        client = DB.get_client()
         client.collections.create(collection)
 
     @staticmethod
@@ -25,7 +25,7 @@ class TypeSenseDB:
     def index_document(collection, document):
         client = DB.get_client()
         client.collections[collection].documents.create(document)
-    
+
     @staticmethod
     def retrieve_document(collection, document_id):
         client = DB.get_client()

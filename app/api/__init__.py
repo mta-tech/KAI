@@ -1,11 +1,13 @@
 import fastapi
-from fastapi import APIRouter
+from app.api.endpoints.database_connection import DatabaseConnectionRouter
 
-class FastAPI():
-    def __init__(self, router: APIRouter):
-        self._app = fastapi.FastAPI(debug=True)
-        self._router = router
-        self._app.include_router(self._router)
 
-    def app(self) -> fastapi.FastAPI:
-        return self._app
+class Router:
+    def __init__(self):
+        self._router = fastapi.APIRouter()
+
+        self._router.include_router(DatabaseConnectionRouter().get_router())
+
+
+    def router(self) -> fastapi.APIRouter:
+        return self._router

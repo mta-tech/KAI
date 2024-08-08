@@ -1,8 +1,14 @@
 from datetime import datetime
 from enum import Enum
 from typing import List
+
 from pydantic import BaseModel, Field, field_validator
-from app.utils.const import SupportedDatabase, SQLGenerationStatus, TableDescriptionStatus
+
+from app.utils.const import (
+    SQLGenerationStatus,
+    SupportedDatabase,
+    TableDescriptionStatus,
+)
 
 
 class DatabaseConnection(BaseModel):
@@ -10,14 +16,16 @@ class DatabaseConnection(BaseModel):
     alias: str | None = None
     dialect: str
     connection_uri: str
-    schemas: list[str] | None = ['public']
+    schemas: list[str] | None = ["public"]
     metadata: dict | None = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: str = str(datetime.now())
 
-    @field_validator('dialect')
+    @field_validator("dialect")
     def validate_dialect(cls, value):
         if value not in SupportedDatabase.__members__:
-            raise ValueError(f"{value} is not a valid dialect. Supported values are: {list(SupportedDatabase.__members__.keys())}")
+            raise ValueError(
+                f"{value} is not a valid dialect. Supported values are: {list(SupportedDatabase.__members__.keys())}"
+            )
         return value
 
 
@@ -26,7 +34,7 @@ class Prompt(BaseModel):
     db_connection_id: str
     text: str
     metadata: dict | None = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: str = str(datetime.now())
 
 
 class SQLGeneration(BaseModel):
@@ -39,10 +47,10 @@ class SQLGeneration(BaseModel):
     sql: str
     error_message: str | None = None
     metadata: dict | None = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: str = str(datetime.now())
     completed_at: datetime
 
-    @field_validator('status')
+    @field_validator("status")
     def validate_dialect(cls, value):
         if value not in SQLGenerationStatus.__members__:
             raise ValueError(f"{value} is not a valid sql generation status.")
@@ -55,15 +63,15 @@ class NLGeneration(BaseModel):
     llm_name: str
     text: str
     metadata: dict | None = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: str = str(datetime.now())
 
 
 class DatabaseInstruction(BaseModel):
     id: str
     db_connection_id: str
     instruction: str
-    metadata: dict | Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    metadata: dict | None = Field(default_factory=dict)
+    created_at: str = str(datetime.now())
 
 
 class ContextStore(BaseModel):
@@ -71,9 +79,9 @@ class ContextStore(BaseModel):
     db_connection_id: str
     prompt_text: str
     prompt_embedding: List[float]
-    sql = str
-    metadata: dict | Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    sql: str
+    metadata: dict | None = Field(default_factory=dict)
+    created_at: str = str(datetime.now())
 
 
 class TableDescription(BaseModel):
@@ -86,14 +94,16 @@ class TableDescription(BaseModel):
     status: str
     table_schema: str
     error_message: str | None = None
-    metadata: dict | Field(default_factory=dict)
+    metadata: dict | None = Field(default_factory=dict)
     last_table_sync: datetime
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: str = str(datetime.now())
 
-    @field_validator('status')
+    @field_validator("status")
     def validate_dialect(cls, value):
         if value not in TableDescriptionStatus.__members__:
-            raise ValueError(f"{value} is not a valid table description status. Valid statuses are: {list(SupportedDatabase.__members__.keys())}")
+            raise ValueError(
+                f"{value} is not a valid table description status. Valid statuses are: {list(SupportedDatabase.__members__.keys())}"
+            )
         return value
 
 
@@ -108,5 +118,5 @@ class ColumnDescription(BaseModel):
     categories: str | None = None
     foreign_key: str | None = None
     examples: list[str] = Field(default_factory=list)
-    metadata: dict | Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    metadata: dict | None = Field(default_factory=dict)
+    created_at: str = str(datetime.now())
