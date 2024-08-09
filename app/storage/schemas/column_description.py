@@ -16,7 +16,11 @@ class ColumnDescriptionSchema:
                 {"name": "is_low_cardinality", "type": "bool"},
                 {"name": "categories", "type": "string[]", "optional": True},
                 {"name": "examples", "type": "object"},
-                {"name": "foreign_key", "type": "object", "optional": True}, # foreign_key": { "field_name": "string", "reference_table": "string"}
+                {
+                    "name": "foreign_key",
+                    "type": "object",
+                    "optional": True,
+                },  # foreign_key": { "field_name": "string", "reference_table": "string"}
                 {"name": "metadata", "type": "object", "optional": True},
                 {"name": "created_at", "type": "string"},
             ],

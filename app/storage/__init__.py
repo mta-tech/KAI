@@ -5,20 +5,20 @@ from app.core.config import Settings
 
 class DB:
     _client = None
-
     @classmethod
     def _initialize_client(cls):
+        setting = Settings()
         cls._client = typesense.Client(
             {
                 "nodes": [
                     {
-                        "host": Settings.TYPESENSE_HOST,
-                        "port": Settings.TYPESENSE_PORT,
-                        "protocol": Settings.TYPESENSE_PROTOCOL,
+                        "host": setting.TYPESENSE_HOST,
+                        "port": setting.TYPESENSE_PORT,
+                        "protocol": setting.TYPESENSE_PROTOCOL,
                     }
                 ],
-                "api_key": Settings.TYPESENSE_API_KEY,
-                "connection_timeout_seconds": Settings.TYPESENSE_TIMEOUT,
+                "api_key": setting.TYPESENSE_API_KEY,
+                "connection_timeout_seconds": setting.TYPESENSE_TIMEOUT,
             }
         )
 

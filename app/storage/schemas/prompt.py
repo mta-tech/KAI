@@ -1,5 +1,6 @@
 from app.storage.typesense import TypeSenseDB
 
+
 class PromptSchema:
     def __init__(self):
         self.collection_schema = {

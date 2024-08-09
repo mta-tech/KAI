@@ -1,9 +1,25 @@
 from app.storage import DB
+import typesense
+from app.core.config import Settings
 
 class TypeSenseDB:
     @staticmethod
     def create_collection(collection):
-        client = DB.get_client()
+        setting = Settings()
+        # client = DB.get_client()
+        client = typesense.Client(
+            {
+                "nodes": [
+                    {
+                        "host": setting.TYPESENSE_HOST,
+                        "port": setting.TYPESENSE_PORT,
+                        "protocol": setting.TYPESENSE_PROTOCOL,
+                    }
+                ],
+                "api_key": setting.TYPESENSE_API_KEY,
+                # "connection_timeout_seconds": setting.TYPESENSE_TIMEOUT,
+            }
+        )
         client.collections.create(collection)
 
     @staticmethod
