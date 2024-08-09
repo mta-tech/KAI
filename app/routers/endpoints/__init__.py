@@ -4,7 +4,7 @@ from app.data import Storage
 from app.server.config import Settings
 
 
-class Service(ABC):
+class Endpoint(ABC):
     @abstractmethod
     def __init__(self, settings: Settings, storage: Storage):
         self.settings = settings

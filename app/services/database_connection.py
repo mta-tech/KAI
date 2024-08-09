@@ -1,10 +1,15 @@
 from sqlalchemy import create_engine, inspect
-from app.repositories.database_connection import DatabaseConnectionRepository
 
-class DatabaseConnectionService:
+from app.data import Storage
+from app.data.repositories.database_connection import DatabaseConnectionRepository
+from app.server.config import Settings
+from app.services import Service
 
-    def __init__(self):
-        self.database_connection_repository = DatabaseConnectionRepository()
+
+class DatabaseConnectionService(Service):
+    def __init__(self, settings: Settings, storage: Storage):
+        super().__init__(settings, storage)
+        self.repository = DatabaseConnectionRepository(self.storage)
 
     def list_database_connections():
         return ["list_database_connection"]
