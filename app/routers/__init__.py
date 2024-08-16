@@ -2,15 +2,14 @@ import fastapi
 
 from app.data import Storage
 from app.routers.endpoints.database_connection import DatabaseConnectionRouter
-from app.server.config import Settings
 
 
 class Router:
-    def __init__(self, settings: Settings, storage: Storage):
+    def __init__(self, storage: Storage):
         self._router = fastapi.APIRouter()
 
         self._service_routes = [
-            DatabaseConnectionRouter(settings, storage).router(),
+            DatabaseConnectionRouter(storage).router(),
         ]
 
         self.include_router()

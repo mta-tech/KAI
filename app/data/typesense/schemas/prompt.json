@@ -1,0 +1,23 @@
+{
+    "name": "prompt",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "db_connection_id",
+            "type": "string"
+        },
+        {
+            "name": "text",
+            "type": "string"
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        }
+    ]
+}

@@ -12,12 +12,12 @@ from app.utils.constant import (
 
 class DatabaseConnection(BaseModel):
     id: str
-    alias: str | None = None
+    alias: str | None
     dialect: str
     connection_uri: str
-    schemas: list[str] | None = ["public"]
-    metadata: dict | None = Field(default_factory=dict)
-    created_at: str = str(datetime.now())
+    schemas: list[str] | None
+    metadata: dict | None
+    created_at: str
 
     @field_validator("dialect")
     def validate_dialect(cls, value):

@@ -1,33 +1,49 @@
+import uuid
+from datetime import datetime
+
 from sqlalchemy import create_engine, inspect
 
 from app.data import Storage
+from app.data.models import DatabaseConnection
 from app.data.repositories.database_connection import DatabaseConnectionRepository
-from app.server.config import Settings
+from app.routers.schemas.request import DatabaseConnectionRequest
 from app.services import Service
 
 
 class DatabaseConnectionService(Service):
-    def __init__(self, settings: Settings, storage: Storage):
-        super().__init__(settings, storage)
+    def __init__(self, storage: Storage):
+        super().__init__(storage)
         self.repository = DatabaseConnectionRepository(self.storage)
 
-    def list_database_connections():
-        return ["list_database_connection"]
-
-    def create_database_connection(db_url):
-        engine = create_engine(db_url)
+    def create_database_connection(
+        self, request: DatabaseConnectionRequest
+    ) -> DatabaseConnection:
+        db_uri = request.connection_uri
+        engine = create_engine(db_uri)
         inspector = inspect(engine)
-        db_structure = {}
-
         tables = inspector.get_table_names()
-        for table_name in tables:
-            columns = inspector.get_columns(table_name)
-            db_structure[table_name] = [column["name"] for column in columns]
 
-        for table, columns in db_structure.items():
-            print(f"Table: {table}")
-            for column in columns:
-                print(f"  Column: {column}")
+        # Valid Connection
+        if len(tables) > 0:
+            # Create Database Connection
+            database_connection = DatabaseConnection(
+                id=str(uuid.uuid4()),
+                dialect='POSTGRES',
+                **request.model_dump(),
+                created_at=str(datetime.now()),
+            )
+            created_database_connetion = self.repository.create_database_connection(
+                database_connection
+            )
+            # TODO: Create Table Description Not Scanned
+            return created_database_connetion
+        else:
+            # Invalid Connection
+            raise Exception("No tabels found in database")
+
+    def list_database_connections(self):
+        database_connections = self.repository.list_database_connections()
+        return database_connections
 
     def update_database_connections():
         return "update_database_connections"

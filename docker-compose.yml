@@ -15,4 +15,4 @@ services:
       
 networks:
   kai_network:
-    external: true
+    driver: bridge

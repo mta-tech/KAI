@@ -1,10 +1,10 @@
-from pydantic import BaseModel, Field
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel
 
 
 class DatabaseConnectionRequest(BaseModel):
-    id: str
-    alias: str | None = None
-    dialect: str
+    alias: str
     connection_uri: str
-    schemas: list[str] | None = ["public"]
-    metadata: dict | None = Field(default_factory=dict)
+    schemas: Optional[List[str]] = []
+    metadata: Optional[Dict] = {}

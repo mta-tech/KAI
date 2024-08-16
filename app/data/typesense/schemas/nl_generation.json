@@ -1,0 +1,27 @@
+{
+    "name": "nl_generation",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "sql_generation_id",
+            "type": "string"
+        },
+        {
+            "name": "llm_name",
+            "type": "string"
+        },
+        {
+            "name": "text",
+            "type": "string"
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        }
+    ]
+}

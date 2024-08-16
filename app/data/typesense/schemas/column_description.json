@@ -1,0 +1,54 @@
+{
+    "name": "column_description",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "table_description_id",
+            "type": "string",
+            "reference": "table_description.id"
+        },
+        {
+            "name": "name",
+            "type": "string"
+        },
+        {
+            "name": "description",
+            "type": "string"
+        },
+        {
+            "name": "is_primary_key",
+            "type": "bool"
+        },
+        {
+            "name": "data_type",
+            "type": "string"
+        },
+        {
+            "name": "is_low_cardinality",
+            "type": "bool"
+        },
+        {
+            "name": "categories",
+            "type": "string[]",
+            "optional": true
+        },
+        {
+            "name": "examples",
+            "type": "object"
+        },
+        {
+            "name": "foreign_key",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        }
+    ]
+}

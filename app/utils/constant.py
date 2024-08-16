@@ -4,7 +4,6 @@ from enum import Enum
 class SupportedDatabase(Enum):
     POSTGRES = "POSTGRES"
 
-
 class TableDescriptionStatus(Enum):
     NOT_SCANNED = "NOT_SCANNED"
     SYNCHRONIZING = "SYNCHRONIZING"

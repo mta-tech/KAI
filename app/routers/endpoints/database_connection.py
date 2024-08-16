@@ -4,14 +4,13 @@ from app.data import Storage
 from app.routers.endpoints import Endpoint
 from app.routers.schemas.request import DatabaseConnectionRequest
 from app.routers.schemas.response import DatabaseConnectionResponse
-from app.server.config import Settings
 from app.services.database_connection import DatabaseConnectionService
 
 
 class DatabaseConnectionRouter(Endpoint):
-    def __init__(self, settings: Settings, storage: Storage):
-        super().__init__(settings, storage)
-        self._service = DatabaseConnectionService(settings, storage)
+    def __init__(self, storage: Storage):
+        super().__init__(storage)
+        self._service = DatabaseConnectionService(storage)
         self._router = APIRouter(prefix="/api/v1/database-connections")
 
         self._router.add_api_route(
