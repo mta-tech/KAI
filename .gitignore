@@ -75,4 +75,4 @@ docs/_build/
 cython_debug/
 
 # Ignore typesense data
-app/data/storage
+app/data/dbdata

@@ -6,7 +6,7 @@ services:
     ports:
       - "8108:8108"
     volumes:
-      - ./app/data/storage:/data
+      - ./app/data/dbdata:/data
     command: '--data-dir /data --api-key=${TYPESENSE_API_KEY} --enable-cors'
     env_file:
       - .env
@@ -15,4 +15,5 @@ services:
       
 networks:
   kai_network:
+    name: kai_network
     driver: bridge
