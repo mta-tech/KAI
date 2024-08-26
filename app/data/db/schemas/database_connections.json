@@ -1,7 +1,11 @@
 {
-    "name": "database_connection",
+    "name": "database_connections",
     "enable_nested_fields": true,
     "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
         {
             "name": "alias",
             "type": "string"

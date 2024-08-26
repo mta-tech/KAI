@@ -1,13 +1,26 @@
 {
-    "name": "prompt",
+    "name": "golden_sqls",
     "enable_nested_fields": true,
     "fields": [
         {
-            "name": "db_connection_id",
+            "name": "id",
             "type": "string"
         },
         {
-            "name": "text",
+            "name": "db_connection_id",
+            "type": "string",
+            "reference": "database_connections.id"
+        },
+        {
+            "name": "prompt_text",
+            "type": "string"
+        },
+        {
+            "name": "prompt_embedding",
+            "type": "float[]"
+        },
+        {
+            "name": "sql",
             "type": "string"
         },
         {

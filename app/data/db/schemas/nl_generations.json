@@ -1,21 +1,22 @@
 {
-    "name": "context_store",
+    "name": "nl_generations",
     "enable_nested_fields": true,
     "fields": [
         {
-            "name": "db_connection_id",
+            "name": "id",
             "type": "string"
         },
         {
-            "name": "prompt_text",
+            "name": "sql_generation_id",
+            "type": "string",
+            "reference": "sql_generations.id"
+        },
+        {
+            "name": "llm_name",
             "type": "string"
         },
         {
-            "name": "prompt_embedding",
-            "type": "float[]"
-        },
-        {
-            "name": "sql",
+            "name": "text",
             "type": "string"
         },
         {

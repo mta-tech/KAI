@@ -9,7 +9,7 @@ from app.server.config import Settings
 class TypeSenseDB:
     def __init__(self, setting: Settings):
         self.client = self._initialize_client(setting)
-        self.schema_path = "app/data/typesense/schemas"
+        self.schema_path = "app/data/db/schemas"
 
     def _initialize_client(self, setting: Settings) -> typesense.Client:
         """Initialize the Typesense client."""
@@ -23,7 +23,7 @@ class TypeSenseDB:
                     }
                 ],
                 "api_key": setting.TYPESENSE_API_KEY,
-                "connection_timeout_seconds": setting.TYPESENSE_TIMEOUT,
+                # "connection_timeout_seconds": setting.TYPESENSE_TIMEOUT,
             }
         )
 
@@ -39,10 +39,11 @@ class TypeSenseDB:
 
     def _get_existing_collections(self) -> set:
         """Retrieve the set of existing collection names."""
-        return {col["name"] for col in self.client.collections.retrieve()}
+        return [col["name"] for col in self.client.collections.retrieve()]
 
     def ensure_collection_exists(self, collection_name: str) -> None:
         """Ensure the collection exists in Typesense; if not, create it."""
-        if collection_name not in self._get_existing_collections():
+        existing_collection = self._get_existing_collections()
+        if collection_name not in existing_collection:
             collection_schema = self._get_schema(collection_name)
             self.client.collections.create(collection_schema)

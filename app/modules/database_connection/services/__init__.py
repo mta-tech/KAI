@@ -26,9 +26,6 @@ class DatabaseConnectionService:
             metadata=request.metadata,
         )
 
-        if not database_connection.schemas:
-            database_connection.schemas = ["public"]
-
         schemas_and_tables = {}
 
         if database_connection.schemas:
@@ -36,10 +33,10 @@ class DatabaseConnectionService:
                 database_uri = f"{database_connection.connection_uri}?options=-csearch_path={schema}"
                 engine = create_engine(database_uri)
                 inspector = inspect(engine)
-                rows = inspector.get_table_names() + inspector.get_view_names()
-                if len(rows) == 0:
+                tables = inspector.get_table_names() + inspector.get_view_names()
+                if len(tables) == 0:
                     raise Exception("The db is empty")
-                schemas_and_tables[schema] = [row.lower() for row in rows]
+                schemas_and_tables[schema] = [table.lower() for table in tables]
 
         # Connect db
         database_connection_repository = DatabaseConnectionRepository(self.storage)
@@ -49,14 +46,13 @@ class DatabaseConnectionService:
         # Add created tables
         for schema, tables in schemas_and_tables.items():
             for table in tables:
-                scanner_repository.save_table_info(
-                    TableDescription(
-                        db_connection_id=db_connection.id,
-                        schema_name=schema,
-                        table_name=table,
-                        status=TableDescriptionStatus.NOT_SCANNED.value,
-                    )
+                table_description = TableDescription(
+                    db_connection_id=db_connection.id,
+                    db_schema=schema,
+                    table_name=table,
+                    sync_status=TableDescriptionStatus.NOT_SCANNED.value,
                 )
+                scanner_repository.save_table_info(table_description)
 
         return DatabaseConnectionResponse(**db_connection.model_dump())
 

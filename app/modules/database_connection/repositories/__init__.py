@@ -9,11 +9,8 @@ class DatabaseConnectionRepository:
         self.storage = storage
 
     def insert(self, database_connection: DatabaseConnection) -> DatabaseConnection:
-        database_connection.id = str(
-            self.storage.insert_one(
-                DB_COLLECTION, database_connection.model_dump(exclude={"id"})
-            )
-        )
+        doc = database_connection.model_dump(exclude={"id"})
+        database_connection.id = str(self.storage.insert_one(DB_COLLECTION, doc))
         return database_connection
 
     def find_one(self, filter: dict) -> DatabaseConnection | None:

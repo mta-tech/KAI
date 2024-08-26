@@ -4,8 +4,8 @@ from pydantic import BaseModel
 class DatabaseConnectionRequest(BaseModel):
     alias: str
     connection_uri: str
-    schemas: list[str] | None
-    metadata: dict | None
+    schemas: list[str] | None = None
+    metadata: dict | None = None
 
 
 class ForeignKeyDetail(BaseModel):
@@ -26,4 +26,8 @@ class ColumnDescriptionRequest(BaseModel):
 class TableDescriptionRequest(BaseModel):
     description: str | None
     columns: list[ColumnDescriptionRequest] | None
-    metadata: dict | None
+    metadata: dict | None = None
+
+class ScannerRequest(BaseModel):
+    table_description_ids: list[str] | None
+    metadata: dict | None = None

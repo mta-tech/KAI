@@ -9,12 +9,14 @@ class Storage(TypeSenseDB):
     def find_one(self, collection: str, filter: dict) -> dict:
         self.ensure_collection_exists(collection)
 
-        filter_string = " && ".join(f"{key}:'{value}'" for key, value in filter.items())
+        filter_string = " && ".join(f"{key}:{value}" for key, value in filter.items())
 
         search_params = {"q": "*", "filter_by": filter_string}
 
         results = self.client.collections[collection].documents.search(search_params)
-        return results.get("hits", [{}])[0]
+        if results["found"] > 0:
+            return results["hits"][0]["document"]
+        return None
 
     def insert_one(self, collection: str, doc: dict) -> int:
         self.ensure_collection_exists(collection)
@@ -36,9 +38,13 @@ class Storage(TypeSenseDB):
 
     def find_by_id(self, collection: str, id: str) -> dict:
         self.ensure_collection_exists(collection)
-        results = self.client.collections[collection].documents.search(
-            {"filter_by": f"id:={id}"}
-        )
+        search_params = {
+            "q": "*",
+            "filter_by": f"id:={id}",
+        }
+
+        results = self.client.collections[collection].documents.search(search_params)
+
         if results["found"] > 0:
             return results["hits"][0]["document"]
         return None
@@ -56,6 +62,7 @@ class Storage(TypeSenseDB):
         filter_by = " && ".join([f"{k}:={v}" for k, v in filter.items()])
 
         search_params = {
+            "q": "*",
             "filter_by": filter_by,
             "per_page": limit if limit > 0 else 250,
             "page": page if page > 0 else 1,
@@ -71,6 +78,7 @@ class Storage(TypeSenseDB):
         self.ensure_collection_exists(collection)
 
         search_params = {
+            "q": "*",
             "per_page": limit if limit > 0 else 250,
             "page": page if page > 0 else 1,
         }

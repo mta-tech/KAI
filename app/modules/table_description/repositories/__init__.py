@@ -1,46 +1,48 @@
 from typing import List
 
+from app.data.db.storage import Storage
 from app.modules.table_description.models import TableDescription
 
 DB_COLLECTION = "table_descriptions"
 
 
 class TableDescriptionRepository:
-    def __init__(self, storage):
+    def __init__(self, storage: Storage):
         self.storage = storage
 
     def find_by_id(self, id: str) -> TableDescription | None:
         doc = self.storage.find_one(DB_COLLECTION, {"id": id})
-        return TableDescription(**doc) if doc else None
+        if doc:
+            return TableDescription(**doc)
+        return None
 
     def get_table_info(
         self, db_connection_id: str, table_name: str
     ) -> TableDescription | None:
+        # search table description by its name and all the columns realted to the table
         doc = self.storage.find_one(
             DB_COLLECTION,
             {"db_connection_id": str(db_connection_id), "table_name": table_name},
         )
         return TableDescription(**doc) if doc else None
 
-    def get_all_tables_by_db(self, query: dict) -> List[TableDescription]:
-        rows = self.storage.find(DB_COLLECTION, query)
+    def get_all_tables_by_db(self, filter: dict) -> List[TableDescription]:
+        rows = self.storage.find(DB_COLLECTION, filter)
         tables = [TableDescription(**row) for row in rows]
         return tables
 
     def save_table_info(self, table_info: TableDescription) -> TableDescription:
         table_info_dict = table_info.model_dump(exclude={"id"})
         table_info_dict["table_name"] = table_info.table_name.lower()
-        table_info_dict = {
-            k: v for k, v in table_info_dict.items() if v is not None and v != []
-        }
 
         filter = {
             "db_connection_id": table_info_dict["db_connection_id"],
             "table_name": table_info_dict["table_name"],
         }
-        if "table_schema" in table_info_dict:
-            filter["table_schema"] = table_info_dict["table_schema"]
+        if table_info_dict["db_schema"]:
+            filter["db_schema"] = table_info_dict["db_schema"]
 
+        # Save table info
         table_info.id = str(
             self.storage.update_or_create(
                 DB_COLLECTION,
@@ -48,9 +50,11 @@ class TableDescriptionRepository:
                 table_info_dict,
             )
         )
+
         return table_info
 
     def update(self, table_info: TableDescription) -> TableDescription:
+        # update table description, if columns is exist, update each column info
         table_info_dict = table_info.model_dump(exclude={"id"})
         table_info_dict = {
             k: v for k, v in table_info_dict.items() if v is not None and v != []
@@ -63,17 +67,17 @@ class TableDescriptionRepository:
         return table_info
 
     def find_all(self) -> list[TableDescription]:
+        # get all table description and its columns
         rows = self.storage.find_all(DB_COLLECTION)
         result = [TableDescription(**row) for row in rows]
         return result
 
-    def find_by(self, query: dict) -> list[TableDescription]:
-        query = {k: v for k, v in query.items() if v}
-        rows = self.storage.find(DB_COLLECTION, query)
+    def find_by(self, filter: dict) -> list[TableDescription]:
+        filter = {k: v for k, v in filter.items() if v}
+        rows = self.storage.find(DB_COLLECTION, filter)
         result = []
         for row in rows:
             obj = TableDescription(**row)
-            obj.columns = sorted(obj.columns, key=lambda x: x.name)
             result.append(obj)
         return result
 
@@ -89,9 +93,7 @@ class TableDescriptionRepository:
 
             for column_request in table_description_request.columns:
                 if column_request.name not in columns:
-                    raise Exception(
-                        f"Column {column_request.name} doesn't exist"
-                    )
+                    raise Exception(f"Column {column_request.name} doesn't exist")
                 for column in table.columns:
                     if column_request.name == column.name:
                         for field, value in column_request:

@@ -1,10 +1,15 @@
 {
-    "name": "sql_generation",
+    "name": "sql_generations",
     "enable_nested_fields": true,
     "fields": [
         {
-            "name": "prompt_id",
+            "name": "id",
             "type": "string"
+        },
+        {
+            "name": "prompt_id",
+            "type": "string",
+            "reference": "prompts.id"
         },
         {
             "name": "llm_name",
