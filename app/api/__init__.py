@@ -15,6 +15,7 @@ from app.api.responses import (
 from app.data.db.storage import Storage
 from app.modules.database_connection.services import DatabaseConnectionService
 from app.modules.prompt.services import PromptService
+from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.table_description.services import TableDescriptionService
 
 
@@ -25,6 +26,7 @@ class API:
         self.database_connection_service = DatabaseConnectionService(self.storage)
         self.table_description_service = TableDescriptionService(self.storage)
         self.prompt_service = PromptService(self.storage)
+        self.sql_generation_service = SQLGenerationService(self.storage)
 
         self._register_routes()
 
@@ -117,6 +119,50 @@ class API:
             tags=["Prompts"],
         )
 
+        # self.router.add_api_route(
+        #     "/api/v1/prompts/{prompt_id}/sql-generations",
+        #     self.create_sql_generation,
+        #     methods=["POST"],
+        #     status_code=201,
+        #     tags=["SQL Generation"],
+        # )
+
+        # self.router.add_api_route(
+        #     "/api/v1/prompts/sql-generations",
+        #     self.create_prompt_and_sql_generation,
+        #     methods=["POST"],
+        #     status_code=201,
+        #     tags=["SQL Generation"],
+        # )
+
+        # self.router.add_api_route(
+        #     "/api/v1/sql-generations",
+        #     self.get_sql_generations,
+        #     methods=["GET"],
+        #     tags=["SQL Generation"],
+        # )
+
+        # self.router.add_api_route(
+        #     "/api/v1/sql-generations/{sql_generation_id}",
+        #     self.get_sql_generation,
+        #     methods=["GET"],
+        #     tags=["SQL Generation"],
+        # )
+
+        # self.router.add_api_route(
+        #     "/api/v1/sql-generations/{sql_generation_id}",
+        #     self.update_sql_generation,
+        #     methods=["PUT"],
+        #     tags=["SQL Generation"],
+        # )
+
+        # self.router.add_api_route(
+        #     "/api/v1/sql-generations/{sql_generation_id}/execute",
+        #     self.execute_sql_query,
+        #     methods=["GET"],
+        #     tags=["SQL Generation"],
+        # )
+
     def get_router(self) -> fastapi.APIRouter:
         return self.router
 
@@ -176,7 +222,7 @@ class API:
         )
 
     def create_prompt(self, prompt_request: PromptRequest) -> PromptResponse:
-        prompt = self.prompt_service.create_prompt(prompt_request) 
+        prompt = self.prompt_service.create_prompt(prompt_request)
         return PromptResponse(**prompt.model_dump())
 
     def get_prompt(self, prompt_id: str) -> PromptResponse:
