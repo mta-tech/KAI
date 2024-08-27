@@ -1,0 +1,52 @@
+{
+    "name": "sql_generations",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "prompt_id",
+            "type": "string",
+            "reference": "prompts.id"
+        },
+        {
+            "name": "llm_name",
+            "type": "string"
+        },
+        {
+            "name": "evaluate",
+            "type": "bool"
+        },
+        {
+            "name": "evaluation_score",
+            "type": "int32"
+        },
+        {
+            "name": "status",
+            "type": "string"
+        },
+        {
+            "name": "sql",
+            "type": "string"
+        },
+        {
+            "name": "error_message",
+            "type": "string"
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        },
+        {
+            "name": "completed_at",
+            "type": "string"
+        }
+    ]
+}

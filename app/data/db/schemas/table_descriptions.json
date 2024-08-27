@@ -1,0 +1,104 @@
+{
+    "name": "table_descriptions",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "db_connection_id",
+            "type": "string",
+            "reference": "database_connections.id"
+        },
+        {
+            "name": "db_schema",
+            "type": "string"
+        },
+        {
+            "name": "table_name",
+            "type": "string"
+        },
+        {
+            "name": "columns",
+            "type": "object[]",
+            "optional": true,
+            "fields": [
+                {
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "name": "description",
+                    "type": "string",
+                    "optional": true
+                },
+                {
+                    "name": "is_primary_key",
+                    "type": "bool"
+                },
+                {
+                    "name": "data_type",
+                    "type": "string"
+                },
+                {
+                    "name": "low_cardinality",
+                    "type": "bool"
+                },
+                {
+                    "name": "categories",
+                    "type": "string[]",
+                    "optional": true
+                },
+                {
+                    "name": "examples",
+                    "type": "string[]",
+                    "optional": true
+                },
+                {
+                    "name": "foreign_key",
+                    "type": "object",
+                    "optional": true
+                }
+            ]
+        },
+        {
+            "name": "table_description",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "table_embedding",
+            "type": "float[]",
+            "optional": true
+        },
+        {
+            "name": "table_schema",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "sync_status",
+            "type": "string"
+        },
+        {
+            "name": "last_sync",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "error_message",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        }
+    ]
+}
