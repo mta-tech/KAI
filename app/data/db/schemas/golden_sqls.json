@@ -1,0 +1,36 @@
+{
+    "name": "golden_sqls",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "db_connection_id",
+            "type": "string",
+            "reference": "database_connections.id"
+        },
+        {
+            "name": "prompt_text",
+            "type": "string"
+        },
+        {
+            "name": "prompt_embedding",
+            "type": "float[]"
+        },
+        {
+            "name": "sql",
+            "type": "string"
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        }
+    ]
+}

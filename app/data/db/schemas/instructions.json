@@ -1,0 +1,37 @@
+{
+    "name": "instructions",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "db_connection_id",
+            "type": "string",
+            "reference": "database_connections.id"
+        },
+        {
+            "name": "instruction",
+            "type": "string"
+        },
+        {
+            "name": "instruction_embedding",
+            "type": "float[]",
+            "optional": true
+        },
+        {
+            "name": "is_default",
+            "type": "bool"
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        }
+    ]
+}

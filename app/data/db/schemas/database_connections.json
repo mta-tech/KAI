@@ -1,0 +1,35 @@
+{
+    "name": "database_connections",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "alias",
+            "type": "string"
+        },
+        {
+            "name": "dialect",
+            "type": "string"
+        },
+        {
+            "name": "connection_uri",
+            "type": "string"
+        },
+        {
+            "name": "schemas",
+            "type": "string[]"
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        }
+    ]
+}
