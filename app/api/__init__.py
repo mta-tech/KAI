@@ -1,11 +1,22 @@
 import fastapi
 from fastapi import BackgroundTasks
 
-from app.api.requests import DatabaseConnectionRequest, ScannerRequest
-from app.api.responses import DatabaseConnectionResponse, TableDescriptionResponse
+from app.api.requests import (
+    DatabaseConnectionRequest,
+    PromptRequest,
+    ScannerRequest,
+    UpdateMetadataRequest,
+)
+from app.api.responses import (
+    DatabaseConnectionResponse,
+    PromptResponse,
+    TableDescriptionResponse,
+)
 from app.data.db.storage import Storage
 from app.modules.database_connection.services import DatabaseConnectionService
+from app.modules.prompt.services import PromptService
 from app.modules.table_description.services import TableDescriptionService
+
 
 class API:
     def __init__(self, storage: Storage) -> None:
@@ -13,6 +24,7 @@ class API:
         self.router = fastapi.APIRouter()
         self.database_connection_service = DatabaseConnectionService(self.storage)
         self.table_description_service = TableDescriptionService(self.storage)
+        self.prompt_service = PromptService(self.storage)
 
         self._register_routes()
 
@@ -76,6 +88,35 @@ class API:
             tags=["Table Descriptions"],
         )
 
+        self.router.add_api_route(
+            "/api/v1/prompts",
+            self.create_prompt,
+            methods=["POST"],
+            status_code=201,
+            tags=["Prompts"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/prompts/{prompt_id}",
+            self.get_prompt,
+            methods=["GET"],
+            tags=["Prompts"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/prompts",
+            self.get_prompts,
+            methods=["GET"],
+            tags=["Prompts"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/prompts/{prompt_id}",
+            self.update_prompt,
+            methods=["PUT"],
+            tags=["Prompts"],
+        )
+
     def get_router(self) -> fastapi.APIRouter:
         return self.router
 
@@ -133,3 +174,18 @@ class API:
         return self.table_description_service.get_table_description(
             table_description_id
         )
+
+    def create_prompt(self, prompt_request: PromptRequest) -> PromptResponse:
+        prompt = self.prompt_service.create_prompt(prompt_request) 
+        return PromptResponse(**prompt.model_dump())
+
+    def get_prompt(self, prompt_id: str) -> PromptResponse:
+        return self.prompt_service.get_prompt(prompt_id)
+
+    def update_prompt(
+        self, prompt_id: str, update_metadata_request: UpdateMetadataRequest
+    ) -> PromptResponse:
+        return self.prompt_service.update_prompt(prompt_id, update_metadata_request)
+
+    def get_prompts(self, db_connection_id: str | None = None) -> list[PromptResponse]:
+        return self.prompt_service.get_prompts(db_connection_id)

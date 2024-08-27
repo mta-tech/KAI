@@ -28,6 +28,18 @@ class TableDescriptionRequest(BaseModel):
     columns: list[ColumnDescriptionRequest] | None
     metadata: dict | None = None
 
+
 class ScannerRequest(BaseModel):
     table_description_ids: list[str] | None
     metadata: dict | None = None
+
+
+class PromptRequest(BaseModel):
+    text: str
+    db_connection_id: str
+    schemas: list[str] | None = None
+    metadata: dict | None = None
+
+
+class UpdateMetadataRequest(BaseModel):
+    metadata: dict | None

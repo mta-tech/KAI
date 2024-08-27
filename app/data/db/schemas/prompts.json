@@ -12,6 +12,11 @@
             "reference": "database_connections.id"
         },
         {
+            "name": "schemas",
+            "type": "string[]",
+            "optional": true
+        },
+        {
             "name": "text",
             "type": "string"
         },
