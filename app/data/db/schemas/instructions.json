@@ -17,7 +17,7 @@
         },
         {
             "name": "instruction_embedding",
-            "type": "float[]",
+            "type": "object",
             "optional": true
         },
         {
