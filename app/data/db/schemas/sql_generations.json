@@ -12,23 +12,36 @@
             "reference": "prompts.id"
         },
         {
-            "name": "llm_name",
-            "type": "string"
+            "name": "llm_config",
+            "type": "object"
         },
         {
             "name": "evaluate",
             "type": "bool"
         },
         {
-            "name": "evaluation_score",
-            "type": "int32"
+            "name": "confidence_score",
+            "type": "float"
+        },
+        {
+            "name": "intermediate_step",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "sql",
+            "type": "string"
         },
         {
             "name": "status",
             "type": "string"
         },
         {
-            "name": "sql",
+            "name": "token_used",
+            "type": "int32"
+        },
+        {
+            "name": "completed_at",
             "type": "string"
         },
         {
@@ -36,17 +49,13 @@
             "type": "string"
         },
         {
-            "name": "metadata",
-            "type": "object",
-            "optional": true
-        },
-        {
             "name": "created_at",
             "type": "string"
         },
         {
-            "name": "completed_at",
-            "type": "string"
+            "name": "metadata",
+            "type": "object",
+            "optional": true
         }
     ]
 }

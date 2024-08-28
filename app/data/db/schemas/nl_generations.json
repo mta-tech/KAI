@@ -12,8 +12,8 @@
             "reference": "sql_generations.id"
         },
         {
-            "name": "llm_name",
-            "type": "string"
+            "name": "llm_config",
+            "type": "object"
         },
         {
             "name": "text",
