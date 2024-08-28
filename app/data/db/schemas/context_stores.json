@@ -1,5 +1,5 @@
 {
-    "name": "golden_sqls",
+    "name": "context_stores",
     "enable_nested_fields": true,
     "fields": [
         {
@@ -17,11 +17,20 @@
         },
         {
             "name": "prompt_embedding",
-            "type": "float[]"
+            "type": "object"
         },
         {
             "name": "sql",
             "type": "string"
+        },
+        {
+            "name": "is_parameterized",
+            "type": "boolean"
+        },
+        {
+            "name": "parameterized_object",
+            "type": "object",
+            "optional": true
         },
         {
             "name": "metadata",

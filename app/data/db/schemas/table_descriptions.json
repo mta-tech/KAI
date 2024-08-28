@@ -51,16 +51,16 @@
                     "optional": true
                 },
                 {
-                    "name": "examples",
-                    "type": "string[]",
-                    "optional": true
-                },
-                {
                     "name": "foreign_key",
                     "type": "object",
                     "optional": true
                 }
             ]
+        },
+        {
+            "name": "examples",
+            "type": "object[]",
+            "optional": true
         },
         {
             "name": "table_description",
@@ -69,7 +69,7 @@
         },
         {
             "name": "table_embedding",
-            "type": "float[]",
+            "type": "object",
             "optional": true
         },
         {
