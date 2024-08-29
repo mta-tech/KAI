@@ -164,7 +164,6 @@ class SqlAlchemyScanner:
             field_size = [""]
         if len(str(str(field_size[0]))) > MAX_SIZE_LETTERS:
             column_description = ColumnDescription(
-                table_description_id=table_id,
                 name=column["name"],
                 data_type=str(column["type"]),
                 low_cardinality=False,
@@ -177,7 +176,6 @@ class SqlAlchemyScanner:
 
         if category_values:
             column_description = ColumnDescription(
-                table_description_id=table_id,
                 name=column["name"],
                 data_type=str(column["type"]),
                 low_cardinality=True,
@@ -185,7 +183,6 @@ class SqlAlchemyScanner:
             )
         else:
             column_description = ColumnDescription(
-                table_description_id=table_id,
                 name=column["name"],
                 data_type=str(column["type"]),
                 low_cardinality=False,
