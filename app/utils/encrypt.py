@@ -6,7 +6,7 @@ from app.server.config import Settings
 class FernetEncrypt:
     def __init__(self):
         settings = Settings()
-        self.fernet_key = Fernet(settings.require("encrypt_key"))
+        self.fernet_key = Fernet(settings.require("ENCRYPT_KEY"))
 
     def encrypt(self, input: str) -> str:
         if not input:

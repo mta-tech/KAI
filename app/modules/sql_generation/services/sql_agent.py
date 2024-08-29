@@ -630,7 +630,7 @@ class SQLDatabaseToolkit(BaseToolkit):
         return tools
 
 
-class DataheraldSQLAgent(SQLGenerator):
+class SQLAgent(SQLGenerator):
     """Dataherald SQL agent"""
 
     max_number_of_examples: int = 5  # maximum number of question/SQL pairs

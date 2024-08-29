@@ -2,7 +2,7 @@ from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy import create_engine
 
 from app.api.requests import ScannerRequest, TableDescriptionRequest
-from app.api.responses import TableDescriptionResponse
+from app.api.responses import TableDescription
 from app.data.db.storage import Storage
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.modules.database_connection.services import DatabaseConnectionService
@@ -20,7 +20,7 @@ class TableDescriptionService:
 
     def scan_db(
         self, scanner_request: ScannerRequest, background_tasks: BackgroundTasks
-    ) -> list[TableDescriptionResponse]:
+    ) -> list[TableDescription]:
         """Takes a table_description_id and scan all the tables columns"""
         scanner_repository = TableDescriptionRepository(self.storage)
         data = {}
@@ -49,24 +49,25 @@ class TableDescriptionService:
             TableDescriptionRepository(self.storage),
         )
 
+        database_connection_service = DatabaseConnectionService(scanner, self.storage)
         for db_connection_id, schemas_and_table_descriptions in data.items():
             for schema, table_descriptions in schemas_and_table_descriptions.items():
                 db_connection = db_connection_repository.find_by_id(db_connection_id)
 
-                # Get database engine
-                database_uri = (
-                    f"{db_connection.connection_uri}?options=-csearch_path={schema}"
+                database = database_connection_service.get_sql_database(
+                    db_connection, schema
                 )
-                engine = create_engine(database_uri)
 
+                engine = database.engine
+                
                 background_tasks.add_task(
                     async_scanning, scanner, engine, table_descriptions, self.storage
                 )
-        return [TableDescriptionResponse(**row.model_dump()) for row in rows]
+        return [TableDescription(**row.model_dump()) for row in rows]
 
     def refresh_table_description(
         self, database_connection_id: str
-    ) -> list[TableDescriptionResponse]:
+    ) -> list[TableDescription]:
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(database_connection_id)
         scanner = SqlAlchemyScanner()
@@ -90,7 +91,7 @@ class TableDescriptionService:
             scanner_repository = TableDescriptionRepository(self.storage)
 
             return [
-                TableDescriptionResponse(**record.dict())
+                TableDescription(**record.dict())
                 for record in scanner.refresh_tables(
                     data, str(db_connection.id), scanner_repository
                 )
@@ -102,7 +103,7 @@ class TableDescriptionService:
         self,
         table_description_id: str,
         table_description_request: TableDescriptionRequest,
-    ) -> TableDescriptionResponse:
+    ) -> TableDescription:
         scanner_repository = TableDescriptionRepository(self.storage)
         try:
             table = scanner_repository.find_by_id(table_description_id)
@@ -118,13 +119,11 @@ class TableDescriptionService:
             table_description = scanner_repository.update_fields(
                 table, table_description_request
             )
-            return TableDescriptionResponse(**table_description.dict())
+            return TableDescription(**table_description.dict())
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
-    def get_table_description(
-        self, table_description_id: str
-    ) -> TableDescriptionResponse:
+    def get_table_description(self, table_description_id: str) -> TableDescription:
         scanner_repository = TableDescriptionRepository(self.storage)
 
         result = scanner_repository.find_by_id(table_description_id)
@@ -132,16 +131,16 @@ class TableDescriptionService:
         if result is None:
             raise HTTPException(status_code=404, detail="Table description not found")
 
-        return TableDescriptionResponse(**result.model_dump())
+        return TableDescription(**result.model_dump())
 
     def list_table_descriptions(
         self, db_connection_id: str, table_name: str | None = None
-    ) -> list[TableDescriptionResponse]:
+    ) -> list[TableDescription]:
         table_description_repository = TableDescriptionRepository(self.storage)
         table_descriptions = table_description_repository.find_by(
             {"db_connection_id": str(db_connection_id), "table_name": table_name}
         )
         return [
-            TableDescriptionResponse(**table_description.model_dump())
+            TableDescription(**table_description.model_dump())
             for table_description in table_descriptions
         ]

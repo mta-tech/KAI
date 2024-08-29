@@ -1,6 +1,9 @@
-from pydantic import BaseModel
+from datetime import datetime
+
+from pydantic import BaseModel, Field
 
 from app.modules.database_connection.models import DatabaseConnection
+from app.modules.sql_generation.models import IntermediateStep, LLMConfig
 from app.modules.table_description.models import TableDescription
 
 
@@ -22,3 +25,16 @@ class PromptResponse(BaseResponse):
     text: str
     db_connection_id: str
     schemas: list[str] | None
+
+
+class SQLGenerationResponse(BaseResponse):
+    id:str
+    prompt_id: str
+    status: str
+    llm_config: LLMConfig | None
+    intermediate_steps: list[IntermediateStep] | None
+    sql: str | None
+    tokens_used: int | None
+    confidence_score: float | None
+    completed_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    error: str | None
