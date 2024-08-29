@@ -1,3 +1,5 @@
+import uuid
+
 from app.data.db.storage import Storage
 from app.modules.database_connection.models import DatabaseConnection
 

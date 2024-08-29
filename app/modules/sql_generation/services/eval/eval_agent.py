@@ -94,7 +94,8 @@ class EntityFinder(BaseSQLDatabaseTool, BaseTool):
             entity, column_name, table_name = input.split(", ")
             engine = self.db._engine
 
-            metadata = MetaData(bind=engine)
+            metadata = MetaData()
+            metadata.reflect(bind=engine)
             table = Table(table_name, metadata, autoload=True)
             column = table.c[column_name]
 
