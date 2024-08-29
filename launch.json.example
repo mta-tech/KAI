@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run KAI",
+            "type": "python",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "app.main:app",
+                "--reload",
+                "--host", "localhost",
+                "--port", "8000"
+            ],
+            "justMyCode": true,
+            "console": "integratedTerminal",
+            // Give your virtual environment path
+            "python": "Your python environment path"
+        }
+    ]
+}
