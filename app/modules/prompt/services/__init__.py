@@ -8,7 +8,7 @@ from app.modules.prompt.repositories import PromptRepository
 class PromptService:
     def __init__(self, storage):
         self.storage = storage
-        self.prompt_repository = PromptRepository(self.storage)
+        self.repository = PromptRepository(self.storage)
 
     def create_prompt(self, prompt_request: PromptRequest) -> Prompt:
         db_connection_repository = DatabaseConnectionRepository(self.storage)
@@ -32,10 +32,10 @@ class PromptService:
             schemas=prompt_request.schemas,
             metadata=prompt_request.metadata,
         )
-        return self.prompt_repository.insert(prompt)
+        return self.repository.insert(prompt)
 
     def get_prompt(self, prompt_id) -> Prompt:
-        prompt = self.prompt_repository.find_by_id(prompt_id)
+        prompt = self.repository.find_by_id(prompt_id)
         if not prompt:
             raise Exception(f"Prompt {prompt_id} not found")
         return prompt
@@ -43,12 +43,12 @@ class PromptService:
     def update_prompt(
         self, prompt_id, metadata_request: UpdateMetadataRequest
     ) -> Prompt:
-        prompt = self.prompt_repository.find_by_id(prompt_id)
+        prompt = self.repository.find_by_id(prompt_id)
         if not prompt:
             raise Exception(f"Prompt {prompt_id} not found")
         prompt.metadata = metadata_request.metadata
-        return self.prompt_repository.update(prompt)
+        return self.repository.update(prompt)
 
     def get_prompts(self, db_connection_id) -> list[Prompt]:
         filter = {"db_connection_id": db_connection_id}
-        return self.prompt_repository.find_by(filter)
+        return self.repository.find_by(filter)

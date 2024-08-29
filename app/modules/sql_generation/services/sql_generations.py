@@ -3,41 +3,22 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import datetime
 from queue import Queue
 
-import pandas as pd
+# import pandas as pd
 
-from dataherald.api.types.requests import SQLGenerationRequest
-from dataherald.config import System
-from dataherald.eval import Evaluator
-from dataherald.repositories.database_connections import (
-    DatabaseConnectionRepository,
-)
-from dataherald.repositories.prompts import PromptNotFoundError, PromptRepository
-from dataherald.repositories.sql_generations import (
-    SQLGenerationNotFoundError,
-    SQLGenerationRepository,
-)
-from dataherald.sql_database.base import SQLDatabase
-from dataherald.sql_generator.create_sql_query_status import create_sql_query_status
-from dataherald.sql_generator.dataherald_finetuning_agent import (
-    DataheraldFinetuningAgent,
-)
-from dataherald.sql_generator.dataherald_sqlagent import DataheraldSQLAgent
-from dataherald.types import LLMConfig, SQLGeneration
-
-
-class SQLGenerationError(Exception):
-    pass
-
-
-class EmptySQLGenerationError(Exception):
-    pass
+from app.api.requests import SQLGenerationRequest
+from app.data.db.storage import Storage
+from app.modules.database_connection.repositories import DatabaseConnectionRepository
+from app.modules.prompt.repositories import PromptRepository
+from app.modules.sql_generation.models import LLMConfig, SQLGeneration
+from app.modules.sql_generation.repositories import SQLGenerationRepository
+from app.modules.sql_generation.services.sql_agent import SQLAgent
 
 
 class SQLGenerationService:
-    def __init__(self, system: System, storage):
+    def __init__(self, system: System, storage: Storage):
         self.system = system
         self.storage = storage
-        self.sql_generation_repository = SQLGenerationRepository(storage)
+        self.sql_generation_repository = SQLGenerationRepository(self.storage)
 
     def update_error(self, sql_generation: SQLGeneration, error: str) -> SQLGeneration:
         sql_generation.error = error
@@ -82,16 +63,18 @@ class SQLGenerationService:
             else {}
         )
         self.sql_generation_repository.insert(initial_sql_generation)
+
         prompt_repository = PromptRepository(self.storage)
         prompt = prompt_repository.find_by_id(prompt_id)
         if not prompt:
             self.update_error(initial_sql_generation, f"Prompt {prompt_id} not found")
-            raise PromptNotFoundError(
-                f"Prompt {prompt_id} not found", initial_sql_generation.id
-            )
+            raise Exception(f"Prompt {prompt_id} not found", initial_sql_generation.id)
+
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(prompt.db_connection_id)
+
         database = SQLDatabase.get_sql_engine(db_connection, True)
+        
         if sql_generation_request.sql is not None:
             sql_generation = SQLGeneration(
                 prompt_id=prompt_id,
@@ -104,44 +87,16 @@ class SQLGenerationService:
                 )
             except Exception as e:
                 self.update_error(initial_sql_generation, str(e))
-                raise SQLGenerationError(str(e), initial_sql_generation.id) from e
+                raise Exception(str(e), initial_sql_generation.id) from e
         else:
-            if (
-                sql_generation_request.finetuning_id is None
-                or sql_generation_request.finetuning_id == ""
-            ):
-                if sql_generation_request.low_latency_mode:
-                    raise SQLGenerationError(
-                        "Low latency mode is not supported for our old agent with no finetuning. Please specify a finetuning id.",
-                        initial_sql_generation.id,
-                    )
-                sql_generator = DataheraldSQLAgent(
-                    self.system,
-                    (
-                        sql_generation_request.llm_config
-                        if sql_generation_request.llm_config
-                        else LLMConfig()
-                    ),
-                )
-            else:
-                sql_generator = DataheraldFinetuningAgent(
-                    self.system,
-                    (
-                        sql_generation_request.llm_config
-                        if sql_generation_request.llm_config
-                        else LLMConfig()
-                    ),
-                )
-                sql_generator.finetuning_id = sql_generation_request.finetuning_id
-                sql_generator.use_fintuned_model_only = (
-                    sql_generation_request.low_latency_mode
-                )
-                initial_sql_generation.finetuning_id = (
-                    sql_generation_request.finetuning_id
-                )
-                initial_sql_generation.low_latency_mode = (
-                    sql_generation_request.low_latency_mode
-                )
+            sql_generator = SQLAgent(
+                self.system,
+                (
+                    sql_generation_request.llm_config
+                    if sql_generation_request.llm_config
+                    else LLMConfig()
+                ),
+            )
             try:
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(
@@ -159,13 +114,13 @@ class SQLGenerationService:
                         self.update_error(
                             initial_sql_generation, "SQL generation request timed out"
                         )
-                        raise SQLGenerationError(
+                        raise Exception(
                             "SQL generation request timed out",
                             initial_sql_generation.id,
                         ) from e
             except Exception as e:
                 self.update_error(initial_sql_generation, str(e))
-                raise SQLGenerationError(str(e), initial_sql_generation.id) from e
+                raise Exception(str(e), initial_sql_generation.id) from e
         if sql_generation_request.evaluate:
             evaluator = self.system.instance(Evaluator)
             evaluator.llm_config = (
@@ -207,45 +162,18 @@ class SQLGenerationService:
         prompt = prompt_repository.find_by_id(prompt_id)
         if not prompt:
             self.update_error(initial_sql_generation, f"Prompt {prompt_id} not found")
-            raise PromptNotFoundError(
-                f"Prompt {prompt_id} not found", initial_sql_generation.id
-            )
+            raise Exception(f"Prompt {prompt_id} not found", initial_sql_generation.id)
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(prompt.db_connection_id)
-        if (
-            sql_generation_request.finetuning_id is None
-            or sql_generation_request.finetuning_id == ""
-        ):
-            if sql_generation_request.low_latency_mode:
-                raise SQLGenerationError(
-                    "Low latency mode is not supported for our old agent with no finetuning. Please specify a finetuning id.",
-                    initial_sql_generation.id,
-                )
-            sql_generator = DataheraldSQLAgent(
-                self.system,
-                (
-                    sql_generation_request.llm_config
-                    if sql_generation_request.llm_config
-                    else LLMConfig()
-                ),
-            )
-        else:
-            sql_generator = DataheraldFinetuningAgent(
-                self.system,
-                (
-                    sql_generation_request.llm_config
-                    if sql_generation_request.llm_config
-                    else LLMConfig()
-                ),
-            )
-            sql_generator.finetuning_id = sql_generation_request.finetuning_id
-            sql_generator.use_fintuned_model_only = (
-                sql_generation_request.low_latency_mode
-            )
-            initial_sql_generation.finetuning_id = sql_generation_request.finetuning_id
-            initial_sql_generation.low_latency_mode = (
-                sql_generation_request.low_latency_mode
-            )
+
+        sql_generator = SQLAgent(
+            self.system,
+            (
+                sql_generation_request.llm_config
+                if sql_generation_request.llm_config
+                else LLMConfig()
+            ),
+        )
         try:
             sql_generator.stream_response(
                 user_prompt=prompt,
@@ -256,7 +184,7 @@ class SQLGenerationService:
             )
         except Exception as e:
             self.update_error(initial_sql_generation, str(e))
-            raise SQLGenerationError(str(e), initial_sql_generation.id) from e
+            raise Exception(str(e), initial_sql_generation.id) from e
 
     def get(self, query) -> list[SQLGeneration]:
         return self.sql_generation_repository.find_by(query)
@@ -264,9 +192,7 @@ class SQLGenerationService:
     def execute(self, sql_generation_id: str, max_rows: int = 100) -> tuple[str, dict]:
         sql_generation = self.sql_generation_repository.find_by_id(sql_generation_id)
         if not sql_generation:
-            raise SQLGenerationNotFoundError(
-                f"SQL Generation {sql_generation_id} not found"
-            )
+            raise Exception(f"SQL Generation {sql_generation_id} not found")
         prompt_repository = PromptRepository(self.storage)
         prompt = prompt_repository.find_by_id(sql_generation.prompt_id)
         db_connection_repository = DatabaseConnectionRepository(self.storage)
@@ -277,27 +203,21 @@ class SQLGenerationService:
     def update_metadata(self, sql_generation_id, metadata_request) -> SQLGeneration:
         sql_generation = self.sql_generation_repository.find_by_id(sql_generation_id)
         if not sql_generation:
-            raise SQLGenerationNotFoundError(
-                f"Sql generation {sql_generation_id} not found"
-            )
+            raise Exception(f"Sql generation {sql_generation_id} not found")
         sql_generation.metadata = metadata_request.metadata
         return self.sql_generation_repository.update(sql_generation)
 
-    def create_dataframe(self, sql_generation_id):
-        sql_generation = self.sql_generation_repository.find_by_id(sql_generation_id)
-        if not sql_generation:
-            raise SQLGenerationNotFoundError(
-                f"Sql generation {sql_generation_id} not found"
-            )
-        prompt_repository = PromptRepository(self.storage)
-        prompt = prompt_repository.find_by_id(sql_generation.prompt_id)
-        db_connection_repository = DatabaseConnectionRepository(self.storage)
-        db_connection = db_connection_repository.find_by_id(prompt.db_connection_id)
-        database = SQLDatabase.get_sql_engine(db_connection)
-        results = database.run_sql(sql_generation.sql)
-        if results is None:
-            raise EmptySQLGenerationError(
-                f"Sql generation {sql_generation_id} is empty"
-            )
-        data = results[1]["result"]
-        return pd.DataFrame(data)
+    # def create_dataframe(self, sql_generation_id):
+    #     sql_generation = self.sql_generation_repository.find_by_id(sql_generation_id)
+    #     if not sql_generation:
+    #         raise Exception(f"Sql generation {sql_generation_id} not found")
+    #     prompt_repository = PromptRepository(self.storage)
+    #     prompt = prompt_repository.find_by_id(sql_generation.prompt_id)
+    #     db_connection_repository = DatabaseConnectionRepository(self.storage)
+    #     db_connection = db_connection_repository.find_by_id(prompt.db_connection_id)
+    #     database = SQLDatabase.get_sql_engine(db_connection)
+    #     results = database.run_sql(sql_generation.sql)
+    #     if results is None:
+    #         raise Exception(f"Sql generation {sql_generation_id} is empty")
+    #     data = results[1]["result"]
+    #     return pd.DataFrame(data)

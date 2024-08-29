@@ -1,3 +1,5 @@
+import uuid
+
 from app.data.db import TypeSenseDB
 from app.server.config import Settings
 
@@ -20,6 +22,7 @@ class Storage(TypeSenseDB):
 
     def insert_one(self, collection: str, doc: dict) -> int:
         self.ensure_collection_exists(collection)
+        doc["id"] = str(uuid.uuid4())
         created_id = self.client.collections[collection].documents.create(doc)["id"]
         return created_id
 

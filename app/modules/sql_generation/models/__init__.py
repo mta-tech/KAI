@@ -19,16 +19,14 @@ class IntermediateStep(BaseModel):
 class SQLGeneration(BaseModel):
     id: str | None = None
     prompt_id: str
-    finetuning_id: str | None
-    low_latency_mode: bool = False
-    llm_config: LLMConfig | None
+    llm_config: LLMConfig | None 
     evaluate: bool = False
-    intermediate_steps: list[IntermediateStep] | None
-    sql: str | None
+    intermediate_steps: list[IntermediateStep] | None = None
+    sql: str | None = None
     status: str = "INVALID"
-    completed_at: datetime | None
-    tokens_used: int | None
-    confidence_score: float | None
-    error: str | None
+    tokens_used: int | None 
+    confidence_score: float | None = None
+    completed_at: datetime | None = None
+    error: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
-    metadata: dict | None
+    metadata: dict | None = None
