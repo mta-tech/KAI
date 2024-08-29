@@ -59,7 +59,7 @@ class SqlAlchemyScanner:
                 db_connection_id=db_connection_id,
                 db_schema=schema,
                 table_name=table,
-                status=TableDescriptionStatus.NOT_SCANNED.value,
+                sync_status=TableDescriptionStatus.NOT_SCANNED.value,
                 metadata=metadata,
             )
             repository.save_table_info(table_description)
