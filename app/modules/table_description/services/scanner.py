@@ -85,7 +85,7 @@ class SqlAlchemyScanner:
                     )
                     rows.append(repository.save_table_info(table_description))
                 else:
-                    rows.append(TableDescription(**table_description.dict()))
+                    rows.append(TableDescription(**table_description.model_dump()))
 
             for table in tables:
                 if table not in stored_tables_list:
@@ -283,7 +283,7 @@ class SqlAlchemyScanner:
             table_schema=table_schema,
             last_sync=str(datetime.now()),
             error_message="",
-            status=TableDescriptionStatus.SCANNED.value,
+            sync_status=TableDescriptionStatus.SCANNED.value,
             db_schema=schema,
         )
 
