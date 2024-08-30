@@ -1,20 +1,24 @@
 import fastapi
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, HTTPException
 
 from app.api.requests import (
     DatabaseConnectionRequest,
     PromptRequest,
     ScannerRequest,
     UpdateMetadataRequest,
+    InstructionRequest,
+    UpdateInstructionRequest
 )
 from app.api.responses import (
     DatabaseConnectionResponse,
     PromptResponse,
     TableDescriptionResponse,
+    InstructionResponse
 )
 from app.data.db.storage import Storage
 from app.modules.database_connection.services import DatabaseConnectionService
 from app.modules.prompt.services import PromptService
+from app.modules.instruction.services import InstructionService
 
 from app.modules.table_description.services import TableDescriptionService
 from app.modules.table_description.services.scanner import SqlAlchemyScanner
@@ -29,9 +33,11 @@ class API:
         )
         self.table_description_service = TableDescriptionService(self.storage)
         self.prompt_service = PromptService(self.storage)
+        self.instruction_service = InstructionService(self.storage)
 
         self._register_routes()
 
+# TODO: REGISTER instruction in routes
     def _register_routes(self) -> None:
         self.router.add_api_route(
             "/api/v1/database-connections",
@@ -119,6 +125,42 @@ class API:
             self.update_prompt,
             methods=["PUT"],
             tags=["Prompts"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/instructions",
+            self.create_instruction,
+            methods=["POST"],
+            status_code=201,
+            tags=["Instructions"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/instructions",
+            self.get_instructions,
+            methods=["GET"],
+            tags=["Instructions"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/instructions/{instruction_id}",
+            self.get_instruction,
+            methods=["GET"],
+            tags=["Instructions"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/instructions/{instruction_id}",
+            self.update_instruction,
+            methods=["PUT"],
+            tags=["Instructions"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/instructions/{instruction_id}",
+            self.delete_instruction,
+            methods=["DELETE"],
+            tags=["Instructions"],
         )
 
         # self.router.add_api_route(
@@ -261,6 +303,35 @@ class API:
         prompt = self.prompt_service.update_prompt(prompt_id, update_metadata_request)
         return PromptResponse(**prompt.model_dump())
 
-    def get_prompts(self, db_connection_id: str | None = None) -> list[PromptResponse]:
+    def get_prompts(self, db_connection_id: str) -> list[PromptResponse]:
         prompts = self.prompt_service.get_prompts(db_connection_id)
         return [PromptResponse(**prompt.model_dump()) for prompt in prompts]
+
+    def create_instruction(self, instruction_request: InstructionRequest) -> InstructionResponse:
+        instruction = self.instruction_service.create_instruction(instruction_request)
+        return InstructionResponse(**instruction.model_dump())
+
+    def get_instructions(self, db_connection_id: str) -> list[InstructionResponse]:
+        instructions = self.instruction_service.get_instructions(db_connection_id)
+        return [InstructionResponse(**instruction.model_dump()) for instruction in instructions]
+
+    def get_instruction(self, instruction_id: str) -> InstructionResponse:
+        instruction = self.instruction_service.get_instruction(instruction_id)
+        return InstructionResponse(**instruction.model_dump())
+
+    def update_instruction(
+        self, instruction_id: str, update_instruction_request: UpdateInstructionRequest
+    ) -> InstructionResponse:
+        instruction = self.instruction_service.update_instruction(instruction_id, update_instruction_request)
+        return InstructionResponse(**instruction.model_dump())
+
+    def delete_instruction(self, instruction_id: str) -> dict:
+        try:
+            is_deleted = self.instruction_service.delete_instruction(instruction_id)
+            if is_deleted:
+                return {"message": f"Instruction {instruction_id} successfully deleted"}
+        except Exception as e:
+            if "not found" in str(e):
+                raise HTTPException(status_code=404, detail=str(e))
+            else:
+                raise HTTPException(status_code=500, detail=str(e))

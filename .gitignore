@@ -76,3 +76,6 @@ cython_debug/
 
 # Ignore typesense data
 app/data/dbdata
+
+# Ignore python notebook for testing
+testing.ipynb

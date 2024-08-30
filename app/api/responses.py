@@ -27,6 +27,13 @@ class PromptResponse(BaseResponse):
     schemas: list[str] | None
 
 
+class InstructionResponse(BaseResponse):
+    db_connection_id: str
+    condition: str
+    rules: str
+    condition_embedding: list[float] | None = None
+    is_default: bool
+
 class SQLGenerationResponse(BaseResponse):
     id:str
     prompt_id: str

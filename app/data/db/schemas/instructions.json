@@ -12,12 +12,16 @@
             "reference": "database_connections.id"
         },
         {
-            "name": "instruction",
+            "name": "condition",
             "type": "string"
         },
         {
-            "name": "instruction_embedding",
-            "type": "object",
+            "name": "rules",
+            "type": "string"
+        },
+        {
+            "name": "condition_embedding",
+            "type": "float[]",
             "optional": true
         },
         {

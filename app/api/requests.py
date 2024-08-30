@@ -1,4 +1,5 @@
 from pydantic import BaseModel, field_validator
+from typing import Optional
 from sql_metadata import Parser
 
 from app.modules.sql_generation.models import LLMConfig
@@ -42,6 +43,21 @@ class PromptRequest(BaseModel):
     db_connection_id: str
     schemas: list[str] | None = None
     metadata: dict | None = None
+
+
+class InstructionRequest(BaseModel):
+    db_connection_id: str
+    condition: str
+    rules: str
+    is_default: bool
+    metadata: dict | None = None
+
+
+class UpdateInstructionRequest(BaseModel):
+    condition: Optional[str] = None
+    rules: Optional[str] = None
+    is_default: Optional[bool] = None
+    metadata: Optional[dict] = None
 
 
 class SQLGenerationRequest(BaseModel):
