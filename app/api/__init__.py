@@ -7,18 +7,21 @@ from app.api.requests import (
     ScannerRequest,
     UpdateMetadataRequest,
     InstructionRequest,
-    UpdateInstructionRequest
+    UpdateInstructionRequest,
+    ContextStoreRequest
 )
 from app.api.responses import (
     DatabaseConnectionResponse,
     PromptResponse,
     TableDescriptionResponse,
-    InstructionResponse
+    InstructionResponse,
+    ContextStoreResponse
 )
 from app.data.db.storage import Storage
 from app.modules.database_connection.services import DatabaseConnectionService
 from app.modules.prompt.services import PromptService
 from app.modules.instruction.services import InstructionService
+from app.modules.context_store.services import ContextStoreService
 
 from app.modules.table_description.services import TableDescriptionService
 from app.modules.table_description.services.scanner import SqlAlchemyScanner
@@ -34,10 +37,10 @@ class API:
         self.table_description_service = TableDescriptionService(self.storage)
         self.prompt_service = PromptService(self.storage)
         self.instruction_service = InstructionService(self.storage)
+        self.context_store_service = ContextStoreService(self.storage)
 
         self._register_routes()
 
-# TODO: REGISTER instruction in routes
     def _register_routes(self) -> None:
         self.router.add_api_route(
             "/api/v1/database-connections",
@@ -161,6 +164,35 @@ class API:
             self.delete_instruction,
             methods=["DELETE"],
             tags=["Instructions"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/context-stores",
+            self.create_context_store,
+            methods=["POST"],
+            status_code=201,
+            tags=["Context Stores"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/context-stores",
+            self.get_context_stores,
+            methods=["GET"],
+            tags=["Context Stores"],
+        )
+        
+        self.router.add_api_route(
+            "/api/v1/context-stores/{context_store_id}",
+            self.get_context_store,
+            methods=["GET"],
+            tags=["Context Stores"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/context-stores/{context_store_id}",
+            self.delete_context_store,
+            methods=["DELETE"],
+            tags=["Context Stores"],
         )
 
         # self.router.add_api_route(
@@ -307,6 +339,7 @@ class API:
         prompts = self.prompt_service.get_prompts(db_connection_id)
         return [PromptResponse(**prompt.model_dump()) for prompt in prompts]
 
+    # * INSTRUCTION RESPONSE MODEL
     def create_instruction(self, instruction_request: InstructionRequest) -> InstructionResponse:
         instruction = self.instruction_service.create_instruction(instruction_request)
         return InstructionResponse(**instruction.model_dump())
@@ -330,6 +363,30 @@ class API:
             is_deleted = self.instruction_service.delete_instruction(instruction_id)
             if is_deleted:
                 return {"message": f"Instruction {instruction_id} successfully deleted"}
+        except Exception as e:
+            if "not found" in str(e):
+                raise HTTPException(status_code=404, detail=str(e))
+            else:
+                raise HTTPException(status_code=500, detail=str(e))
+    
+    # * CONTEXT STORE RESPONSE MODEL
+    def create_context_store(self, context_store_request: ContextStoreRequest) -> ContextStoreResponse:
+        context_store = self.context_store_service.create_context_store(context_store_request)
+        return ContextStoreResponse(**context_store.model_dump())
+
+    def get_context_stores(self, db_connection_id: str) -> list[ContextStoreResponse]:
+        context_stores = self.context_store_service.get_context_stores(db_connection_id)
+        return [ContextStoreResponse(**context_store.model_dump()) for context_store in context_stores]
+
+    def get_context_store(self, context_store_id: str) -> ContextStoreResponse:
+        context_store = self.context_store_service.get_context_store(context_store_id)
+        return ContextStoreResponse(**context_store.model_dump())
+
+    def delete_context_store(self, context_store_id: str) -> dict:
+        try:
+            is_deleted = self.context_store_service.delete_context_store(context_store_id)
+            if is_deleted:
+                return {"message": f"Context {context_store_id} successfully deleted"}
         except Exception as e:
             if "not found" in str(e):
                 raise HTTPException(status_code=404, detail=str(e))

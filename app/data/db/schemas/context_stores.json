@@ -17,7 +17,8 @@
         },
         {
             "name": "prompt_embedding",
-            "type": "object"
+            "type": "float[]",
+            "optional": true
         },
         {
             "name": "sql",
@@ -25,10 +26,10 @@
         },
         {
             "name": "is_parameterized",
-            "type": "boolean"
+            "type": "bool"
         },
         {
-            "name": "parameterized_object",
+            "name": "parameterized_entity",
             "type": "object",
             "optional": true
         },

@@ -60,6 +60,19 @@ class UpdateInstructionRequest(BaseModel):
     metadata: Optional[dict] = None
 
 
+class ContextStoreRequest(BaseModel):
+    db_connection_id: str
+    prompt_text: str
+    sql: str
+    metadata: dict | None = None
+
+
+# class UpdateContextStoreRequest(BaseModel):
+#     prompt_text: Optional[str] = None
+#     sql: Optional[str] = None
+#     metadata: Optional[dict] = None
+
+
 class SQLGenerationRequest(BaseModel):
     llm_config: LLMConfig | None
     evaluate: bool = False
