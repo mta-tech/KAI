@@ -42,6 +42,15 @@ class InstructionResponse(BaseResponse):
     is_default: bool
 
 
+class ContextStoreResponse(BaseResponse):
+    db_connection_id: str
+    prompt_text: str
+    prompt_embedding: list[float] | None = None
+    sql: str
+    is_parameterized: bool
+    parameterized_entity: dict | None = None #Stores NER (entity: type)
+    
+
 class SQLGenerationResponse(BaseResponse):
     id: str
     prompt_id: str
