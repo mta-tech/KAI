@@ -43,7 +43,7 @@ class DatabaseConnection(BaseModel):
         try:
             fernet_encrypt.decrypt(connection_uri)
         except Exception:
-            # If it is not encrypted, if its encrypted dialect already setted
+            # if its encrypted dialect already setted
             dialect_prefix = cls.get_dialect(connection_uri)
             values["dialect"] = cls.set_dialect(dialect_prefix)
         return values

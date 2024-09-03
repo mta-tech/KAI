@@ -1,5 +1,3 @@
-from fastapi import HTTPException
-
 from app.api.requests import BusinessGlossaryRequest, UpdateBusinessGlossaryRequest
 from app.modules.business_glossary.models import BusinessGlossary
 from app.modules.business_glossary.repositories import BusinessGlossaryRepository

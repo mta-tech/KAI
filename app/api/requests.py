@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, field_validator
 from sql_metadata import Parser
 
@@ -51,11 +53,26 @@ class BusinessGlossaryRequest(BaseModel):
     metadata: dict | None = None
 
 
+class InstructionRequest(BaseModel):
+    db_connection_id: str
+    condition: str
+    rules: str
+    is_default: bool
+    metadata: dict | None = None
+
+
+class UpdateInstructionRequest(BaseModel):
+    condition: Optional[str] = None
+    rules: Optional[str] = None
+    is_default: Optional[bool] = None
+    metadata: Optional[dict] = None
+
+
 class SQLGenerationRequest(BaseModel):
     llm_config: LLMConfig | None
     evaluate: bool = False
-    sql: str | None = None
-    metadata: dict | None = None
+    sql: str | None
+    metadata: dict | None
 
     @field_validator("sql")
     @classmethod

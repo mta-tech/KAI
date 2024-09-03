@@ -1,19 +1,22 @@
 import fastapi
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, HTTPException
 
 from app.api.requests import (
     BusinessGlossaryRequest,
     DatabaseConnectionRequest,
+    InstructionRequest,
     PromptRequest,
     PromptSQLGenerationRequest,
     ScannerRequest,
     SQLGenerationRequest,
     UpdateBusinessGlossaryRequest,
+    UpdateInstructionRequest,
     UpdateMetadataRequest,
 )
 from app.api.responses import (
     BusinessGlossaryResponse,
     DatabaseConnectionResponse,
+    InstructionResponse,
     PromptResponse,
     SQLGenerationResponse,
     TableDescriptionResponse,
@@ -21,8 +24,9 @@ from app.api.responses import (
 from app.data.db.storage import Storage
 from app.modules.business_glossary.services import BusinessGlossaryService
 from app.modules.database_connection.services import DatabaseConnectionService
+from app.modules.instruction.services import InstructionService
 from app.modules.prompt.services import PromptService
-from app.modules.sql_generation.services import SQLGenerationService
+from app.modules.sql_generation.services.sql_generations import SQLGenerationService
 from app.modules.table_description.services import TableDescriptionService
 from app.utils.sql_database.scanner import SqlAlchemyScanner
 
@@ -38,6 +42,7 @@ class API:
         self.prompt_service = PromptService(self.storage)
         self.business_glossary_service = BusinessGlossaryService(self.storage)
         self.sql_generation_service = SQLGenerationService(self.storage)
+        self.instruction_service = InstructionService(self.storage)
 
         self._register_routes()
 
@@ -128,6 +133,42 @@ class API:
             self.update_prompt,
             methods=["PUT"],
             tags=["Prompts"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/instructions",
+            self.create_instruction,
+            methods=["POST"],
+            status_code=201,
+            tags=["Instructions"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/instructions",
+            self.get_instructions,
+            methods=["GET"],
+            tags=["Instructions"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/instructions/{instruction_id}",
+            self.get_instruction,
+            methods=["GET"],
+            tags=["Instructions"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/instructions/{instruction_id}",
+            self.update_instruction,
+            methods=["PUT"],
+            tags=["Instructions"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/instructions/{instruction_id}",
+            self.delete_instruction,
+            methods=["DELETE"],
+            tags=["Instructions"],
         )
 
         self.router.add_api_route(
@@ -308,6 +349,42 @@ class API:
     ) -> PromptResponse:
         prompt = self.prompt_service.update_prompt(prompt_id, update_metadata_request)
         return PromptResponse(**prompt.model_dump())
+
+    def create_instruction(
+        self, instruction_request: InstructionRequest
+    ) -> InstructionResponse:
+        instruction = self.instruction_service.create_instruction(instruction_request)
+        return InstructionResponse(**instruction.model_dump())
+
+    def get_instructions(self, db_connection_id: str) -> list[InstructionResponse]:
+        instructions = self.instruction_service.get_instructions(db_connection_id)
+        return [
+            InstructionResponse(**instruction.model_dump())
+            for instruction in instructions
+        ]
+
+    def get_instruction(self, instruction_id: str) -> InstructionResponse:
+        instruction = self.instruction_service.get_instruction(instruction_id)
+        return InstructionResponse(**instruction.model_dump())
+
+    def update_instruction(
+        self, instruction_id: str, update_instruction_request: UpdateInstructionRequest
+    ) -> InstructionResponse:
+        instruction = self.instruction_service.update_instruction(
+            instruction_id, update_instruction_request
+        )
+        return InstructionResponse(**instruction.model_dump())
+
+    def delete_instruction(self, instruction_id: str) -> dict:
+        try:
+            is_deleted = self.instruction_service.delete_instruction(instruction_id)
+            if is_deleted:
+                return {"message": f"Instruction {instruction_id} successfully deleted"}
+        except Exception as e:
+            if "not found" in str(e):
+                raise HTTPException(status_code=404, detail=str(e))
+            else:
+                raise HTTPException(status_code=500, detail=str(e))
 
     def create_business_glossary(
         self, db_connection_id: str, business_glossary_request: BusinessGlossaryRequest

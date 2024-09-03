@@ -34,8 +34,16 @@ class BusinessGlossaryResponse(BaseResponse):
     sql: str
 
 
+class InstructionResponse(BaseResponse):
+    db_connection_id: str
+    condition: str
+    rules: str
+    condition_embedding: list[float] | None = None
+    is_default: bool
+
+
 class SQLGenerationResponse(BaseResponse):
-    id:str
+    id: str
     prompt_id: str
     status: str
     llm_config: LLMConfig | None
