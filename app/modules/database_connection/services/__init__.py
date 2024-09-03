@@ -1,14 +1,12 @@
 import re
 
-from sqlalchemy import create_engine, inspect
-
 from app.api.requests import DatabaseConnectionRequest
 from app.data.db.storage import Storage
 from app.modules.database_connection.models import DatabaseConnection
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.modules.database_connection.services.sql_database import SQLDatabase
 from app.modules.table_description.repositories import TableDescriptionRepository
-from app.utils.encrypt import FernetEncrypt
+from app.utils.core.encrypt import FernetEncrypt
 
 
 class DatabaseConnectionService:

@@ -8,10 +8,11 @@ from urllib.parse import unquote
 import sqlparse
 from sqlalchemy import MetaData, create_engine, inspect, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.engine.row import Row
 from sqlalchemy.exc import OperationalError
 
 from app.modules.database_connection.models import DatabaseConnection
-from app.utils.encrypt import FernetEncrypt
+from app.utils.core.encrypt import FernetEncrypt
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,10 @@ class SQLDatabase:
     ) -> "SQLDatabase":
         logger.info(f"Connecting db: {database_info.id}")
         try:
+            existing_connection = DBConnections.db_connections
             if (
                 database_info.id
-                and database_info.id in DBConnections.db_connections
+                and database_info.id in existing_connection
                 and not refresh_connection
             ):
                 sql_database = DBConnections.db_connections[database_info.id]
@@ -137,15 +139,21 @@ class SQLDatabase:
         If the statement returns rows, a string of the results is returned.
         If the statement returns no rows, an empty string is returned.
         """
+
+        def serialize_row(row: Row) -> dict:
+            return dict(row._mapping)
+
         with self._engine.connect() as connection:
             command = self.parser_to_filter_commands(command)
             cursor = connection.execute(text(command))
             if cursor.returns_rows and top_k:
                 result = cursor.fetchmany(top_k)
-                return str(result), {"result": result}
+                serialized_result = [serialize_row(row) for row in result]
+                return str(serialized_result), {"result": serialized_result}
             if cursor.returns_rows:
                 result = cursor.fetchall()
-                return str(result), {"result": result}
+                serialized_result = [serialize_row(row) for row in result]
+                return str(serialized_result), {"result": serialized_result}
         return "", {}
 
     def get_tables_and_views(self) -> List[str]:

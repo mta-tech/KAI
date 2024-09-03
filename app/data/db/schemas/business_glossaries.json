@@ -1,0 +1,39 @@
+{
+    "name": "business_glossaries",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "db_connection_id",
+            "type": "string",
+            "reference": "database_connections.id"
+        },
+        {
+            "name": "metric",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "alias",
+            "type": "string[]",
+            "optional": true
+        },
+        {
+            "name": "sql",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        }
+    ]
+}
