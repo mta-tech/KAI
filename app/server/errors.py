@@ -1,6 +1,10 @@
+from functools import wraps
 import logging
+from typing import Any, Callable
 
+import openai
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
@@ -47,3 +51,34 @@ def error_response(error, detail: dict, default_error_code=""):
             "detail": detail,
         },
     )
+
+
+def sql_agent_exceptions():  # noqa: C901
+    def decorator(fn: Callable[[str], str]) -> Callable[[str], str]:  # noqa: C901
+        @wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: PLR0911
+            try:
+                return fn(*args, **kwargs)
+            except openai.AuthenticationError as e:
+                # Handle authentication error here
+                return f"OpenAI API authentication error: {e}"
+            except openai.RateLimitError as e:
+                # Handle API error here, e.g. retry or log
+                return f"OpenAI API request exceeded rate limit: {e}"
+            except openai.BadRequestError as e:
+                # Handle connection error here
+                return f"OpenAI API request timed out: {e}"
+            except openai.APIResponseValidationError as e:
+                # Handle rate limit error (we recommend using exponential backoff)
+                return f"OpenAI API response is invalid: {e}"
+            except openai.OpenAIError as e:
+                # Handle timeout error (we recommend using exponential backoff)
+                return f"OpenAI API returned an error: {e}"
+            except SQLAlchemyError as e:
+                return f"Error: {e}"
+            except Exception as e:
+                return f"Error: {e}"
+
+        return wrapper
+
+    return decorator

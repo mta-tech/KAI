@@ -27,6 +27,13 @@ class PromptResponse(BaseResponse):
     schemas: list[str] | None
 
 
+class BusinessGlossaryResponse(BaseResponse):
+    db_connection_id: str
+    metric: str
+    alias: list[str] | None
+    sql: str
+
+
 class InstructionResponse(BaseResponse):
     db_connection_id: str
     condition: str
@@ -45,7 +52,7 @@ class ContextStoreResponse(BaseResponse):
     
 
 class SQLGenerationResponse(BaseResponse):
-    id:str
+    id: str
     prompt_id: str
     status: str
     llm_config: LLMConfig | None
