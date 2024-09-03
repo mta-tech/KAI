@@ -27,6 +27,13 @@ class PromptResponse(BaseResponse):
     schemas: list[str] | None
 
 
+class BusinessGlossaryResponse(BaseResponse):
+    db_connection_id: str
+    metric: str
+    alias: list[str] | None
+    sql: str
+
+
 class SQLGenerationResponse(BaseResponse):
     id:str
     prompt_id: str

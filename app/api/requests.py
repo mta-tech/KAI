@@ -44,11 +44,18 @@ class PromptRequest(BaseModel):
     metadata: dict | None = None
 
 
+class BusinessGlossaryRequest(BaseModel):
+    metric: str
+    alias: list[str] | None = None
+    sql: str
+    metadata: dict | None = None
+
+
 class SQLGenerationRequest(BaseModel):
     llm_config: LLMConfig | None
     evaluate: bool = False
-    sql: str | None
-    metadata: dict | None
+    sql: str | None = None
+    metadata: dict | None = None
 
     @field_validator("sql")
     @classmethod
@@ -76,6 +83,13 @@ class NLGenerationsSQLGenerationRequest(NLGenerationRequest):
 
 class PromptSQLGenerationNLGenerationRequest(NLGenerationRequest):
     sql_generation: PromptSQLGenerationRequest
+
+
+class UpdateBusinessGlossaryRequest(BaseModel):
+    metric: str | None = None
+    alias: list[str] | None = None
+    sql: str | None = None
+    metadata: dict | None = None
 
 
 class UpdateMetadataRequest(BaseModel):

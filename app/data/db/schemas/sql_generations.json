@@ -21,7 +21,8 @@
         },
         {
             "name": "confidence_score",
-            "type": "float"
+            "type": "float",
+            "optional": true
         },
         {
             "name": "intermediate_step",
@@ -30,23 +31,26 @@
         },
         {
             "name": "sql",
-            "type": "string"
+            "type": "string",
+            "optional": true
         },
         {
             "name": "status",
             "type": "string"
         },
         {
-            "name": "token_used",
+            "name": "tokens_used",
             "type": "int32"
         },
         {
             "name": "completed_at",
-            "type": "string"
+            "type": "string",
+            "optional": true
         },
         {
             "name": "error_message",
-            "type": "string"
+            "type": "string",
+            "optional": true
         },
         {
             "name": "created_at",

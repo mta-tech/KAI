@@ -19,6 +19,13 @@ uvicorn = "^0.30.6"
 black = "^24.8.0"
 sql-metadata = "^2.13.0"
 cryptography = "^43.0.0"
+langchain = "^0.2.15"
+langchain-community = "^0.2.14"
+overrides = "^7.7.0"
+langchain-openai = "^0.1.23"
+langchain-ollama = "^0.1.2"
+langchain-huggingface = "^0.0.3"
+pandas = "^2.2.2"
 
 
 [build-system]

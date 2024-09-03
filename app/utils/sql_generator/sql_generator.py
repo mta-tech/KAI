@@ -1,34 +1,31 @@
 """Base class that all sql generation classes inherit from."""
 
 import datetime
-import logging
 import os
 import re
 from abc import ABC, abstractmethod
 from queue import Queue
-from typing import Any, Dict, List, Tuple
+from typing import Any, List, Tuple
 
 import sqlparse
 from langchain.agents.agent import AgentExecutor
-from langchain.callbacks.base import BaseCallbackHandler
-from langchain.schema import AgentAction, LLMResult
+from langchain.schema import AgentAction
 from langchain_community.callbacks import get_openai_callback
 
-from dataherald.config import Component, System
-from dataherald.db_scanner.models.types import TableDescription
-from dataherald.model.chat_model import ChatModel
-from dataherald.repositories.sql_generations import (
-    SQLGenerationRepository,
+from app.modules.database_connection.models import DatabaseConnection
+from app.modules.prompt.models import Prompt
+from app.modules.sql_generation.models import (
+    IntermediateStep,
+    LLMConfig,
+    SQLGeneration,
 )
-from dataherald.sql_database.base import SQLDatabase, SQLInjectionError
-from dataherald.sql_database.models.types import DatabaseConnection
-from dataherald.sql_generator.create_sql_query_status import create_sql_query_status
-from dataherald.types import IntermediateStep, LLMConfig, Prompt, SQLGeneration
-from dataherald.utils.strings import contains_line_breaks
-
-
-class EngineTimeOutORItemLimitError(Exception):
-    pass
+from app.modules.sql_generation.repositories import SQLGenerationRepository
+from app.modules.table_description.models import TableDescription
+from app.server.config import Settings
+from app.utils.core.strings import contains_line_breaks
+from app.utils.model.chat_model import ChatModel
+from app.utils.sql_database.sql_database import SQLDatabase
+from app.utils.sql_generator.sql_query_status import create_sql_query_status
 
 
 def replace_unprocessable_characters(text: str) -> str:
@@ -37,23 +34,20 @@ def replace_unprocessable_characters(text: str) -> str:
     return text.replace(r"\_", "_")
 
 
-class SQLGenerator(Component, ABC):
+class SQLGenerator(ABC):
     metadata: Any
     llm: ChatModel | None = None
 
-    def __init__(self, system: System, llm_config: LLMConfig):  # noqa: ARG002
-        self.system = system
+    def __init__(self, llm_config: LLMConfig):  # noqa: ARG002
         self.llm_config = llm_config
-        self.model = ChatModel(self.system)
+        self.model = ChatModel()
 
     def check_for_time_out_or_tool_limit(self, response: dict) -> dict:
         if (
             response.get("output")
             == "Agent stopped due to iteration limit or time limit."
         ):
-            raise EngineTimeOutORItemLimitError(
-                "The engine has timed out or reached the tool limit."
-            )
+            raise Exception("The engine has timed out or reached the tool limit.")
         return response
 
     def remove_markdown(self, query: str) -> str:
@@ -67,7 +61,7 @@ class SQLGenerator(Component, ABC):
     def get_table_schema(table_name: str, db_scan: List[TableDescription]) -> str:
         for table in db_scan:
             if table.table_name == table_name:
-                return table.schema_name
+                return table.table_schema
         return ""
 
     @staticmethod
@@ -75,7 +69,8 @@ class SQLGenerator(Component, ABC):
         db_scan: List[TableDescription], prompt: Prompt
     ) -> List[TableDescription]:
         if prompt.schemas:
-            return [table for table in db_scan if table.schema_name in prompt.schemas]
+            table_match_prompt_schema = [table for table in db_scan if table.db_schema in prompt.schemas]
+            return table_match_prompt_schema
         return db_scan
 
     def format_sql_query_intermediate_steps(self, step: str) -> str:
@@ -90,7 +85,8 @@ class SQLGenerator(Component, ABC):
 
     @classmethod
     def get_upper_bound_limit(cls) -> int:
-        top_k = os.getenv("UPPER_LIMIT_QUERY_RETURN_ROWS", None)
+        settings = Settings()
+        top_k = os.getenv("UPPER_LIMIT_QUERY_RETURN_ROWS")
         if top_k is None or top_k == "":
             top_k = 50
         return top_k if isinstance(top_k, int) else int(top_k)
@@ -217,10 +213,6 @@ class SQLGenerator(Component, ABC):
                             )
                     else:
                         raise ValueError()
-        except SQLInjectionError as e:
-            raise SQLInjectionError(e) from e
-        except EngineTimeOutORItemLimitError as e:
-            raise EngineTimeOutORItemLimitError(e) from e
         except Exception as e:
             response.sql = ("",)
             response.status = ("INVALID",)

@@ -94,7 +94,7 @@ class SqlAlchemyScanner:
                             TableDescription(
                                 db_connection_id=db_connection_id,
                                 table_name=table,
-                                status=TableDescriptionStatus.NOT_SCANNED.value,
+                                sync_status=TableDescriptionStatus.NOT_SCANNED.value,
                                 metadata=metadata,
                                 db_schema=schema,
                             )

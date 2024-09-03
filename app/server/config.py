@@ -1,12 +1,9 @@
 from typing import Any
 
-from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    load_dotenv()
-
     APP_NAME: str | None
     APP_VERSION: str | None
     APP_DESCRIPTION: str | None
@@ -22,16 +19,23 @@ class Settings(BaseSettings):
     TYPESENSE_PROTOCOL: str
     TYPESENSE_TIMEOUT: int
 
+    OPENAI_API_KEY: str | None
+    OLLAMA_API_BASE: str | None
+    HUGGINGFACEHUB_API_TOKEN: str | None
+
+    AGENT_MAX_ITERATIONS: int
+    DH_ENGINE_TIMEOUT: int
+    SQL_EXECUTION_TIMEOUT: int
+    UPPER_LIMIT_QUERY_RETURN_ROWS: int
     ENCRYPT_KEY: str
+
+    EMBEDDING_MODEL: str | None
 
     class Config:
         env_file = ".env"
 
     def require(self, key: str) -> Any:
-        val = self[key]
+        val = getattr(self, key)
         if val is None:
             raise ValueError(f"Missing required config value '{key}'")
         return val
-
-    def __getitem__(self, key: str) -> Any:
-        return getattr(self, key)

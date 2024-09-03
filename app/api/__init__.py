@@ -2,22 +2,29 @@ import fastapi
 from fastapi import BackgroundTasks
 
 from app.api.requests import (
+    BusinessGlossaryRequest,
     DatabaseConnectionRequest,
     PromptRequest,
+    PromptSQLGenerationRequest,
     ScannerRequest,
+    SQLGenerationRequest,
+    UpdateBusinessGlossaryRequest,
     UpdateMetadataRequest,
 )
 from app.api.responses import (
+    BusinessGlossaryResponse,
     DatabaseConnectionResponse,
     PromptResponse,
+    SQLGenerationResponse,
     TableDescriptionResponse,
 )
 from app.data.db.storage import Storage
+from app.modules.business_glossary.services import BusinessGlossaryService
 from app.modules.database_connection.services import DatabaseConnectionService
 from app.modules.prompt.services import PromptService
-
+from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.table_description.services import TableDescriptionService
-from app.modules.table_description.services.scanner import SqlAlchemyScanner
+from app.utils.sql_database.scanner import SqlAlchemyScanner
 
 
 class API:
@@ -29,6 +36,8 @@ class API:
         )
         self.table_description_service = TableDescriptionService(self.storage)
         self.prompt_service = PromptService(self.storage)
+        self.business_glossary_service = BusinessGlossaryService(self.storage)
+        self.sql_generation_service = SQLGenerationService(self.storage)
 
         self._register_routes()
 
@@ -121,49 +130,84 @@ class API:
             tags=["Prompts"],
         )
 
-        # self.router.add_api_route(
-        #     "/api/v1/prompts/{prompt_id}/sql-generations",
-        #     self.create_sql_generation,
-        #     methods=["POST"],
-        #     status_code=201,
-        #     tags=["SQL Generation"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/business_glossaries",
+            self.create_business_glossary,
+            methods=["POST"],
+            tags=["Business Glossary"],
+        )
 
-        # self.router.add_api_route(
-        #     "/api/v1/prompts/sql-generations",
-        #     self.create_prompt_and_sql_generation,
-        #     methods=["POST"],
-        #     status_code=201,
-        #     tags=["SQL Generation"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/business_glossaries",
+            self.get_business_glossaries,
+            methods=["GET"],
+            tags=["Business Glossary"],
+        )
 
-        # self.router.add_api_route(
-        #     "/api/v1/sql-generations",
-        #     self.get_sql_generations,
-        #     methods=["GET"],
-        #     tags=["SQL Generation"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/business_glossaries/{business_glossary_id}",
+            self.get_business_glossary,
+            methods=["GET"],
+            tags=["Business Glossary"],
+        )
 
-        # self.router.add_api_route(
-        #     "/api/v1/sql-generations/{sql_generation_id}",
-        #     self.get_sql_generation,
-        #     methods=["GET"],
-        #     tags=["SQL Generation"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/business_glossaries/{business_glossary_id}",
+            self.update_business_glossary,
+            methods=["PUT"],
+            tags=["Business Glossary"],
+        )
 
-        # self.router.add_api_route(
-        #     "/api/v1/sql-generations/{sql_generation_id}",
-        #     self.update_sql_generation,
-        #     methods=["PUT"],
-        #     tags=["SQL Generation"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/business_glossaries/{business_glossary_id}",
+            self.delete_business_glossary,
+            methods=["DELETE"],
+            tags=["Business Glossary"],
+        )
 
-        # self.router.add_api_route(
-        #     "/api/v1/sql-generations/{sql_generation_id}/execute",
-        #     self.execute_sql_query,
-        #     methods=["GET"],
-        #     tags=["SQL Generation"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/prompts/{prompt_id}/sql-generations",
+            self.create_sql_generation,
+            methods=["POST"],
+            status_code=201,
+            tags=["SQL Generation"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/prompts/sql-generations",
+            self.create_prompt_and_sql_generation,
+            methods=["POST"],
+            status_code=201,
+            tags=["SQL Generation"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/sql-generations",
+            self.get_sql_generations,
+            methods=["GET"],
+            tags=["SQL Generation"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/sql-generations/{sql_generation_id}",
+            self.get_sql_generation,
+            methods=["GET"],
+            tags=["SQL Generation"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/sql-generations/{sql_generation_id}",
+            self.update_sql_generation,
+            methods=["PUT"],
+            tags=["SQL Generation"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/sql-generations/{sql_generation_id}/execute",
+            self.execute_sql_query,
+            methods=["GET"],
+            tags=["SQL Generation"],
+        )
 
     def get_router(self) -> fastapi.APIRouter:
         return self.router
@@ -251,6 +295,10 @@ class API:
         prompt = self.prompt_service.create_prompt(prompt_request)
         return PromptResponse(**prompt.model_dump())
 
+    def get_prompts(self, db_connection_id: str) -> list[PromptResponse]:
+        prompts = self.prompt_service.get_prompts(db_connection_id)
+        return [PromptResponse(**prompt.model_dump()) for prompt in prompts]
+
     def get_prompt(self, prompt_id: str) -> PromptResponse:
         prompt = self.prompt_service.get_prompt(prompt_id)
         return PromptResponse(**prompt.model_dump())
@@ -261,6 +309,91 @@ class API:
         prompt = self.prompt_service.update_prompt(prompt_id, update_metadata_request)
         return PromptResponse(**prompt.model_dump())
 
-    def get_prompts(self, db_connection_id: str | None = None) -> list[PromptResponse]:
-        prompts = self.prompt_service.get_prompts(db_connection_id)
-        return [PromptResponse(**prompt.model_dump()) for prompt in prompts]
+    def create_business_glossary(
+        self, db_connection_id: str, business_glossary_request: BusinessGlossaryRequest
+    ) -> BusinessGlossaryResponse:
+        business_glossary = self.business_glossary_service.create_business_glossary(
+            db_connection_id, business_glossary_request
+        )
+        return BusinessGlossaryResponse(**business_glossary.model_dump())
+
+    def get_business_glossaries(
+        self, db_connection_id: str
+    ) -> list[BusinessGlossaryResponse]:
+        business_glossaries = self.business_glossary_service.get_business_glossaries(
+            db_connection_id
+        )
+        return [
+            BusinessGlossaryResponse(**business_glossary.model_dump())
+            for business_glossary in business_glossaries
+        ]
+
+    def get_business_glossary(
+        self, business_glossary_id: str
+    ) -> BusinessGlossaryResponse:
+        business_glossary = self.business_glossary_service.get_business_glossary(
+            business_glossary_id
+        )
+        return BusinessGlossaryResponse(**business_glossary.model_dump())
+
+    def update_business_glossary(
+        self,
+        business_glossary_id: str,
+        business_glossary_request: UpdateBusinessGlossaryRequest,
+    ) -> BusinessGlossaryResponse:
+        business_glossary = self.business_glossary_service.update_business_glossary(
+            business_glossary_id, business_glossary_request
+        )
+        return BusinessGlossaryResponse(**business_glossary.model_dump())
+
+    def delete_business_glossary(
+        self,
+        business_glossary_id: str,
+    ) -> dict:
+        deleted = self.business_glossary_service.delete_business_glossary(
+            business_glossary_id
+        )
+        return deleted
+
+    def create_sql_generation(
+        self, prompt_id: str, sql_generation_request: SQLGenerationRequest
+    ) -> SQLGenerationResponse:
+        sql_generation = self.sql_generation_service.create_sql_generation(
+            prompt_id, sql_generation_request
+        )
+        return SQLGenerationResponse(**sql_generation.model_dump())
+
+    def create_prompt_and_sql_generation(
+        self, prompt_sql_generation_request: PromptSQLGenerationRequest
+    ) -> SQLGenerationResponse:
+        sql_generation = self.sql_generation_service.create_prompt_and_sql_generation(
+            prompt_sql_generation_request
+        )
+        return SQLGenerationResponse(**sql_generation.model_dump())
+
+    def get_sql_generations(self, prompt_id: str) -> list[SQLGenerationResponse]:
+        sql_generations = self.sql_generation_service.get_sql_generations(prompt_id)
+        return [
+            SQLGenerationResponse(**sql_generation.model_dump())
+            for sql_generation in sql_generations
+        ]
+
+    def get_sql_generation(self, sql_generation_id: str) -> SQLGenerationResponse:
+        sql_generation = self.sql_generation_service.get_sql_generation(
+            sql_generation_id
+        )
+        return SQLGenerationResponse(**sql_generation.model_dump())
+
+    def update_sql_generation(
+        self, sql_generation_id: str, update_metadata_request: UpdateMetadataRequest
+    ) -> SQLGenerationResponse:
+        sql_generation = self.sql_generation_service.update_sql_generation(
+            sql_generation_id, update_metadata_request
+        )
+        return SQLGenerationResponse(**sql_generation.model_dump())
+
+    def execute_sql_query(self, sql_generation_id: str, max_rows: int = 100) -> list:
+        """Executes a SQL query against the database and returns the results"""
+        return self.sql_generation_service.execute_sql_query(
+            sql_generation_id, max_rows
+        )

@@ -10,7 +10,6 @@ class SQLGenerationRepository:
 
     def insert(self, sql_generation: SQLGeneration) -> SQLGeneration:
         sql_generation_dict = sql_generation.model_dump(exclude={"id"})
-        sql_generation_dict["prompt_id"] = str(sql_generation.prompt_id)
         sql_generation.id = str(
             self.storage.insert_one(DB_COLLECTION, sql_generation_dict)
         )
@@ -18,7 +17,6 @@ class SQLGenerationRepository:
 
     def update(self, sql_generation: SQLGeneration) -> SQLGeneration:
         sql_generation_dict = sql_generation.model_dump(exclude={"id"})
-        sql_generation_dict["prompt_id"] = str(sql_generation.prompt_id)
         self.storage.update_or_create(
             DB_COLLECTION,
             {"id": sql_generation.id},

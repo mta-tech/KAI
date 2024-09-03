@@ -5,7 +5,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.utils.encrypt import FernetEncrypt
+from app.utils.core.encrypt import FernetEncrypt
 
 
 class SupportedDialects(Enum):
