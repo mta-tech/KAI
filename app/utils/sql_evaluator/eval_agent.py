@@ -2,7 +2,7 @@ import logging
 import re
 import time
 from difflib import SequenceMatcher
-from typing import Any, Dict, List
+from typing import Annotated, Any, Dict, List
 
 from langchain.agents import AgentExecutor
 from langchain.agents.agent_toolkits.base import BaseToolkit
@@ -20,14 +20,14 @@ from langchain.tools.sql_database.tool import (
     QuerySQLDataBaseTool,
 )
 from overrides import override
-from pydantic import Field, confloat
+from pydantic import Field
 from sqlalchemy import MetaData, Table, select
 
-from dataherald.config import System
-from dataherald.eval import Evaluation, Evaluator
-from dataherald.sql_database.base import SQLDatabase
-from dataherald.sql_database.models.types import DatabaseConnection
-from dataherald.types import Prompt, SQLGeneration
+from app.modules.database_connection.models import DatabaseConnection
+from app.modules.prompt.models import Prompt
+from app.modules.sql_generation.models import SQLGeneration
+from app.utils.sql_database.sql_database import SQLDatabase
+from app.utils.sql_evaluator import Evaluation, Evaluator
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class EntityFinder(BaseSQLDatabaseTool, BaseTool):
 
     Example Input: David, name, singer
     """
-    similarity_threshold: confloat(ge=0, le=1) = 0.7
+    similarity_threshold: Annotated[float, Field(ge=0, le=1)] = 0.7
     number_similar_items: int = 20
 
     def similarity(self, first_string: str, second_string: str) -> float:
@@ -170,10 +170,6 @@ class SQLEvaluationToolkit(BaseToolkit):
 class EvaluationAgent(Evaluator):
     sample_rows: int = 10
     llm: Any = None
-
-    def __init__(self, system: System):
-        super().__init__(system)
-        self.system = system
 
     def answer_parser(self, answer: str) -> int:
         """

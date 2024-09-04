@@ -1,30 +1,30 @@
 from abc import ABC, abstractmethod
+from typing import Annotated
 
 from pydantic import BaseModel, Field, confloat
 
-from dataherald.config import Component, System
-from dataherald.model.chat_model import ChatModel
-from dataherald.sql_database.base import SQLDatabase
-from dataherald.sql_database.models.types import DatabaseConnection
-from dataherald.types import LLMConfig, Prompt, SQLGeneration
+from app.modules.database_connection.models import DatabaseConnection
+from app.modules.prompt.models import Prompt
+from app.modules.sql_generation.models import LLMConfig, SQLGeneration
+from app.utils.model.chat_model import ChatModel
+from app.utils.sql_database.sql_database import SQLDatabase
 
 
 class Evaluation(BaseModel):
-    id: str | None = Field(alias="_id")
-    question_id: str | None = Field(alias="q_id")
-    answer_id: str | None = Field(alias="a_id")
-    score: confloat(ge=0, le=1) = 0.5
+    id: str | None = None
+    question_id: str | None = None
+    answer_id: str | None = None
+    score: Annotated[float, Field(ge=0, le=1)] = 0.5
 
 
-class Evaluator(Component, ABC):
+class Evaluator(ABC):
     database: SQLDatabase
-    acceptance_threshold: confloat(ge=0, le=1) = 0.8
+    acceptance_threshold: Annotated[float, Field(ge=0, le=1)] = 0.6
     llm_config: LLMConfig
     llm: ChatModel | None = None
 
-    def __init__(self, system: System):
-        self.system = system
-        self.model = ChatModel(self.system)
+    def __init__(self):
+        self.model = ChatModel()
 
     def get_confidence_score(
         self,

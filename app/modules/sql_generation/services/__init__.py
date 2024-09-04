@@ -16,6 +16,7 @@ from app.modules.sql_generation.models import LLMConfig, SQLGeneration
 from app.modules.sql_generation.repositories import SQLGenerationRepository
 from app.server.config import Settings
 from app.utils.sql_database.sql_database import SQLDatabase
+from app.utils.sql_evaluator.simple_evaluator import SimpleEvaluator
 from app.utils.sql_generator.sql_agent import SQLAgent
 from app.utils.sql_generator.sql_query_status import create_sql_query_status
 
@@ -53,7 +54,9 @@ class SQLGenerationService:
 
         if not prompt:
             self.update_error(initial_sql_generation, f"Prompt {prompt_id} not found")
-            raise HTTPException(f"Prompt {prompt_id} not found", initial_sql_generation.id)
+            raise HTTPException(
+                f"Prompt {prompt_id} not found", initial_sql_generation.id
+            )
 
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(prompt.db_connection_id)
@@ -106,20 +109,20 @@ class SQLGenerationService:
             except Exception as e:
                 self.update_error(initial_sql_generation, str(e))
                 raise HTTPException(str(e), initial_sql_generation.id) from e
-        # if sql_generation_request.evaluate:
-        #     evaluator = self.system.instance(Evaluator)
-        #     evaluator.llm_config = (
-        #         sql_generation_request.llm_config
-        #         if sql_generation_request.llm_config
-        #         else LLMConfig()
-        #     )
-        #     confidence_score = evaluator.get_confidence_score(
-        #         user_prompt=prompt,
-        #         sql_generation=sql_generation,
-        #         database_connection=db_connection,
-        #     )
-        #     initial_sql_generation.evaluate = sql_generation_request.evaluate
-        #     initial_sql_generation.confidence_score = confidence_score
+        if sql_generation_request.evaluate:
+            evaluator = SimpleEvaluator()
+            evaluator.llm_config = (
+                sql_generation_request.llm_config
+                if sql_generation_request.llm_config
+                else LLMConfig()
+            )
+            confidence_score = evaluator.get_confidence_score(
+                user_prompt=prompt,
+                sql_generation=sql_generation,
+                database_connection=db_connection,
+            )
+            initial_sql_generation.evaluate = sql_generation_request.evaluate
+            initial_sql_generation.confidence_score = confidence_score
         return self.update_the_initial_sql_generation(
             initial_sql_generation, sql_generation
         )
