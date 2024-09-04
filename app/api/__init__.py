@@ -1,5 +1,10 @@
 import fastapi
-from fastapi import BackgroundTasks, HTTPException
+from fastapi import BackgroundTasks, HTTPException, File, UploadFile
+from fastapi.responses import JSONResponse
+import os
+import PyPDF2
+from io import BytesIO
+
 
 from app.api.requests import (
     BusinessGlossaryRequest,
@@ -175,7 +180,7 @@ class API:
             tags=["Instructions"],
         )
 
-        self.router.add_api_route(
+       self.router.add_api_route(
             "/api/v1/context-stores",
             self.create_context_store,
             methods=["POST"],
@@ -282,6 +287,14 @@ class API:
             methods=["GET"],
             tags=["SQL Generation"],
         )
+        
+         self.router.add_api_route(
+            "/api/v1/rags",
+            self.upload_document,
+            methods=["POST"],
+            tags=["RAGs"],
+        )
+
 
     def get_router(self) -> fastapi.APIRouter:
         return self.router
@@ -418,7 +431,7 @@ class API:
                 raise HTTPException(status_code=404, detail=str(e))
             else:
                 raise HTTPException(status_code=500, detail=str(e))
-    # * CONTEXT STORE RESPONSE MODEL
+                
     def create_context_store(self, context_store_request: ContextStoreRequest) -> ContextStoreResponse:
         context_store = self.context_store_service.create_context_store(context_store_request)
         return ContextStoreResponse(**context_store.model_dump())
@@ -530,3 +543,49 @@ class API:
         return self.sql_generation_service.execute_sql_query(
             sql_generation_id, max_rows
         )
+      
+    async def upload_document(self, file: UploadFile = File(...)) -> dict:
+        try:
+            # Read the file content into memory
+            content = await file.read()
+            
+            # Process the PDF content directly from memory using PyPDF2
+            text_content = self.pdf_to_text(content)
+            
+            # Return success response with extracted text
+            return JSONResponse(content={
+                "filename": file.filename,
+                "content_type": file.content_type,
+                "file_size": len(content),
+                "extracted_text": text_content
+            }, status_code=200)
+            
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def pdf_to_text(self, content: bytes) -> str:
+        text = ""
+        try:
+            # Use BytesIO to treat the content as a file-like object
+            pdf_file = BytesIO(content)
+            
+            # Create a PDF reader object
+            reader = PyPDF2.PdfReader(pdf_file)
+            
+            # Extract text from each page
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+        
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
+        
+        return text
+
+    def upload_text(self, title, content) -> dict:
+        return {"message": "Information Uploaded Successfully"}
+    
+    def embed_document(self, document_id: str) -> dict:
+        return {"message": "Embedding document"}
+
+    def query_knowledge(self, text) -> dict:
+        return {"message": "I don't know"}
