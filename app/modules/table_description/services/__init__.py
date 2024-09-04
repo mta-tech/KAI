@@ -1,5 +1,4 @@
 from fastapi import BackgroundTasks, HTTPException
-from sqlalchemy import create_engine
 
 from app.api.requests import ScannerRequest, TableDescriptionRequest
 from app.api.responses import TableDescription
@@ -7,7 +6,7 @@ from app.data.db.storage import Storage
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.modules.database_connection.services import DatabaseConnectionService
 from app.modules.table_description.repositories import TableDescriptionRepository
-from app.modules.table_description.services.scanner import SqlAlchemyScanner
+from app.utils.sql_database.scanner import SqlAlchemyScanner
 
 
 def async_scanning(scanner: SqlAlchemyScanner, engine, table_descriptions, storage):
@@ -59,7 +58,7 @@ class TableDescriptionService:
                 )
 
                 engine = database.engine
-                
+
                 background_tasks.add_task(
                     async_scanning, scanner, engine, table_descriptions, self.storage
                 )
@@ -91,7 +90,7 @@ class TableDescriptionService:
             scanner_repository = TableDescriptionRepository(self.storage)
 
             return [
-                TableDescription(**record.dict())
+                TableDescription(**record.model_dump())
                 for record in scanner.refresh_tables(
                     data, str(db_connection.id), scanner_repository
                 )
@@ -119,7 +118,7 @@ class TableDescriptionService:
             table_description = scanner_repository.update_fields(
                 table, table_description_request
             )
-            return TableDescription(**table_description.dict())
+            return TableDescription(**table_description.model_dump())
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 

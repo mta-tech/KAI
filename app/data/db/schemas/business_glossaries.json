@@ -1,5 +1,5 @@
 {
-    "name": "context_stores",
+    "name": "business_glossaries",
     "enable_nested_fields": true,
     "fields": [
         {
@@ -12,25 +12,18 @@
             "reference": "database_connections.id"
         },
         {
-            "name": "prompt_text",
-            "type": "string"
+            "name": "metric",
+            "type": "string",
+            "optional": true
         },
         {
-            "name": "prompt_embedding",
-            "type": "float[]",
+            "name": "alias",
+            "type": "string[]",
             "optional": true
         },
         {
             "name": "sql",
-            "type": "string"
-        },
-        {
-            "name": "is_parameterized",
-            "type": "bool"
-        },
-        {
-            "name": "parameterized_entity",
-            "type": "object",
+            "type": "string",
             "optional": true
         },
         {

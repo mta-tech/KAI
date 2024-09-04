@@ -1,5 +1,4 @@
 from app.api.requests import PromptRequest, UpdateMetadataRequest
-from app.modules.database_connection.models import DatabaseConnection
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.modules.prompt.models import Prompt
 from app.modules.prompt.repositories import PromptRepository

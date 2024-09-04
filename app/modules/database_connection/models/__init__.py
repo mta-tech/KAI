@@ -5,7 +5,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.utils.encrypt import FernetEncrypt
+from app.utils.core.encrypt import FernetEncrypt
 
 
 class SupportedDialects(Enum):
@@ -43,7 +43,7 @@ class DatabaseConnection(BaseModel):
         try:
             fernet_encrypt.decrypt(connection_uri)
         except Exception:
-            # If it is not encrypted, if its encrypted dialect already setted
+            # if its encrypted dialect already setted
             dialect_prefix = cls.get_dialect(connection_uri)
             values["dialect"] = cls.set_dialect(dialect_prefix)
         return values

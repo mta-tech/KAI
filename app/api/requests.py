@@ -1,5 +1,6 @@
-from pydantic import BaseModel, field_validator
 from typing import Optional
+
+from pydantic import BaseModel, field_validator
 from sql_metadata import Parser
 
 from app.modules.sql_generation.models import LLMConfig
@@ -45,6 +46,13 @@ class PromptRequest(BaseModel):
     metadata: dict | None = None
 
 
+class BusinessGlossaryRequest(BaseModel):
+    metric: str
+    alias: list[str] | None = None
+    sql: str
+    metadata: dict | None = None
+
+
 class InstructionRequest(BaseModel):
     db_connection_id: str
     condition: str
@@ -58,6 +66,19 @@ class UpdateInstructionRequest(BaseModel):
     rules: Optional[str] = None
     is_default: Optional[bool] = None
     metadata: Optional[dict] = None
+
+
+class ContextStoreRequest(BaseModel):
+    db_connection_id: str
+    prompt_text: str
+    sql: str
+    metadata: dict | None = None
+
+
+# class UpdateContextStoreRequest(BaseModel):
+#     prompt_text: Optional[str] = None
+#     sql: Optional[str] = None
+#     metadata: Optional[dict] = None
 
 
 class SQLGenerationRequest(BaseModel):
@@ -92,6 +113,13 @@ class NLGenerationsSQLGenerationRequest(NLGenerationRequest):
 
 class PromptSQLGenerationNLGenerationRequest(NLGenerationRequest):
     sql_generation: PromptSQLGenerationRequest
+
+
+class UpdateBusinessGlossaryRequest(BaseModel):
+    metric: str | None = None
+    alias: list[str] | None = None
+    sql: str | None = None
+    metadata: dict | None = None
 
 
 class UpdateMetadataRequest(BaseModel):

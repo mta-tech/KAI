@@ -54,7 +54,6 @@ class TableDescriptionRepository:
         return table_info
 
     def update(self, table_info: TableDescription) -> TableDescription:
-        # update table description, if columns is exist, update each column info
         table_info_dict = table_info.model_dump(exclude={"id"})
         table_info_dict = {
             k: v for k, v in table_info_dict.items() if v is not None and v != []
