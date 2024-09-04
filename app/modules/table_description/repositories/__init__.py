@@ -1,5 +1,7 @@
 from typing import List
 
+from fastapi import HTTPException
+
 from app.data.db.storage import Storage
 from app.modules.table_description.models import TableDescription
 
