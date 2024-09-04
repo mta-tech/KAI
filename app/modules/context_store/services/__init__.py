@@ -1,4 +1,5 @@
 
+from fastapi import HTTPException
 from app.api.requests import ContextStoreRequest #, UpdateContextStoreRequest
 # from app.modules.database_connection.models import DatabaseConnection
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
@@ -17,12 +18,12 @@ class ContextStoreService:
             context_store_request.db_connection_id
         )
         if not db_connection:
-            raise Exception(
+            raise HTTPException(
                 f"Database connection {context_store_request.db_connection_id} not found"
             )
 
         # if not db_connection.schemas and prompt_request.schemas:
-        #     raise Exception(
+        #     raise HTTPException(
         #         "Schema not supported for this db",
         #         description=f"The {db_connection.dialect} dialect doesn't support schemas",
         #     )
@@ -42,7 +43,7 @@ class ContextStoreService:
     def get_context_store(self, context_store_id) -> ContextStore:
         context_store = self.repository.find_by_id(context_store_id)
         if not context_store:
-            raise Exception(f"Prompt {context_store_id} not found")
+            raise HTTPException(f"Prompt {context_store_id} not found")
         return context_store
 
     def get_context_stores(self, db_connection_id) -> list[ContextStore]:
@@ -54,7 +55,7 @@ class ContextStoreService:
     # ) -> ContextStore:
     #     context_store = self.repository.find_by_id(context_store_id)
     #     if not context_store:
-    #         raise Exception(f"ContextStore {context_store_id} not found")
+    #         raise HTTPException(f"ContextStore {context_store_id} not found")
         
     #     if update_request.prompt_text is not None:
     #         context_store.prompt_text = update_request.prompt_text
@@ -71,12 +72,12 @@ class ContextStoreService:
     def delete_context_store(self, context_store_id) -> bool:
         context_store = self.repository.find_by_id(context_store_id)
         if not context_store:
-            raise Exception(f"Prompt {context_store_id} not found")
+            raise HTTPException(f"Prompt {context_store_id} not found")
         
         is_deleted = self.repository.delete_by_id(context_store_id)
 
         if not is_deleted:
-            raise Exception(f"Failed to delete context_store {context_store_id}")
+            raise HTTPException(f"Failed to delete context_store {context_store_id}")
         
         return True
 

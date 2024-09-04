@@ -212,35 +212,35 @@ class API:
             "/api/v1/business_glossaries",
             self.create_business_glossary,
             methods=["POST"],
-            tags=["Business Glossary"],
+            tags=["Business Glossaries"],
         )
 
         self.router.add_api_route(
             "/api/v1/business_glossaries",
             self.get_business_glossaries,
             methods=["GET"],
-            tags=["Business Glossary"],
+            tags=["Business Glossaries"],
         )
 
         self.router.add_api_route(
             "/api/v1/business_glossaries/{business_glossary_id}",
             self.get_business_glossary,
             methods=["GET"],
-            tags=["Business Glossary"],
+            tags=["Business Glossaries"],
         )
 
         self.router.add_api_route(
             "/api/v1/business_glossaries/{business_glossary_id}",
             self.update_business_glossary,
             methods=["PUT"],
-            tags=["Business Glossary"],
+            tags=["Business Glossaries"],
         )
 
         self.router.add_api_route(
             "/api/v1/business_glossaries/{business_glossary_id}",
             self.delete_business_glossary,
             methods=["DELETE"],
-            tags=["Business Glossary"],
+            tags=["Business Glossaries"],
         )
 
         self.router.add_api_route(
@@ -248,7 +248,7 @@ class API:
             self.create_sql_generation,
             methods=["POST"],
             status_code=201,
-            tags=["SQL Generation"],
+            tags=["SQL Generations"],
         )
 
         self.router.add_api_route(
@@ -256,35 +256,35 @@ class API:
             self.create_prompt_and_sql_generation,
             methods=["POST"],
             status_code=201,
-            tags=["SQL Generation"],
+            tags=["SQL Generations"],
         )
 
         self.router.add_api_route(
             "/api/v1/sql-generations",
             self.get_sql_generations,
             methods=["GET"],
-            tags=["SQL Generation"],
+            tags=["SQL Generations"],
         )
 
         self.router.add_api_route(
             "/api/v1/sql-generations/{sql_generation_id}",
             self.get_sql_generation,
             methods=["GET"],
-            tags=["SQL Generation"],
+            tags=["SQL Generations"],
         )
 
         self.router.add_api_route(
             "/api/v1/sql-generations/{sql_generation_id}",
             self.update_sql_generation,
             methods=["PUT"],
-            tags=["SQL Generation"],
+            tags=["SQL Generations"],
         )
 
         self.router.add_api_route(
             "/api/v1/sql-generations/{sql_generation_id}/execute",
             self.execute_sql_query,
             methods=["GET"],
-            tags=["SQL Generation"],
+            tags=["SQL Generations"],
         )
 
         self.router.add_api_route(

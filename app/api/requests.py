@@ -84,8 +84,8 @@ class ContextStoreRequest(BaseModel):
 class SQLGenerationRequest(BaseModel):
     llm_config: LLMConfig | None
     evaluate: bool = False
-    sql: str | None
-    metadata: dict | None
+    sql: str | None = None
+    metadata: dict | None = None
 
     @field_validator("sql")
     @classmethod

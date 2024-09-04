@@ -4,9 +4,9 @@ from app.api.requests import DatabaseConnectionRequest
 from app.data.db.storage import Storage
 from app.modules.database_connection.models import DatabaseConnection
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
-from app.modules.database_connection.services.sql_database import SQLDatabase
 from app.modules.table_description.repositories import TableDescriptionRepository
 from app.utils.core.encrypt import FernetEncrypt
+from app.utils.sql_database.sql_database import SQLDatabase
 
 
 class DatabaseConnectionService:

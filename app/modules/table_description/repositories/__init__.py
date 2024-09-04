@@ -1,5 +1,7 @@
 from typing import List
 
+from fastapi import HTTPException
+
 from app.data.db.storage import Storage
 from app.modules.table_description.models import TableDescription
 
@@ -92,7 +94,7 @@ class TableDescriptionRepository:
 
             for column_request in table_description_request.columns:
                 if column_request.name not in columns:
-                    raise Exception(f"Column {column_request.name} doesn't exist")
+                    raise HTTPException(f"Column {column_request.name} doesn't exist")
                 for column in table.columns:
                     if column_request.name == column.name:
                         for field, value in column_request:

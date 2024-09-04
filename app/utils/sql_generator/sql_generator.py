@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from queue import Queue
 from typing import Any, List, Tuple
 
+from fastapi import HTTPException
 import sqlparse
 from langchain.agents.agent import AgentExecutor
 from langchain.schema import AgentAction
@@ -46,7 +47,7 @@ class SQLGenerator(ABC):
             response.get("output")
             == "Agent stopped due to iteration limit or time limit."
         ):
-            raise Exception("The engine has timed out or reached the tool limit.")
+            raise HTTPException("The engine has timed out or reached the tool limit.")
         return response
 
     def remove_markdown(self, query: str) -> str:

@@ -26,6 +26,8 @@ langchain-openai = "^0.1.23"
 langchain-ollama = "^0.1.2"
 langchain-huggingface = "^0.0.3"
 pandas = "^2.2.2"
+pypdf2 = "^3.0.1"
+python-multipart = "^0.0.9"
 
 
 [build-system]

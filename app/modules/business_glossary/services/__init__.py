@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from app.api.requests import BusinessGlossaryRequest, UpdateBusinessGlossaryRequest
 from app.modules.business_glossary.models import BusinessGlossary
 from app.modules.business_glossary.repositories import BusinessGlossaryRepository
@@ -19,7 +20,7 @@ class BusinessGlossaryService:
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(db_connection_id)
         if not db_connection:
-            raise Exception(f"Database connection {db_connection_id} not found")
+            raise HTTPException(f"Database connection {db_connection_id} not found")
 
         business_glossary = BusinessGlossary(
             db_connection_id=db_connection_id,
@@ -33,7 +34,7 @@ class BusinessGlossaryService:
     def get_business_glossary(self, business_glossary_id) -> BusinessGlossary:
         business_glossary = self.repository.find_by_id(business_glossary_id)
         if not business_glossary:
-            raise Exception(f"Business Glossary {business_glossary_id} not found")
+            raise HTTPException(f"Business Glossary {business_glossary_id} not found")
         return business_glossary
 
     def update_business_glossary(
@@ -41,7 +42,7 @@ class BusinessGlossaryService:
     ) -> BusinessGlossary:
         business_glossary = self.repository.find_by_id(business_glossary_id)
         if not business_glossary:
-            raise Exception(f"Business Glossary {business_glossary_id} not found")
+            raise HTTPException(f"Business Glossary {business_glossary_id} not found")
 
         for key, value in request.dict(exclude_unset=True).items():
             setattr(business_glossary, key, value)
@@ -52,8 +53,8 @@ class BusinessGlossaryService:
     def delete_business_glossary(self, business_glossary_id) -> dict:
         business_glossary = self.repository.find_by_id(business_glossary_id)
         if not business_glossary:
-            raise Exception(f"Business Glossary {business_glossary_id} not found")
+            raise HTTPException(f"Business Glossary {business_glossary_id} not found")
         deleted = self.repository.delete(business_glossary_id)
         if deleted == 0:
-            raise Exception(status_code=404, detail="Business Glossary not deleted")
+            raise HTTPException(status_code=404, detail="Business Glossary not deleted")
         return {"status": "success"}
