@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     TYPESENSE_PROTOCOL: str
     TYPESENSE_TIMEOUT: int
 
+    OPENAI_API_KEY: str | None
+    DEFAULT_AI_MODEL: str | None
+    DEFAULT_EMBEDDING_MODEL: str | None
+
     ENCRYPT_KEY: str
 
     class Config:
