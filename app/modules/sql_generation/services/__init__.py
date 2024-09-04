@@ -15,8 +15,6 @@ from app.modules.prompt.services import PromptService
 from app.modules.sql_generation.models import LLMConfig, SQLGeneration
 from app.modules.sql_generation.repositories import SQLGenerationRepository
 from app.server.config import Settings
-from app.server.errors import error_response
-from app.utils.core.timeout import run_with_timeout
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_generator.sql_agent import SQLAgent
 from app.utils.sql_generator.sql_query_status import create_sql_query_status

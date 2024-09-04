@@ -1,13 +1,13 @@
-import fastapi
-from fastapi import BackgroundTasks, HTTPException, File, UploadFile
-from fastapi.responses import JSONResponse
-import os
-import PyPDF2
 from io import BytesIO
 
+import fastapi
+import PyPDF2
+from fastapi import BackgroundTasks, File, HTTPException, UploadFile
+from fastapi.responses import JSONResponse
 
 from app.api.requests import (
     BusinessGlossaryRequest,
+    ContextStoreRequest,
     DatabaseConnectionRequest,
     InstructionRequest,
     PromptRequest,
@@ -17,24 +17,23 @@ from app.api.requests import (
     UpdateBusinessGlossaryRequest,
     UpdateInstructionRequest,
     UpdateMetadataRequest,
-    ContextStoreRequest
 )
 from app.api.responses import (
     BusinessGlossaryResponse,
+    ContextStoreResponse,
     DatabaseConnectionResponse,
     InstructionResponse,
     PromptResponse,
     SQLGenerationResponse,
     TableDescriptionResponse,
-    ContextStoreResponse
 )
 from app.data.db.storage import Storage
 from app.modules.business_glossary.services import BusinessGlossaryService
+from app.modules.context_store.services import ContextStoreService
 from app.modules.database_connection.services import DatabaseConnectionService
 from app.modules.instruction.services import InstructionService
-from app.modules.context_store.services import ContextStoreService
 from app.modules.prompt.services import PromptService
-from app.modules.sql_generation.services.sql_generations import SQLGenerationService
+from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.table_description.services import TableDescriptionService
 from app.utils.sql_database.scanner import SqlAlchemyScanner
 
@@ -180,7 +179,7 @@ class API:
             tags=["Instructions"],
         )
 
-       self.router.add_api_route(
+        self.router.add_api_route(
             "/api/v1/context-stores",
             self.create_context_store,
             methods=["POST"],
@@ -194,7 +193,7 @@ class API:
             methods=["GET"],
             tags=["Context Stores"],
         )
-        
+
         self.router.add_api_route(
             "/api/v1/context-stores/{context_store_id}",
             self.get_context_store,
@@ -287,14 +286,13 @@ class API:
             methods=["GET"],
             tags=["SQL Generation"],
         )
-        
-         self.router.add_api_route(
+
+        self.router.add_api_route(
             "/api/v1/rags",
             self.upload_document,
             methods=["POST"],
             tags=["RAGs"],
         )
-
 
     def get_router(self) -> fastapi.APIRouter:
         return self.router
@@ -431,14 +429,21 @@ class API:
                 raise HTTPException(status_code=404, detail=str(e))
             else:
                 raise HTTPException(status_code=500, detail=str(e))
-                
-    def create_context_store(self, context_store_request: ContextStoreRequest) -> ContextStoreResponse:
-        context_store = self.context_store_service.create_context_store(context_store_request)
+
+    def create_context_store(
+        self, context_store_request: ContextStoreRequest
+    ) -> ContextStoreResponse:
+        context_store = self.context_store_service.create_context_store(
+            context_store_request
+        )
         return ContextStoreResponse(**context_store.model_dump())
 
     def get_context_stores(self, db_connection_id: str) -> list[ContextStoreResponse]:
         context_stores = self.context_store_service.get_context_stores(db_connection_id)
-        return [ContextStoreResponse(**context_store.model_dump()) for context_store in context_stores]
+        return [
+            ContextStoreResponse(**context_store.model_dump())
+            for context_store in context_stores
+        ]
 
     def get_context_store(self, context_store_id: str) -> ContextStoreResponse:
         context_store = self.context_store_service.get_context_store(context_store_id)
@@ -446,7 +451,9 @@ class API:
 
     def delete_context_store(self, context_store_id: str) -> dict:
         try:
-            is_deleted = self.context_store_service.delete_context_store(context_store_id)
+            is_deleted = self.context_store_service.delete_context_store(
+                context_store_id
+            )
             if is_deleted:
                 return {"message": f"Context {context_store_id} successfully deleted"}
         except Exception as e:
@@ -543,23 +550,26 @@ class API:
         return self.sql_generation_service.execute_sql_query(
             sql_generation_id, max_rows
         )
-      
+
     async def upload_document(self, file: UploadFile = File(...)) -> dict:
         try:
             # Read the file content into memory
             content = await file.read()
-            
+
             # Process the PDF content directly from memory using PyPDF2
             text_content = self.pdf_to_text(content)
-            
+
             # Return success response with extracted text
-            return JSONResponse(content={
-                "filename": file.filename,
-                "content_type": file.content_type,
-                "file_size": len(content),
-                "extracted_text": text_content
-            }, status_code=200)
-            
+            return JSONResponse(
+                content={
+                    "filename": file.filename,
+                    "content_type": file.content_type,
+                    "file_size": len(content),
+                    "extracted_text": text_content,
+                },
+                status_code=200,
+            )
+
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -568,22 +578,24 @@ class API:
         try:
             # Use BytesIO to treat the content as a file-like object
             pdf_file = BytesIO(content)
-            
+
             # Create a PDF reader object
             reader = PyPDF2.PdfReader(pdf_file)
-            
+
             # Extract text from each page
             for page in reader.pages:
                 text += page.extract_text() + "\n"
-        
+
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
-        
+            raise HTTPException(
+                status_code=500, detail=f"Error processing PDF: {str(e)}"
+            )
+
         return text
 
     def upload_text(self, title, content) -> dict:
         return {"message": "Information Uploaded Successfully"}
-    
+
     def embed_document(self, document_id: str) -> dict:
         return {"message": "Embedding document"}
 

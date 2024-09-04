@@ -21,7 +21,6 @@ from app.modules.sql_generation.models import (
 )
 from app.modules.sql_generation.repositories import SQLGenerationRepository
 from app.modules.table_description.models import TableDescription
-from app.server.config import Settings
 from app.utils.core.strings import contains_line_breaks
 from app.utils.model.chat_model import ChatModel
 from app.utils.sql_database.sql_database import SQLDatabase
@@ -85,7 +84,6 @@ class SQLGenerator(ABC):
 
     @classmethod
     def get_upper_bound_limit(cls) -> int:
-        settings = Settings()
         top_k = os.getenv("UPPER_LIMIT_QUERY_RETURN_ROWS")
         if top_k is None or top_k == "":
             top_k = 50
@@ -116,7 +114,7 @@ class SQLGenerator(ABC):
         sql_query = ""
         for step in intermediate_steps:
             action = step[0]
-            if type(action) == AgentAction and action.tool == "SqlDbQuery":
+            if type(action) == AgentAction and action.tool == "SqlDbQuery":  # noqa: E721
                 if "SELECT" in self.format_sql_query(action.tool_input).upper():
                     sql_query = self.remove_markdown(action.tool_input)
         if sql_query == "":
