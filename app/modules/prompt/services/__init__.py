@@ -49,5 +49,9 @@ class PromptService:
         return self.repository.update(prompt)
 
     def get_prompts(self, db_connection_id) -> list[Prompt]:
+        db_connection_repository = DatabaseConnectionRepository(self.storage)
+        db_connection = db_connection_repository.find_by_id(db_connection_id)
+        if not db_connection:
+            raise Exception(f"Database connection {db_connection_id} not found")
         filter = {"db_connection_id": db_connection_id}
         return self.repository.find_by(filter)
