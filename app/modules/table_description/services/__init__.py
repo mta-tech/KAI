@@ -26,7 +26,7 @@ class TableDescriptionService:
         for table_id in scanner_request.table_description_ids:
             table_description = scanner_repository.find_by_id(table_id)
             if not table_description:
-                raise Exception("Table description not found")
+                raise HTTPException("Table description not found")
             if table_description.db_connection_id not in data.keys():
                 data[table_description.db_connection_id] = {}
             if (

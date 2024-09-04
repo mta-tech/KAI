@@ -1,6 +1,7 @@
 import difflib
 from typing import List
 
+from fastapi import HTTPException
 from langchain.callbacks.manager import (
     CallbackManagerForToolRun,
 )
@@ -55,7 +56,7 @@ class ColumnEntityChecker(BaseTool):
             table_name = replace_unprocessable_characters(table_name)
             column_name = replace_unprocessable_characters(column_name).strip()
             if "." not in table_name and self.is_multiple_schema:
-                raise Exception(
+                raise HTTPException(
                     "Table name should be in the format schema_name.table_name"
                 )
         except ValueError:

@@ -1,4 +1,5 @@
 
+from fastapi import HTTPException
 from app.api.requests import InstructionRequest, UpdateInstructionRequest
 # from app.modules.database_connection.models import DatabaseConnection
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
@@ -17,12 +18,12 @@ class InstructionService:
             instruction_request.db_connection_id
         )
         if not db_connection:
-            raise Exception(
+            raise HTTPException(
                 f"Database connection {instruction_request.db_connection_id} not found"
             )
 
         # if not db_connection.schemas and prompt_request.schemas:
-        #     raise Exception(
+        #     raise HTTPException(
         #         "Schema not supported for this db",
         #         description=f"The {db_connection.dialect} dialect doesn't support schemas",
         #     )
@@ -40,7 +41,7 @@ class InstructionService:
     def get_instruction(self, instruction_id) -> Instruction:
         instruction = self.repository.find_by_id(instruction_id)
         if not instruction:
-            raise Exception(f"Prompt {instruction_id} not found")
+            raise HTTPException(f"Prompt {instruction_id} not found")
         return instruction
 
     def get_instructions(self, db_connection_id) -> list[Instruction]:
@@ -52,7 +53,7 @@ class InstructionService:
     ) -> Instruction:
         instruction = self.repository.find_by_id(instruction_id)
         if not instruction:
-            raise Exception(f"Instruction {instruction_id} not found")
+            raise HTTPException(f"Instruction {instruction_id} not found")
         
         if update_request.condition is not None:
             instruction.condition = update_request.condition
@@ -69,12 +70,12 @@ class InstructionService:
     def delete_instruction(self, instruction_id) -> bool:
         instruction = self.repository.find_by_id(instruction_id)
         if not instruction:
-            raise Exception(f"Prompt {instruction_id} not found")
+            raise HTTPException(f"Prompt {instruction_id} not found")
         
         is_deleted = self.repository.delete_by_id(instruction_id)
 
         if not is_deleted:
-            raise Exception(f"Failed to delete instruction {instruction_id}")
+            raise HTTPException(f"Failed to delete instruction {instruction_id}")
         
         return True
 

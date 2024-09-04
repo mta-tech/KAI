@@ -5,6 +5,7 @@ import re
 from typing import List
 from urllib.parse import unquote
 
+from fastapi import HTTPException
 import sqlparse
 from sqlalchemy import MetaData, create_engine, inspect, text
 from sqlalchemy.engine import Engine
@@ -71,7 +72,7 @@ class SQLDatabase:
             engine.engine.connect()
             DBConnections.add(database_info.id, engine)
         except Exception as e:
-            raise Exception(  # noqa: B904
+            raise HTTPException(  # noqa: B904
                 f"Unable to connect to db: {database_info.alias}", description=str(e)
             )
         return engine
@@ -127,7 +128,7 @@ class SQLDatabase:
                     isinstance(token, sqlparse.sql.Token)
                     and token.normalized in sensitive_keywords
                 ):
-                    raise Exception(
+                    raise HTTPException(
                         f"Sensitive SQL keyword '{token.normalized}' detected in the query."
                     )
 

@@ -53,7 +53,7 @@ class SQLGenerationService:
 
         if not prompt:
             self.update_error(initial_sql_generation, f"Prompt {prompt_id} not found")
-            raise Exception(f"Prompt {prompt_id} not found", initial_sql_generation.id)
+            raise HTTPException(f"Prompt {prompt_id} not found", initial_sql_generation.id)
 
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(prompt.db_connection_id)
@@ -73,7 +73,7 @@ class SQLGenerationService:
                 )
             except Exception as e:
                 self.update_error(initial_sql_generation, str(e))
-                raise Exception(str(e), initial_sql_generation.id) from e
+                raise HTTPException(str(e), initial_sql_generation.id) from e
         else:
             sql_generator = SQLAgent(
                 (
@@ -99,13 +99,13 @@ class SQLGenerationService:
                         self.update_error(
                             initial_sql_generation, "SQL generation request timed out"
                         )
-                        raise Exception(
+                        raise HTTPException(
                             "SQL generation request timed out",
                             initial_sql_generation.id,
                         ) from e
             except Exception as e:
                 self.update_error(initial_sql_generation, str(e))
-                raise Exception(str(e), initial_sql_generation.id) from e
+                raise HTTPException(str(e), initial_sql_generation.id) from e
         # if sql_generation_request.evaluate:
         #     evaluator = self.system.instance(Evaluator)
         #     evaluator.llm_config = (
@@ -138,7 +138,7 @@ class SQLGenerationService:
         prompt_repository = PromptRepository(self.storage)
         prompt = prompt_repository.find_by_id(prompt_id)
         if not prompt:
-            raise Exception(f"Prompt {prompt_id} not found")
+            raise HTTPException(f"Prompt {prompt_id} not found")
 
         sql_generations = self.sql_generation_repository.find_by(
             {"prompt_id": prompt_id}
@@ -170,7 +170,7 @@ class SQLGenerationService:
     ) -> tuple[str, dict]:
         sql_generation = self.sql_generation_repository.find_by_id(sql_generation_id)
         if not sql_generation:
-            raise Exception(f"SQL Generation {sql_generation_id} not found")
+            raise HTTPException(f"SQL Generation {sql_generation_id} not found")
         prompt_repository = PromptRepository(self.storage)
         prompt = prompt_repository.find_by_id(sql_generation.prompt_id)
         db_connection_repository = DatabaseConnectionRepository(self.storage)
