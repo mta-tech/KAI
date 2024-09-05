@@ -10,7 +10,10 @@ from app.api.requests import (
     ContextStoreRequest,
     DatabaseConnectionRequest,
     InstructionRequest,
+    NLGenerationRequest,
+    NLGenerationsSQLGenerationRequest,
     PromptRequest,
+    PromptSQLGenerationNLGenerationRequest,
     PromptSQLGenerationRequest,
     ScannerRequest,
     SQLGenerationRequest,
@@ -23,6 +26,7 @@ from app.api.responses import (
     ContextStoreResponse,
     DatabaseConnectionResponse,
     InstructionResponse,
+    NLGenerationResponse,
     PromptResponse,
     SQLGenerationResponse,
     TableDescriptionResponse,
@@ -32,6 +36,7 @@ from app.modules.business_glossary.services import BusinessGlossaryService
 from app.modules.context_store.services import ContextStoreService
 from app.modules.database_connection.services import DatabaseConnectionService
 from app.modules.instruction.services import InstructionService
+from app.modules.nl_generation.services import NLGenerationService
 from app.modules.prompt.services import PromptService
 from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.table_description.services import TableDescriptionService
@@ -51,6 +56,7 @@ class API:
         self.sql_generation_service = SQLGenerationService(self.storage)
         self.instruction_service = InstructionService(self.storage)
         self.context_store_service = ContextStoreService(self.storage)
+        self.nl_generation_service = NLGenerationService(self.storage)
 
         self._register_routes()
 
@@ -112,35 +118,6 @@ class API:
             self.get_table_description,
             methods=["GET"],
             tags=["Table Descriptions"],
-        )
-
-        self.router.add_api_route(
-            "/api/v1/prompts",
-            self.create_prompt,
-            methods=["POST"],
-            status_code=201,
-            tags=["Prompts"],
-        )
-
-        self.router.add_api_route(
-            "/api/v1/prompts/{prompt_id}",
-            self.get_prompt,
-            methods=["GET"],
-            tags=["Prompts"],
-        )
-
-        self.router.add_api_route(
-            "/api/v1/prompts",
-            self.get_prompts,
-            methods=["GET"],
-            tags=["Prompts"],
-        )
-
-        self.router.add_api_route(
-            "/api/v1/prompts/{prompt_id}",
-            self.update_prompt,
-            methods=["PUT"],
-            tags=["Prompts"],
         )
 
         self.router.add_api_route(
@@ -244,6 +221,35 @@ class API:
         )
 
         self.router.add_api_route(
+            "/api/v1/prompts",
+            self.create_prompt,
+            methods=["POST"],
+            status_code=201,
+            tags=["Prompts"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/prompts/{prompt_id}",
+            self.get_prompt,
+            methods=["GET"],
+            tags=["Prompts"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/prompts",
+            self.get_prompts,
+            methods=["GET"],
+            tags=["Prompts"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/prompts/{prompt_id}",
+            self.update_prompt,
+            methods=["PUT"],
+            tags=["Prompts"],
+        )
+
+        self.router.add_api_route(
             "/api/v1/prompts/{prompt_id}/sql-generations",
             self.create_sql_generation,
             methods=["POST"],
@@ -285,6 +291,51 @@ class API:
             self.execute_sql_query,
             methods=["GET"],
             tags=["SQL Generations"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/sql-generations/{sql_generation_id}/nl-generations",
+            self.create_nl_generation,
+            methods=["POST"],
+            status_code=201,
+            tags=["NL Generations"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/prompts/{prompt_id}/sql-generations/nl-generations",
+            self.create_sql_and_nl_generation,
+            methods=["POST"],
+            status_code=201,
+            tags=["NL Generations"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/prompts/sql-generations/nl-generations",
+            self.create_prompt_sql_and_nl_generation,
+            methods=["POST"],
+            status_code=201,
+            tags=["NL Generations"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/nl-generations",
+            self.get_nl_generations,
+            methods=["GET"],
+            tags=["NL Generations"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/nl-generations/{nl_generation_id}",
+            self.get_nl_generation,
+            methods=["GET"],
+            tags=["NL Generations"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/nl-generations/{nl_generation_id}",
+            self.update_nl_generation,
+            methods=["PUT"],
+            tags=["NL Generations"],
         )
 
         self.router.add_api_route(
@@ -550,6 +601,53 @@ class API:
         return self.sql_generation_service.execute_sql_query(
             sql_generation_id, max_rows
         )
+
+    def create_nl_generation(
+        self, sql_generation_id: str, nl_generation_request: NLGenerationRequest
+    ) -> NLGenerationResponse:
+        nl_generation = self.nl_generation_service.create_nl_generation(
+            sql_generation_id, nl_generation_request
+        )
+        return NLGenerationResponse(**nl_generation.model_dump())
+
+    def create_sql_and_nl_generation(
+        self,
+        prompt_id: str,
+        nl_generation_sql_generation_request: NLGenerationsSQLGenerationRequest,
+    ) -> NLGenerationResponse:
+        nl_generation = self.nl_generation_service.create_sql_and_nl_generation(
+            prompt_id, nl_generation_sql_generation_request
+        )
+        return NLGenerationResponse(**nl_generation.model_dump())
+
+    def create_prompt_sql_and_nl_generation(
+        self, request: PromptSQLGenerationNLGenerationRequest
+    ) -> NLGenerationResponse:
+        nl_generation = self.nl_generation_service.create_prompt_sql_and_nl_generation(
+            request
+        )
+        return NLGenerationResponse(**nl_generation.model_dump())
+
+    def get_nl_generations(self, sql_generation_id: str) -> list[NLGenerationResponse]:
+        nl_generations = self.nl_generation_service.get_nl_generations(
+            sql_generation_id
+        )
+        return [
+            NLGenerationResponse(**nl_generation.model_dump())
+            for nl_generation in nl_generations
+        ]
+
+    def get_nl_generation(self, nl_generation_id: str) -> NLGenerationResponse:
+        nl_generation = self.nl_generation_service.get_nl_generation(nl_generation_id)
+        return NLGenerationResponse(**nl_generation.model_dump())
+
+    def update_nl_generation(
+        self, nl_generation_id: str, metadata_request: UpdateMetadataRequest
+    ) -> NLGenerationResponse:
+        nl_generation = self.nl_generation_service.update_nl_generation(
+            nl_generation_id, metadata_request
+        )
+        return NLGenerationResponse(**nl_generation.model_dump())
 
     async def upload_document(self, file: UploadFile = File(...)) -> dict:
         try:

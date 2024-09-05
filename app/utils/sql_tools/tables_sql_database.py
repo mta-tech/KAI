@@ -89,7 +89,7 @@ class TablesSQLDatabaseTool(BaseTool):
             else:
                 table_rep = f"Table {table.table_name} contain columns: [{col_rep}]"
             table_representations.append(
-                [table.table_schema, table.table_name, table_rep]
+                [table.db_schema, table.table_name, table_rep]
             )
         df = pd.DataFrame(
             table_representations,

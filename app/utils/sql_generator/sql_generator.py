@@ -219,7 +219,7 @@ class SQLGenerator(ABC):
         finally:
             queue.put(None)
             response.tokens_used = cb.total_tokens
-            response.completed_at = datetime.datetime.now()
+            response.completed_at = str(datetime.datetime.now())
             if not response.error:
                 if response.sql:
                     response = self.create_sql_query_status(
