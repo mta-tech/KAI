@@ -215,7 +215,7 @@ class SQLAgent(SQLGenerator):
                 return SQLGeneration(
                     prompt_id=user_prompt.id,
                     tokens_used=cb.total_tokens,
-                    completed_at=datetime.datetime.now(),
+                    completed_at=str(datetime.datetime.now()),
                     sql="",
                     status="INVALID",
                     error=str(e),
@@ -230,7 +230,7 @@ class SQLAgent(SQLGenerator):
         logger.info(f"cost: {str(cb.total_cost)} tokens: {str(cb.total_tokens)}")
         response.sql = replace_unprocessable_characters(sql_query)
         response.tokens_used = cb.total_tokens
-        response.completed_at = datetime.datetime.now()
+        response.completed_at = str(datetime.datetime.now())
         if number_of_samples > 0:
             suffix = SUFFIX_WITH_FEW_SHOT_SAMPLES
         else:

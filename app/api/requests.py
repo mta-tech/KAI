@@ -104,7 +104,7 @@ class PromptSQLGenerationRequest(SQLGenerationRequest):
 class NLGenerationRequest(BaseModel):
     llm_config: LLMConfig | None
     max_rows: int = 100
-    metadata: dict | None
+    metadata: dict | None = None
 
 
 class NLGenerationsSQLGenerationRequest(NLGenerationRequest):

@@ -48,8 +48,8 @@ class ContextStoreResponse(BaseResponse):
     prompt_embedding: list[float] | None = None
     sql: str
     is_parameterized: bool
-    parameterized_entity: dict | None = None #Stores NER (entity: type)
-    
+    parameterized_entity: dict | None = None  # Stores NER (entity: type)
+
 
 class SQLGenerationResponse(BaseResponse):
     id: str
@@ -60,5 +60,12 @@ class SQLGenerationResponse(BaseResponse):
     sql: str | None
     tokens_used: int | None
     confidence_score: float | None
-    completed_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    completed_at: str | None
     error: str | None
+
+
+class NLGenerationResponse(BaseResponse):
+    id: str
+    sql_generation_id: str
+    llm_config: LLMConfig | None
+    text: str | None
