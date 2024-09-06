@@ -57,7 +57,7 @@ class ColumnEntityChecker(BaseTool):
             column_name = replace_unprocessable_characters(column_name).strip()
             if "." not in table_name and self.is_multiple_schema:
                 raise HTTPException(
-                    "Table name should be in the format schema_name.table_name"
+                    "Table name should be in the format db_schema.table_name"
                 )
         except ValueError:
             return "Invalid input format, use following format: table_name -> column_name, entity (entity should be a string without ',')"

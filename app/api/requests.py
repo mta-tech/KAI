@@ -43,6 +43,7 @@ class PromptRequest(BaseModel):
     text: str
     db_connection_id: str
     schemas: list[str] | None = None
+    context: list[dict] | None = None
     metadata: dict | None = None
 
 
@@ -70,15 +71,15 @@ class UpdateInstructionRequest(BaseModel):
 
 class ContextStoreRequest(BaseModel):
     db_connection_id: str
-    prompt_text: str
-    sql: str
+    prompt: str
+    sql: str 
     metadata: dict | None = None
 
 
-# class UpdateContextStoreRequest(BaseModel):
-#     prompt_text: Optional[str] = None
-#     sql: Optional[str] = None
-#     metadata: Optional[dict] = None
+class UpdateContextStoreRequest(BaseModel):
+    prompt: Optional[str] = None
+    sql: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
 class SQLGenerationRequest(BaseModel):

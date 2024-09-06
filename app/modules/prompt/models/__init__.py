@@ -8,5 +8,6 @@ class Prompt(BaseModel):
     text: str
     db_connection_id: str
     schemas: list[str] | None = None
+    context: list[dict] | None = None
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     metadata: dict | None = None

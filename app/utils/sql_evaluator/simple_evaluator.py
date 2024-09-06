@@ -88,24 +88,17 @@ class SimpleEvaluator(Evaluator):
         if result:
             for row in result:
                 modified_row = {}
-                if len(row) == 2:  # If the tuple has exactly two elements
-                    key, value = row
-                    # Check if the value is an instance of datetime.date
-                    if isinstance(value, (date, datetime)):
+                for key, value in row.items():
+                    if isinstance(
+                        value, (date, datetime)
+                    ):  # Check if the value is an instance of datetime.date
                         modified_row[key] = str(value)
-                    # Check if the value is an instance of decimal.Decimal
-                    elif isinstance(value, Decimal):
+                    elif isinstance(
+                        value, Decimal
+                    ):  # Check if the value is an instance of decimal.Decimal
                         modified_row[key] = float(value)
                     else:
                         modified_row[key] = value
-                else:  # If the tuple has more than two elements, loop through them
-                    for key, value in zip(row[::2], row[1::2]):
-                        if isinstance(value, (date, datetime)):
-                            modified_row[key] = str(value)
-                        elif isinstance(value, Decimal):
-                            modified_row[key] = float(value)
-                        else:
-                            modified_row[key] = value
                 rows.append(modified_row)
         return rows
 
@@ -166,7 +159,7 @@ class SimpleEvaluator(Evaluator):
             query = database.parser_to_filter_commands(sql_generation.sql)
             with database._engine.connect() as connection:
                 execution = connection.execute(text(query))
-                result = execution.fetchmany(TOP_K)
+                result = execution.mappings().fetchmany(TOP_K)
             rows = self.create_sql_results(result)
 
         except Exception as e:
