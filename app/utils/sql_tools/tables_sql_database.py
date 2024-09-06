@@ -59,7 +59,7 @@ class TablesSQLDatabaseTool(BaseTool):
                 for table in tables:
                     found_tables = df[df.table_name == table]
                     for _, row in found_tables.iterrows():
-                        most_similar_tables.add((row["schema_name"], row["table_name"]))
+                        most_similar_tables.add((row["db_schema"], row["table_name"]))
             df.drop(
                 df[
                     df.table_name.isin([table[1] for table in most_similar_tables])
@@ -93,7 +93,7 @@ class TablesSQLDatabaseTool(BaseTool):
             )
         df = pd.DataFrame(
             table_representations,
-            columns=["schema_name", "table_name", "table_representation"],
+            columns=["db_schema", "table_name", "table_representation"],
         )
         df["table_embedding"] = self.get_docs_embedding(df.table_representation)
         df["similarities"] = df.table_embedding.apply(
@@ -104,8 +104,8 @@ class TablesSQLDatabaseTool(BaseTool):
         most_similar_tables = self.similar_tables_based_on_few_shot_examples(df)
         table_relevance = ""
         for _, row in df.iterrows():
-            if row["schema_name"] is not None:
-                table_name = row["schema_name"] + "." + row["table_name"]
+            if row["db_schema"] is not None:
+                table_name = row["db_schema"] + "." + row["table_name"]
             else:
                 table_name = row["table_name"]
             table_relevance += (

@@ -9,6 +9,7 @@ from app.api.requests import (
     SQLGenerationRequest,
     UpdateMetadataRequest,
 )
+from app.modules.context_store.services import ContextStoreService
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.modules.prompt.repositories import PromptRepository
 from app.modules.prompt.services import PromptService
@@ -63,10 +64,20 @@ class SQLGenerationService:
 
         database = SQLDatabase.get_sql_engine(db_connection, True)
 
+        # Perform Smart Cache
+        context_store = ContextStoreService(self.storage).full_text_search(
+            prompt.db_connection_id, prompt.text
+        )
+        # Assing context store SQL
+        if context_store:
+            sql_generation_request.sql = context_store.sql
+            sql_generation_request.evaluate = False
+
         # SQL is given in request
         if sql_generation_request.sql is not None:
             sql_generation = SQLGeneration(
                 prompt_id=prompt_id,
+                llm_config=sql_generation_request.llm_config,
                 sql=sql_generation_request.sql,
                 tokens_used=0,
             )
