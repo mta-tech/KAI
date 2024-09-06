@@ -62,3 +62,10 @@ class SQLGenerationResponse(BaseResponse):
     confidence_score: float | None
     completed_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     error: str | None
+
+
+class DocumentResponse(BaseResponse):
+    title: str | None = None
+    content_type: str
+    document_size: int
+    text_content: str | None = None
