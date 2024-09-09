@@ -32,4 +32,4 @@ class ChatModel(LLMModel):
                 base_url=self.settings.require("OLLAMA_API_BASE"),
                 **kwargs,
             )
-        raise ValueError("No valid API key environment variable found")
+        raise ValueError("No model family found upon chat model")

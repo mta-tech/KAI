@@ -44,7 +44,6 @@ from app.modules.prompt.services import PromptService
 from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.table_description.services import TableDescriptionService
 from app.utils.sql_database.scanner import SqlAlchemyScanner
-#insert rag service
 from app.modules.rag.services import DocumentService, EmbeddingService
 
 class API:
@@ -300,7 +299,7 @@ class API:
         )
 
         self.router.add_api_route(
-          "/api/v1/sql-generations/{sql_generation_id}/nl-generations",
+            "/api/v1/sql-generations/{sql_generation_id}/nl-generations",
             self.create_nl_generation,
             methods=["POST"],
             status_code=201,
@@ -652,6 +651,53 @@ class API:
             sql_generation_id, max_rows
         )
       
+    def create_nl_generation(
+        self, sql_generation_id: str, nl_generation_request: NLGenerationRequest
+    ) -> NLGenerationResponse:
+        nl_generation = self.nl_generation_service.create_nl_generation(
+            sql_generation_id, nl_generation_request
+        )
+        return NLGenerationResponse(**nl_generation.model_dump())
+
+    def create_sql_and_nl_generation(
+        self,
+        prompt_id: str,
+        nl_generation_sql_generation_request: NLGenerationsSQLGenerationRequest,
+    ) -> NLGenerationResponse:
+        nl_generation = self.nl_generation_service.create_sql_and_nl_generation(
+            prompt_id, nl_generation_sql_generation_request
+        )
+        return NLGenerationResponse(**nl_generation.model_dump())
+
+    def create_prompt_sql_and_nl_generation(
+        self, request: PromptSQLGenerationNLGenerationRequest
+    ) -> NLGenerationResponse:
+        nl_generation = self.nl_generation_service.create_prompt_sql_and_nl_generation(
+            request
+        )
+        return NLGenerationResponse(**nl_generation.model_dump())
+
+    def get_nl_generations(self, sql_generation_id: str) -> list[NLGenerationResponse]:
+        nl_generations = self.nl_generation_service.get_nl_generations(
+            sql_generation_id
+        )
+        return [
+            NLGenerationResponse(**nl_generation.model_dump())
+            for nl_generation in nl_generations
+        ]
+
+    def get_nl_generation(self, nl_generation_id: str) -> NLGenerationResponse:
+        nl_generation = self.nl_generation_service.get_nl_generation(nl_generation_id)
+        return NLGenerationResponse(**nl_generation.model_dump())
+
+    def update_nl_generation(
+        self, nl_generation_id: str, metadata_request: UpdateMetadataRequest
+    ) -> NLGenerationResponse:
+        nl_generation = self.nl_generation_service.update_nl_generation(
+            nl_generation_id, metadata_request
+        )
+        return NLGenerationResponse(**nl_generation.model_dump())
+
     def create_nl_generation(
         self, sql_generation_id: str, nl_generation_request: NLGenerationRequest
     ) -> NLGenerationResponse:
