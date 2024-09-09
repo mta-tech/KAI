@@ -41,7 +41,7 @@ class InstructionResponse(BaseResponse):
 
 class ContextStoreResponse(BaseResponse):
     db_connection_id: str
-    prompt: str
+    prompt_text: str
     sql: str
 
 

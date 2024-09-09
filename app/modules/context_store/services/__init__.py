@@ -1,6 +1,10 @@
-from fastapi import HTTPException
+import logging
+from typing import List, Tuple
 
-from app.api.requests import (  # , UpdateContextStoreRequest
+from fastapi import HTTPException
+from sql_metadata import Parser
+
+from app.api.requests import (
     ContextStoreRequest,
     UpdateContextStoreRequest,
 )
@@ -9,6 +13,13 @@ from app.modules.context_store.repositories import ContextStoreRepository
 
 # from app.modules.database_connection.models import DatabaseConnection
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
+from app.modules.instruction.repositories import InstructionRepository
+from app.modules.prompt.models import Prompt
+from app.server.config import Settings
+from app.utils.model.embedding_model import EmbeddingModel
+from app.utils.sql_database.sql_utils import extract_the_schemas_from_sql
+
+logger = logging.getLogger(__name__)
 
 
 class ContextStoreService:
@@ -19,6 +30,14 @@ class ContextStoreService:
     def create_context_store(
         self, context_store_request: ContextStoreRequest
     ) -> ContextStore:
+        try:
+            Parser(context_store_request.sql).tables  # noqa: B018
+        except Exception as e:
+            raise HTTPException(
+                404,
+                f"SQL {context_store_request.sql} is malformed. Please check the syntax.",
+            ) from e
+
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(
             context_store_request.db_connection_id
@@ -28,9 +47,31 @@ class ContextStoreService:
                 f"Database connection {context_store_request.db_connection_id} not found"
             )
 
+        if db_connection.schemas:
+            schema_not_found = True
+            used_schemas = extract_the_schemas_from_sql(context_store_request.sql)
+            for schema in db_connection.schemas:
+                if schema in used_schemas:
+                    schema_not_found = False
+                    break
+            if schema_not_found:
+                raise HTTPException(
+                    404,
+                    f"SQL {context_store_request.sql} does not contain any of the schemas {db_connection.schemas}",
+                )
+
+        # Get Embedding Vector from Prompt, used in SQL Generation as Few Show Examples
+        embedding_model = EmbeddingModel().get_model(
+            model_family="openai", model_name="text-embedding-3-small"
+        )
+        prompt_embedding = embedding_model.embed_query(
+            context_store_request.prompt_text
+        )
+
         context_store = ContextStore(
             db_connection_id=context_store_request.db_connection_id,
-            prompt=context_store_request.prompt,
+            prompt_text=context_store_request.prompt_text,
+            prompt_embedding=prompt_embedding,
             sql=context_store_request.sql,
             metadata=context_store_request.metadata,
         )
@@ -73,3 +114,18 @@ class ContextStoreService:
 
     def full_text_search(self, db_connection_id, prompt) -> ContextStore:
         return self.repository.find_by_prompt(db_connection_id, prompt)
+
+    def retrieve_context_for_question(
+        self, prompt: Prompt
+    ) -> list[dict]:
+        logger.info(f"Getting context for {prompt.text}")
+
+        embedding_model = EmbeddingModel().get_model(
+            model_family="openai", model_name="text-embedding-3-small"
+        )
+        prompt_embedding = embedding_model.embed_query(prompt.text)
+        relevant_context = self.repository.find_relevant_context(
+            prompt.db_connection_id, prompt.text, prompt_embedding
+        )
+
+        return relevant_context

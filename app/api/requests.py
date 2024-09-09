@@ -71,13 +71,13 @@ class UpdateInstructionRequest(BaseModel):
 
 class ContextStoreRequest(BaseModel):
     db_connection_id: str
-    prompt: str
+    prompt_text: str
     sql: str 
     metadata: dict | None = None
 
 
 class UpdateContextStoreRequest(BaseModel):
-    prompt: Optional[str] = None
+    prompt_text: Optional[str] = None
     sql: Optional[str] = None
     metadata: Optional[dict] = None
 
