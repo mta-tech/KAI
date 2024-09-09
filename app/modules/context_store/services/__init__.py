@@ -1,5 +1,4 @@
 import logging
-from typing import List, Tuple
 
 from fastapi import HTTPException
 from sql_metadata import Parser
@@ -10,12 +9,8 @@ from app.api.requests import (
 )
 from app.modules.context_store.models import ContextStore
 from app.modules.context_store.repositories import ContextStoreRepository
-
-# from app.modules.database_connection.models import DatabaseConnection
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
-from app.modules.instruction.repositories import InstructionRepository
 from app.modules.prompt.models import Prompt
-from app.server.config import Settings
 from app.utils.model.embedding_model import EmbeddingModel
 from app.utils.sql_database.sql_utils import extract_the_schemas_from_sql
 
@@ -115,9 +110,7 @@ class ContextStoreService:
     def full_text_search(self, db_connection_id, prompt) -> ContextStore:
         return self.repository.find_by_prompt(db_connection_id, prompt)
 
-    def retrieve_context_for_question(
-        self, prompt: Prompt
-    ) -> list[dict]:
+    def retrieve_context_for_question(self, prompt: Prompt) -> list[dict]:
         logger.info(f"Getting context for {prompt.text}")
 
         embedding_model = EmbeddingModel().get_model(
