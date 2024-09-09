@@ -58,8 +58,8 @@ class SQLAgent(SQLGenerator):
         returned_result = []
         seen_list = []
         for example in fewshot_exmaples:
-            if example["prompt_text"] not in seen_list:
-                seen_list.append(example["prompt_text"])
+            if example["prompt"] not in seen_list:
+                seen_list.append(example["prompt"])
                 returned_result.append(example)
         return returned_result
 

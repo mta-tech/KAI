@@ -37,7 +37,7 @@ class ContextStoreService:
                 404,
                 f"SQL {context_store_request.sql} is malformed. Please check the syntax.",
             ) from e
-
+            
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(
             context_store_request.db_connection_id
