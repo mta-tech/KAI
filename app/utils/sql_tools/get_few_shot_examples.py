@@ -36,7 +36,7 @@ class GetFewShotExamples(BaseTool):
             return "Action input for the fewshot_examples_retriever tool should be an integer"
         returned_output = ""
         for example in self.few_shot_examples[:number_of_samples]:
-            returned_output += f"Question: {example['prompt']} \n"
+            returned_output += f"Question: {example['prompt_text']} \n"
             returned_output += f"```sql\n{example['sql']}\n```\n"
         if returned_output == "":
             returned_output = "No previously asked Question/SQL pairs are available"

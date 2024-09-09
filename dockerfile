@@ -10,12 +10,10 @@ RUN pip install --upgrade pip && pip install poetry
 WORKDIR /app
 
 # Copy only the dependency files first (for cache efficiency)
-COPY poetry.lock pyproject.toml requirements.txt /app/
+COPY poetry.lock pyproject.toml /app/
 
 # Install dependencies
 RUN poetry config virtualenvs.create false && poetry install --no-interaction --no-ansi --no-dev
-
-RUN pip install -r requirements.txt
 
 # Copy the rest of the application code
 COPY . /app

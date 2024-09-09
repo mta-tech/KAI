@@ -1388,6 +1388,21 @@ llama-index-core = ">=0.11.0,<0.12.0"
 llama-parse = ">=0.5.0"
 
 [[package]]
+name = "llama-index-vector-stores-typesense"
+version = "0.2.0"
+description = "llama-index vector_stores typesense integration"
+optional = false
+python-versions = "<4.0,>=3.8.1"
+files = [
+    {file = "llama_index_vector_stores_typesense-0.2.0-py3-none-any.whl", hash = "sha256:7d4a2e980f011f0197801e1d4163c2f01de6d56ee27a5475b94940ff3092f250"},
+    {file = "llama_index_vector_stores_typesense-0.2.0.tar.gz", hash = "sha256:c7661a1b5f95b0129f7b0bb805a352d41d23ca9f1b8dc657218a16a24a0e8aec"},
+]
+
+[package.dependencies]
+llama-index-core = ">=0.11.0,<0.12.0"
+typesense = ">=0.19.0,<0.20.0"
+
+[[package]]
 name = "llama-parse"
 version = "0.5.2"
 description = "Parse files into RAG-Optimized formats."
@@ -2681,13 +2696,13 @@ telegram = ["requests"]
 
 [[package]]
 name = "typesense"
-version = "0.21.0"
+version = "0.19.0"
 description = "Python client for Typesense, an open source and typo tolerant search engine."
 optional = false
 python-versions = ">=3"
 files = [
-    {file = "typesense-0.21.0-py3-none-any.whl", hash = "sha256:e4330f103a40af98ba2b0ffd817392a84a537e04816221c9a283faadea7718f0"},
-    {file = "typesense-0.21.0.tar.gz", hash = "sha256:24470525b577300bd81fe43029dddd9269b942b20b49236edf049f6ecead7c8e"},
+    {file = "typesense-0.19.0-py3-none-any.whl", hash = "sha256:4c7447f8cc6be456abb420cd6a39e52afa50afa4d10d8313cc8afb2b70e15d87"},
+    {file = "typesense-0.19.0.tar.gz", hash = "sha256:21cf6897eceb2cd3c9cab3d7372b3c4cd1ea88d1a57d4cce058d5a0518f0121b"},
 ]
 
 [package.dependencies]
@@ -2952,4 +2967,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "aadea647ba0e9c0f33740cb2da8f6f08ec12e0c4f946c48e5baef57abf1c211c"
+content-hash = "96bc912ae5f3afea6ae36b7afa14879cd811c161cc615f7070672b0246a5bd9f"
