@@ -1,0 +1,1 @@
+llama-index-vector-stores-typesense==0.2.0

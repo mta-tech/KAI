@@ -28,6 +28,7 @@ langchain-huggingface = "^0.0.3"
 pandas = "^2.2.2"
 pypdf2 = "^3.0.1"
 python-multipart = "^0.0.9"
+llama-index = "^0.11.7"
 
 
 [build-system]
