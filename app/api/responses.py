@@ -56,8 +56,14 @@ class SQLGenerationResponse(BaseResponse):
     completed_at: str | None
     error: str | None
 
-
 class NLGenerationResponse(BaseResponse):
     sql_generation_id: str
     llm_config: LLMConfig | None
     text: str | None
+      
+class DocumentResponse(BaseResponse):
+    title: str | None = None
+    content_type: str
+    document_size: int
+    text_content: str | None = None
+

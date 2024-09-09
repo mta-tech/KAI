@@ -3,7 +3,7 @@ from io import BytesIO
 import fastapi
 import PyPDF2
 from fastapi import BackgroundTasks, File, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+# from fastapi.responses import JSONResponse
 
 from app.api.requests import (
     BusinessGlossaryRequest,
@@ -20,6 +20,8 @@ from app.api.requests import (
     UpdateBusinessGlossaryRequest,
     UpdateInstructionRequest,
     UpdateMetadataRequest,
+    TextRequest,
+    EmbeddingRequest
 )
 from app.api.responses import (
     BusinessGlossaryResponse,
@@ -30,6 +32,7 @@ from app.api.responses import (
     PromptResponse,
     SQLGenerationResponse,
     TableDescriptionResponse,
+    DocumentResponse
 )
 from app.data.db.storage import Storage
 from app.modules.business_glossary.services import BusinessGlossaryService
@@ -41,7 +44,8 @@ from app.modules.prompt.services import PromptService
 from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.table_description.services import TableDescriptionService
 from app.utils.sql_database.scanner import SqlAlchemyScanner
-
+#insert rag service
+from app.modules.rag.services import DocumentService, EmbeddingService
 
 class API:
     def __init__(self, storage: Storage) -> None:
@@ -57,7 +61,9 @@ class API:
         self.instruction_service = InstructionService(self.storage)
         self.context_store_service = ContextStoreService(self.storage)
         self.nl_generation_service = NLGenerationService(self.storage)
-
+        self.document_service = DocumentService(self.storage)
+        self.embedding_service = EmbeddingService(self.storage)
+        
         self._register_routes()
 
     def _register_routes(self) -> None:
@@ -294,7 +300,7 @@ class API:
         )
 
         self.router.add_api_route(
-            "/api/v1/sql-generations/{sql_generation_id}/nl-generations",
+          "/api/v1/sql-generations/{sql_generation_id}/nl-generations",
             self.create_nl_generation,
             methods=["POST"],
             status_code=201,
@@ -337,11 +343,55 @@ class API:
             methods=["PUT"],
             tags=["NL Generations"],
         )
-
+        
         self.router.add_api_route(
-            "/api/v1/rags",
+            "/api/v1/rags/upload-document",
             self.upload_document,
             methods=["POST"],
+            tags=["RAGs"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/rags/create-document",
+            self.create_document,
+            methods=["POST"],
+            status_code=201,
+            tags=["RAGs"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/rags/documents",
+            self.get_documents,
+            methods=["GET"],
+            tags=["RAGs"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/rags/documents/{document_id}",
+            self.get_document,
+            methods=["GET"],
+            tags=["RAGs"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/rags/documents/{document_id}",
+            self.delete_document,
+            methods=["DELETE"],
+            tags=["RAGs"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/rags/embeddings/",
+            self.embed_document,
+            methods=["POST"],
+            status_code=201,
+            tags=["RAGs"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/rags/embeddings/",
+            self.retrieve_knowledge,
+            methods=["GET"],
             tags=["RAGs"],
         )
 
@@ -601,7 +651,7 @@ class API:
         return self.sql_generation_service.execute_sql_query(
             sql_generation_id, max_rows
         )
-
+      
     def create_nl_generation(
         self, sql_generation_id: str, nl_generation_request: NLGenerationRequest
     ) -> NLGenerationResponse:
@@ -649,24 +699,23 @@ class API:
         )
         return NLGenerationResponse(**nl_generation.model_dump())
 
-    async def upload_document(self, file: UploadFile = File(...)) -> dict:
+    async def upload_document(self, file: UploadFile = File(...)) -> DocumentResponse:
         try:
             # Read the file content into memory
             content = await file.read()
-
-            # Process the PDF content directly from memory using PyPDF2
             text_content = self.pdf_to_text(content)
 
-            # Return success response with extracted text
-            return JSONResponse(
-                content={
-                    "filename": file.filename,
-                    "content_type": file.content_type,
-                    "file_size": len(content),
-                    "extracted_text": text_content,
-                },
-                status_code=200,
-            )
+            text_request = TextRequest(
+                title = file.filename,
+                content_type = file.content_type,
+                document_size = len(content),
+                text_content = text_content,
+                )
+            
+            # Create the document
+            document = self.create_document(text_request)
+
+            return document
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
@@ -691,11 +740,45 @@ class API:
 
         return text
 
-    def upload_text(self, title, content) -> dict:
-        return {"message": "Information Uploaded Successfully"}
-
     def embed_document(self, document_id: str) -> dict:
-        return {"message": "Embedding document"}
+        document = self.document_service.get_document(document_id)
+        request = EmbeddingRequest(
+            document_id=document_id,
+            title=document.title,
+            text_content=document.text_content,
+            metadata=document.metadata,
+        )
+        status = self.embedding_service.create_embedding(request)
+        if status:
+            return {"message": "Document Embedded successfully"}
 
-    def query_knowledge(self, text) -> dict:
-        return {"message": "I don't know"}
+    def create_document(self, text_request: TextRequest) -> DocumentResponse:
+        document = self.document_service.create_document(text_request)
+        return DocumentResponse(**document.model_dump())
+    
+    def get_documents(self) -> list[DocumentResponse]:
+        documents = self.document_service.get_documents()
+        return [
+            DocumentResponse(**document.model_dump())
+            for document in documents
+        ]
+
+    def get_document(self, document_id: str) -> DocumentResponse:
+        document = self.document_service.get_document(document_id)
+        return DocumentResponse(**document.model_dump())
+
+    def delete_document(self, document_id: str) -> dict:
+        try:
+            is_deleted = self.document_service.delete_document(document_id)
+            if is_deleted:
+                return {"message": f"Document {document_id} successfully deleted"}
+        except Exception as e:
+            if "not found" in str(e):
+                raise HTTPException(status_code=404, detail=str(e))
+            else:
+                raise HTTPException(status_code=500, detail=str(e))
+    
+    def retrieve_knowledge(self, query: str) -> dict:
+        response = self.embedding_service.query(query)
+        return {"Final Answer": response}
+  
