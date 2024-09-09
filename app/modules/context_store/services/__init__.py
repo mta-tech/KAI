@@ -1,5 +1,4 @@
 import logging
-from typing import List, Tuple
 
 from fastapi import HTTPException
 from sql_metadata import Parser
@@ -10,6 +9,12 @@ from app.api.requests import (
 )
 from app.modules.context_store.models import ContextStore
 from app.modules.context_store.repositories import ContextStoreRepository
+from app.modules.database_connection.repositories import DatabaseConnectionRepository
+from app.modules.prompt.models import Prompt
+from app.utils.model.embedding_model import EmbeddingModel
+from app.utils.sql_database.sql_utils import extract_the_schemas_from_sql
+
+logger = logging.getLogger(__name__)
 
 # from app.modules.database_connection.models import DatabaseConnection
 from app.modules.database_connection.repositories import DatabaseConnectionRepository

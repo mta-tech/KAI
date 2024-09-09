@@ -1,6 +1,6 @@
 from typing import Any
 
-from langchain_huggingface import HuggingFaceEndpointEmbeddings
+# from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_openai import OpenAIEmbeddings
 from overrides import override
 
@@ -24,17 +24,20 @@ class EmbeddingModel(LLMModel):
             return OpenAIEmbeddings(
                 model=model_name,
                 api_key=self.settings.require("OPENAI_API_KEY"),
-                dimensions=DIMENSIONS,
-                **kwargs,
-            )
-        if model_family == "huggingface":
-            return HuggingFaceEndpointEmbeddings(
                 model=model_name,
-                task="feature-extraction",
-                huggingfacehub_api_token=self.settings.require(
-                    "HUGGINGFACEHUB_API_TOKEN"
-                ),
+                api_key=self.settings.require("OPENAI_API_KEY"),
                 dimensions=DIMENSIONS,
                 **kwargs,
             )
-        raise ValueError("No valid API key environment variable found")
+
+          # if model_family == "huggingface":
+        #     return HuggingFaceEndpointEmbeddings(
+        #         model=model_name,
+        #         task="feature-extraction",
+        #         huggingfacehub_api_token=self.settings.require(
+        #             "HUGGINGFACEHUB_API_TOKEN"
+        #         ),
+        #         dimensions=DIMENSIONS,
+        #         **kwargs,
+        #     )
+        raise ValueError("No model family found upon embedding model")

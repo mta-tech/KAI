@@ -12,7 +12,24 @@ services:
       - .env
     networks:
       - kai_network
-      
+
+  kai_engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kai_engine
+    restart: on-failure
+    ports:
+      - "8000:8000"
+    networks:
+      - kai_network
+    depends_on:
+      - typesense
+    environment:
+      - TYPESENSE_HOST=typesense
+    env_file:
+      - .env
+
 networks:
   kai_network:
     name: kai_network

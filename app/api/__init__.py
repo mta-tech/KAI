@@ -44,7 +44,6 @@ from app.modules.prompt.services import PromptService
 from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.table_description.services import TableDescriptionService
 from app.utils.sql_database.scanner import SqlAlchemyScanner
-#insert rag service
 from app.modules.rag.services import DocumentService, EmbeddingService
 
 class API:
