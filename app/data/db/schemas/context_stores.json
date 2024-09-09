@@ -12,26 +12,17 @@
             "reference": "database_connections.id"
         },
         {
-            "name": "prompt_text",
+            "name": "prompt",
             "type": "string"
         },
         {
             "name": "prompt_embedding",
             "type": "float[]",
-            "optional": true
+            "num_dim": 1024
         },
         {
             "name": "sql",
             "type": "string"
-        },
-        {
-            "name": "is_parameterized",
-            "type": "bool"
-        },
-        {
-            "name": "parameterized_entity",
-            "type": "object",
-            "optional": true
         },
         {
             "name": "metadata",

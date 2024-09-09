@@ -1,10 +1,25 @@
+import logging
+from typing import List, Tuple
 
 from fastapi import HTTPException
-from app.api.requests import ContextStoreRequest #, UpdateContextStoreRequest
-# from app.modules.database_connection.models import DatabaseConnection
-from app.modules.database_connection.repositories import DatabaseConnectionRepository
+from sql_metadata import Parser
+
+from app.api.requests import (
+    ContextStoreRequest,
+    UpdateContextStoreRequest,
+)
 from app.modules.context_store.models import ContextStore
 from app.modules.context_store.repositories import ContextStoreRepository
+
+# from app.modules.database_connection.models import DatabaseConnection
+from app.modules.database_connection.repositories import DatabaseConnectionRepository
+from app.modules.instruction.repositories import InstructionRepository
+from app.modules.prompt.models import Prompt
+from app.server.config import Settings
+from app.utils.model.embedding_model import EmbeddingModel
+from app.utils.sql_database.sql_utils import extract_the_schemas_from_sql
+
+logger = logging.getLogger(__name__)
 
 
 class ContextStoreService:
@@ -12,7 +27,17 @@ class ContextStoreService:
         self.storage = storage
         self.repository = ContextStoreRepository(self.storage)
 
-    def create_context_store(self, context_store_request: ContextStoreRequest) -> ContextStore:
+    def create_context_store(
+        self, context_store_request: ContextStoreRequest
+    ) -> ContextStore:
+        try:
+            Parser(context_store_request.sql).tables  # noqa: B018
+        except Exception as e:
+            raise HTTPException(
+                404,
+                f"SQL {context_store_request.sql} is malformed. Please check the syntax.",
+            ) from e
+            
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(
             context_store_request.db_connection_id
@@ -22,20 +47,32 @@ class ContextStoreService:
                 f"Database connection {context_store_request.db_connection_id} not found"
             )
 
-        # if not db_connection.schemas and prompt_request.schemas:
-        #     raise HTTPException(
-        #         "Schema not supported for this db",
-        #         description=f"The {db_connection.dialect} dialect doesn't support schemas",
-        #     )
-        get_parameterized = self.check_parameterized(context_store_request.prompt_text)
+        if db_connection.schemas:
+            schema_not_found = True
+            used_schemas = extract_the_schemas_from_sql(context_store_request.sql)
+            for schema in db_connection.schemas:
+                if schema in used_schemas:
+                    schema_not_found = False
+                    break
+            if schema_not_found:
+                raise HTTPException(
+                    404,
+                    f"SQL {context_store_request.sql} does not contain any of the schemas {db_connection.schemas}",
+                )
+
+        # Get Embedding Vector from Prompt, used in SQL Generation as Few Show Examples
+        embedding_model = EmbeddingModel().get_model(
+            model_family="openai", model_name="text-embedding-3-small"
+        )
+        prompt_embedding = embedding_model.embed_query(
+            context_store_request.prompt_text
+        )
 
         context_store = ContextStore(
             db_connection_id=context_store_request.db_connection_id,
             prompt_text=context_store_request.prompt_text,
-            prompt_text_embedding= self.get_embedding(context_store_request.prompt_text), 
+            prompt_embedding=prompt_embedding,
             sql=context_store_request.sql,
-            is_parameterized=get_parameterized[0],
-            parameterized_entity=get_parameterized[1],
             metadata=context_store_request.metadata,
         )
         return self.repository.insert(context_store)
@@ -50,45 +87,45 @@ class ContextStoreService:
         filter = {"db_connection_id": db_connection_id}
         return self.repository.find_by(filter)
 
-    # def update_context_store(
-    #     self, context_store_id, update_request: UpdateContextStoreRequest
-    # ) -> ContextStore:
-    #     context_store = self.repository.find_by_id(context_store_id)
-    #     if not context_store:
-    #         raise HTTPException(f"ContextStore {context_store_id} not found")
-        
-    #     if update_request.prompt_text is not None:
-    #         context_store.prompt_text = update_request.prompt_text
-    #         context_store.prompt_text_embedding = self.get_embedding(update_request.prompt_text)
-    #     if update_request.sql is not None:
-    #         context_store.sql = update_request.sql
-    #     if update_request.is_parameterized is not None:
-    #         context_store.is_parameterized = update_request.is_parameterized
-    #     if update_request.metadata is not None:
-    #         context_store.metadata = update_request.metadata
+    def update_context_store(
+        self, context_store_id, update_request: UpdateContextStoreRequest
+    ) -> ContextStore:
+        context_store = self.repository.find_by_id(context_store_id)
+        if not context_store:
+            raise HTTPException(f"ContextStore {context_store_id} not found")
 
-    #     return self.repository.update(context_store)
+        for key, value in update_request.model_dump(exclude_unset=True).items():
+            setattr(context_store, key, value)
+
+        self.repository.update(context_store_id, context_store)
+        return context_store
 
     def delete_context_store(self, context_store_id) -> bool:
         context_store = self.repository.find_by_id(context_store_id)
         if not context_store:
             raise HTTPException(f"Prompt {context_store_id} not found")
-        
+
         is_deleted = self.repository.delete_by_id(context_store_id)
 
         if not is_deleted:
             raise HTTPException(f"Failed to delete context_store {context_store_id}")
-        
+
         return True
 
+    def full_text_search(self, db_connection_id, prompt) -> ContextStore:
+        return self.repository.find_by_prompt(db_connection_id, prompt)
 
+    def retrieve_context_for_question(
+        self, prompt: Prompt
+    ) -> list[dict]:
+        logger.info(f"Getting context for {prompt.text}")
 
-# TODO Link to embedding module, link to NER module
-    def get_embedding(self, text) -> list[float] | None:
-        print(f'Run get_embedding on: {text}')
-        return None
-    
-    def check_parameterized(self, text) -> tuple:
-        ans = (False, None)
-        print(f"Check NER parameter for: {text}")
-        return ans
+        embedding_model = EmbeddingModel().get_model(
+            model_family="openai", model_name="text-embedding-3-small"
+        )
+        prompt_embedding = embedding_model.embed_query(prompt.text)
+        relevant_context = self.repository.find_relevant_context(
+            prompt.db_connection_id, prompt.text, prompt_embedding
+        )
+
+        return relevant_context

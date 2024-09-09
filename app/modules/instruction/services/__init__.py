@@ -1,10 +1,12 @@
-
 from fastapi import HTTPException
+
 from app.api.requests import InstructionRequest, UpdateInstructionRequest
+
 # from app.modules.database_connection.models import DatabaseConnection
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.modules.instruction.models import Instruction
 from app.modules.instruction.repositories import InstructionRepository
+from app.modules.prompt.models import Prompt
 
 
 class InstructionService:
@@ -12,7 +14,9 @@ class InstructionService:
         self.storage = storage
         self.repository = InstructionRepository(self.storage)
 
-    def create_instruction(self, instruction_request: InstructionRequest) -> Instruction:
+    def create_instruction(
+        self, instruction_request: InstructionRequest
+    ) -> Instruction:
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(
             instruction_request.db_connection_id
@@ -32,7 +36,7 @@ class InstructionService:
             db_connection_id=instruction_request.db_connection_id,
             condition=instruction_request.condition,
             rules=instruction_request.rules,
-            condition_embedding= self.get_embedding(instruction_request.condition), 
+            condition_embedding=self.get_embedding(instruction_request.condition),
             is_default=instruction_request.is_default,
             metadata=instruction_request.metadata,
         )
@@ -48,16 +52,25 @@ class InstructionService:
         filter = {"db_connection_id": db_connection_id}
         return self.repository.find_by(filter)
 
+    def retrieve_instruction_for_question(self, prompt: Prompt) -> list:
+        instructions = self.get_instructions(prompt.db_connection_id)
+        return [
+            {"instruction": f"{instruction.condition}, {instruction.rules}"}
+            for instruction in instructions
+        ]
+
     def update_instruction(
         self, instruction_id, update_request: UpdateInstructionRequest
     ) -> Instruction:
         instruction = self.repository.find_by_id(instruction_id)
         if not instruction:
             raise HTTPException(f"Instruction {instruction_id} not found")
-        
+
         if update_request.condition is not None:
             instruction.condition = update_request.condition
-            instruction.condition_embedding = self.get_embedding(update_request.condition)
+            instruction.condition_embedding = self.get_embedding(
+                update_request.condition
+            )
         if update_request.rules is not None:
             instruction.rules = update_request.rules
         if update_request.is_default is not None:
@@ -71,17 +84,15 @@ class InstructionService:
         instruction = self.repository.find_by_id(instruction_id)
         if not instruction:
             raise HTTPException(f"Prompt {instruction_id} not found")
-        
+
         is_deleted = self.repository.delete_by_id(instruction_id)
 
         if not is_deleted:
             raise HTTPException(f"Failed to delete instruction {instruction_id}")
-        
+
         return True
 
-
-
-# TODO Link to embedding module
+    # TODO Link to embedding module
     def get_embedding(self, text) -> list[float] | None:
-        print(f'Run get_embedding on: {text}')
+        print(f"Run get_embedding on: {text}")
         return None

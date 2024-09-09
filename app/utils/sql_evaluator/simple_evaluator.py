@@ -5,6 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
+from fastapi import HTTPException
 from langchain.chains import LLMChain
 from langchain.prompts.chat import (
     ChatPromptTemplate,
@@ -14,14 +15,15 @@ from overrides import override
 from sql_metadata import Parser
 from sqlalchemy import text
 
-from dataherald.config import System
-from dataherald.db import DB
-from dataherald.db_scanner.models.types import TableDescriptionStatus
-from dataherald.db_scanner.repository.base import TableDescriptionRepository
-from dataherald.eval import Evaluation, Evaluator
-from dataherald.sql_database.base import SQLDatabase, SQLInjectionError
-from dataherald.sql_database.models.types import DatabaseConnection
-from dataherald.types import Prompt, SQLGeneration
+from app.data.db.storage import Storage
+from app.modules.database_connection.models import DatabaseConnection
+from app.modules.prompt.models import Prompt
+from app.modules.sql_generation.models import SQLGeneration
+from app.modules.table_description.models import TableDescriptionStatus
+from app.modules.table_description.repositories import TableDescriptionRepository
+from app.server.config import Settings
+from app.utils.sql_database.sql_database import SQLDatabase
+from app.utils.sql_evaluator import Evaluation, Evaluator
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +65,6 @@ TOP_K = 100
 class SimpleEvaluator(Evaluator):
     llm: Any = None
 
-    def __init__(self, system: System):
-        super().__init__(system)
-        self.system = system
-
     def answer_parser(self, answer: str) -> int:
         """
         Extract the number after the Score:
@@ -90,19 +88,18 @@ class SimpleEvaluator(Evaluator):
         if result:
             for row in result:
                 modified_row = {}
-                for key, value in zip(row.keys(), row, strict=True):
-                    if type(value) in [
-                        date,
-                        datetime,
-                    ]:  # Check if the value is an instance of datetime.date
+                for key, value in row.items():
+                    if isinstance(
+                        value, (date, datetime)
+                    ):  # Check if the value is an instance of datetime.date
                         modified_row[key] = str(value)
-                    elif (
-                        type(value) is Decimal
+                    elif isinstance(
+                        value, Decimal
                     ):  # Check if the value is an instance of decimal.Decimal
                         modified_row[key] = float(value)
                     else:
                         modified_row[key] = value
-            rows.append(modified_row)
+                rows.append(modified_row)
         return rows
 
     @override
@@ -117,7 +114,7 @@ class SimpleEvaluator(Evaluator):
         logger.info(
             f"(Simple evaluator) Generating score for the question/sql pair: {str(user_prompt.text)}/ {str(sql_generation.sql)}"
         )
-        storage = self.system.instance(DB)
+        storage = Storage(Settings())
         repository = TableDescriptionRepository(storage)
         db_scan = repository.get_all_tables_by_db(
             {
@@ -162,13 +159,11 @@ class SimpleEvaluator(Evaluator):
             query = database.parser_to_filter_commands(sql_generation.sql)
             with database._engine.connect() as connection:
                 execution = connection.execute(text(query))
-                result = execution.fetchmany(TOP_K)
+                result = execution.mappings().fetchmany(TOP_K)
             rows = self.create_sql_results(result)
 
-        except SQLInjectionError as e:
-            raise SQLInjectionError(
-                "Sensitive SQL keyword detected in the query."
-            ) from e
+        except Exception as e:
+            raise HTTPException("Sensitive SQL keyword detected in the query.") from e
         if not rows:
             logger.info(
                 f"(Simple evaluator) SQL query: {sql} returned no results. max confidence is 70"

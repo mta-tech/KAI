@@ -24,5 +24,5 @@ class SystemTime(BaseTool):
         run_manager: CallbackManagerForToolRun | None = None,  # noqa: ARG002
     ) -> str:
         """Execute the query, return the results or an error message."""
-        current_datetime = datetime.datetime.now()
+        current_datetime = datetime.now()
         return f"Current Date and Time: {str(current_datetime)}"

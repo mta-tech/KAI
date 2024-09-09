@@ -1,6 +1,4 @@
-from datetime import datetime
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.modules.database_connection.models import DatabaseConnection
 from app.modules.sql_generation.models import IntermediateStep, LLMConfig
@@ -38,21 +36,16 @@ class InstructionResponse(BaseResponse):
     db_connection_id: str
     condition: str
     rules: str
-    condition_embedding: list[float] | None = None
     is_default: bool
 
 
 class ContextStoreResponse(BaseResponse):
     db_connection_id: str
     prompt_text: str
-    prompt_embedding: list[float] | None = None
     sql: str
-    is_parameterized: bool
-    parameterized_entity: dict | None = None #Stores NER (entity: type)
-    
+
 
 class SQLGenerationResponse(BaseResponse):
-    id: str
     prompt_id: str
     status: str
     llm_config: LLMConfig | None
@@ -60,12 +53,17 @@ class SQLGenerationResponse(BaseResponse):
     sql: str | None
     tokens_used: int | None
     confidence_score: float | None
-    completed_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    completed_at: str | None
     error: str | None
 
-
+class NLGenerationResponse(BaseResponse):
+    sql_generation_id: str
+    llm_config: LLMConfig | None
+    text: str | None
+      
 class DocumentResponse(BaseResponse):
     title: str | None = None
     content_type: str
     document_size: int
     text_content: str | None = None
+

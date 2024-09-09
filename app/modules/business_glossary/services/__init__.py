@@ -44,7 +44,7 @@ class BusinessGlossaryService:
         if not business_glossary:
             raise HTTPException(f"Business Glossary {business_glossary_id} not found")
 
-        for key, value in request.dict(exclude_unset=True).items():
+        for key, value in request.model_dump(exclude_unset=True).items():
             setattr(business_glossary, key, value)
 
         self.repository.update(business_glossary_id, business_glossary)
