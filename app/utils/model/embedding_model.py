@@ -1,29 +1,30 @@
 from typing import Any
 
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
-from langchain_openai import ChatOpenAI
+from langchain_openai import OpenAIEmbeddings
 from overrides import override
 
 from app.modules.database_connection.models import DatabaseConnection
 from app.utils.model import LLMModel
+
+DIMENSIONS = 1024
 
 
 class EmbeddingModel(LLMModel):
     @override
     def get_model(
         self,
-        database_connection: DatabaseConnection,
-        model_family="openai",
-        model_name="text-embedding-3-large",
+        database_connection: DatabaseConnection | None = None,
+        model_family: str = "openai",
+        model_name: str = "text-embedding-3-small",
         api_base: str | None = None,
         **kwargs: Any,
     ) -> Any:
         if model_family == "openai":
-            return ChatOpenAI(
-                model_name=model_name,
-                openai_api_key=self.settings.require("OPENAI_API_KEY"),
-                openai_api_base=api_base,
-                seed=0,
+            return OpenAIEmbeddings(
+                model=model_name,
+                api_key=self.settings.require("OPENAI_API_KEY"),
+                dimensions=DIMENSIONS,
                 **kwargs,
             )
         if model_family == "huggingface":
@@ -33,6 +34,7 @@ class EmbeddingModel(LLMModel):
                 huggingfacehub_api_token=self.settings.require(
                     "HUGGINGFACEHUB_API_TOKEN"
                 ),
+                dimensions=DIMENSIONS,
                 **kwargs,
             )
         raise ValueError("No valid API key environment variable found")

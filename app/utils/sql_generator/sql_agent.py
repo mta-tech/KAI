@@ -14,7 +14,9 @@ from langchain_openai import OpenAIEmbeddings
 from overrides import override
 
 from app.data.db.storage import Storage
+from app.modules.context_store.services import ContextStoreService
 from app.modules.database_connection.models import DatabaseConnection
+from app.modules.instruction.services import InstructionService
 from app.modules.prompt.models import Prompt
 from app.modules.sql_generation.models import SQLGeneration
 from app.modules.sql_generation.repositories import SQLGenerationRepository
@@ -132,8 +134,9 @@ class SQLAgent(SQLGenerator):
         context: List[dict] = None,
         metadata: dict = None,
     ) -> SQLGeneration:  # noqa: PLR0912
-        # context_store = self.system.instance(ContextStore)
         storage = Storage(Settings())
+        context_store_service = ContextStoreService(storage)
+        instruction_service = InstructionService(storage)
         response = SQLGeneration(
             prompt_id=user_prompt.id,
             llm_config=self.llm_config,
@@ -157,33 +160,25 @@ class SQLAgent(SQLGenerator):
         db_scan = SQLGenerator.filter_tables_by_schema(
             db_scan=db_scan, prompt=user_prompt
         )
-        # few_shot_examples, instructions = context_store.retrieve_context_for_question(
-        #     user_prompt, number_of_samples=self.max_number_of_examples
-        # )
-        few_shot_examples, instructions = None, None
+        few_shot_examples = context_store_service.retrieve_context_for_question(
+            user_prompt
+        )
+
+        instructions = instruction_service.retrieve_instruction_for_question(
+            user_prompt
+        )
+
         if few_shot_examples is not None:
             new_fewshot_examples = self.remove_duplicate_examples(few_shot_examples)
             number_of_samples = len(new_fewshot_examples)
         else:
             new_fewshot_examples = None
             number_of_samples = 0
-        logger.info(f"Generating SQL response to question: {str(user_prompt.model_dump())}")
+        logger.info(
+            f"Generating SQL response to question: {str(user_prompt.model_dump())}"
+        )
         self.database = SQLDatabase.get_sql_engine(database_connection)
-        # Set Embeddings class depending on azure / not azure
-        # if self.system.settings["azure_api_key"] is not None:
-        #     toolkit = SQLDatabaseToolkit(
-        #         db=self.database,
-        #         context=context,
-        #         few_shot_examples=new_fewshot_examples,
-        #         instructions=instructions,
-        #         is_multiple_schema=True if user_prompt.schemas else False,
-        #         db_scan=db_scan,
-        #         embedding=AzureOpenAIEmbeddings(
-        #             openai_api_key=database_connection.decrypt_api_key(),
-        #             model=EMBEDDING_MODEL,
-        #         ),
-        #     )
-        # else:
+
         toolkit = SQLDatabaseToolkit(
             db=self.database,
             context=context,
@@ -253,9 +248,9 @@ class SQLAgent(SQLGenerator):
         queue: Queue,
         metadata: dict = None,
     ):
-        # context_store = self.system.instance(ContextStore)
-        # storage = self.system.instance(DB)
         storage = Storage()
+        context_store_service = ContextStoreService(storage)
+        instruction_service = InstructionService(storage)
         sql_generation_repository = SQLGenerationRepository(storage)
         self.llm = self.model.get_model(
             database_connection=database_connection,
@@ -276,10 +271,13 @@ class SQLAgent(SQLGenerator):
         db_scan = SQLGenerator.filter_tables_by_schema(
             db_scan=db_scan, prompt=user_prompt
         )
-        # few_shot_examples, instructions = context_store.retrieve_context_for_question(
-        #     user_prompt, number_of_samples=self.max_number_of_examples
-        # )
-        few_shot_examples, instructions = None, None
+        few_shot_examples = context_store_service.retrieve_context_for_question(
+            user_prompt
+        )
+
+        instructions = instruction_service.retrieve_instruction_for_question(
+            user_prompt.db_connection_id
+        )
         if few_shot_examples is not None:
             new_fewshot_examples = self.remove_duplicate_examples(few_shot_examples)
             number_of_samples = len(new_fewshot_examples)

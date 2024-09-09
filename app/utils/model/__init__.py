@@ -13,8 +13,8 @@ class LLMModel(ABC):
     def get_model(
         self,
         database_connection: DatabaseConnection,
-        model_family="openai",
-        model_name="gpt-3.5-turbo-preview",
+        model_family: str,
+        model_name: str,
         api_base: str | None = None,
         **kwargs: Any,
     ) -> Any:
