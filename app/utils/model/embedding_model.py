@@ -24,10 +24,13 @@ class EmbeddingModel(LLMModel):
             return OpenAIEmbeddings(
                 model=model_name,
                 api_key=self.settings.require("OPENAI_API_KEY"),
+                model=model_name,
+                api_key=self.settings.require("OPENAI_API_KEY"),
                 dimensions=DIMENSIONS,
                 **kwargs,
             )
-        # if model_family == "huggingface":
+
+          # if model_family == "huggingface":
         #     return HuggingFaceEndpointEmbeddings(
         #         model=model_name,
         #         task="feature-extraction",

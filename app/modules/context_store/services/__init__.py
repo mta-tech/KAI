@@ -16,6 +16,16 @@ from app.utils.sql_database.sql_utils import extract_the_schemas_from_sql
 
 logger = logging.getLogger(__name__)
 
+# from app.modules.database_connection.models import DatabaseConnection
+from app.modules.database_connection.repositories import DatabaseConnectionRepository
+from app.modules.instruction.repositories import InstructionRepository
+from app.modules.prompt.models import Prompt
+from app.server.config import Settings
+from app.utils.model.embedding_model import EmbeddingModel
+from app.utils.sql_database.sql_utils import extract_the_schemas_from_sql
+
+logger = logging.getLogger(__name__)
+
 
 class ContextStoreService:
     def __init__(self, storage):
@@ -32,7 +42,7 @@ class ContextStoreService:
                 404,
                 f"SQL {context_store_request.sql} is malformed. Please check the syntax.",
             ) from e
-
+            
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(
             context_store_request.db_connection_id
@@ -110,7 +120,9 @@ class ContextStoreService:
     def full_text_search(self, db_connection_id, prompt) -> ContextStore:
         return self.repository.find_by_prompt(db_connection_id, prompt)
 
-    def retrieve_context_for_question(self, prompt: Prompt) -> list[dict]:
+    def retrieve_context_for_question(
+        self, prompt: Prompt
+    ) -> list[dict]:
         logger.info(f"Getting context for {prompt.text}")
 
         embedding_model = EmbeddingModel().get_model(

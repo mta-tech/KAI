@@ -125,3 +125,16 @@ class UpdateBusinessGlossaryRequest(BaseModel):
 
 class UpdateMetadataRequest(BaseModel):
     metadata: dict | None
+
+
+class TextRequest(BaseModel):
+    title: str | None = "General Information"
+    content_type: str | None = "text"
+    text_content: str
+    metadata: dict | None = None
+
+class EmbeddingRequest(BaseModel):
+    document_id: str
+    title: str | None = None
+    text_content: str
+    metadata: dict | None = None
