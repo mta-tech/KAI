@@ -25,6 +25,8 @@ venv.bak/
 # IDEs and editors
 .idea/
 .vscode/
+.gitbook/
+.ruff_cache/
 *.sublime-workspace
 *.sublime-project
 
