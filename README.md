@@ -1,12 +1,8 @@
-# Getting Started
-
-## **Overview**
+# Overview
 
 KAI, which stands for **Knowledge Agent for Intelligence Query**, is an advanced AI-driven system designed to revolutionize how data is queried, analyzed, and utilized. By embedding a Generative AI component into your database, KAI allows users to perform complex analytics and document searches using natural language queries. This brings a new level of accessibility and efficiency to data interaction, making it easier for both technical and non-technical users to extract valuable insights.
 
 KAI is built to seamlessly integrate with existing databases and systems, enhancing them with powerful AI capabilities. Whether you need to search vast amounts of documents, perform complex data analytics, or interact with your data in a more intuitive way, KAI is equipped to meet those needs.
-
-To access the code, refer to the following [link](https://github.com/mta-tech/KAI).
 
 ***
 
