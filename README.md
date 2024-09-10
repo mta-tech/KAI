@@ -4,8 +4,6 @@ KAI, which stands for **Knowledge Agent for Intelligence Query**, is an advanced
 
 KAI is built to seamlessly integrate with existing databases and systems, enhancing them with powerful AI capabilities. Whether you need to search vast amounts of documents, perform complex data analytics, or interact with your data in a more intuitive way, KAI is equipped to meet those needs.
 
-***
-
 ## **Key Features of KAI**
 
 1. **Natural Language Querying**
@@ -26,8 +24,6 @@ KAI is built to seamlessly integrate with existing databases and systems, enhanc
 6. **Customizable AI Models**
    * **Description:** Allows the use of custom AI models tailored to specific business needs.
    * **Benefit:** Provides flexibility to optimize the AI component for specialized tasks and industries.
-
-***
 
 ## Quickstart
 
@@ -117,7 +113,7 @@ Fernet.generate_key()
     ```
 4. In your browser visit [http://localhost/docs](http://localhost/docs)
 
-#### Stopping the Services
+### Stopping the Services
 
 To stop the services, run:
 
@@ -133,8 +129,6 @@ This will stop and remove the containers, but it will retain the data in the `ap
 * **Data Persistence**: The `typesense` container’s data is stored in `./app/data/dbdata` to persist data across container restarts.
 
 With this setup, you should be able to get your product up and running with Docker Compose quickly. Let me know if you have any questions or need further assistance!
-
-***
 
 ## Environment
 
@@ -187,8 +181,6 @@ ENCRYPT_KEY = f0KVMZHZPgdMStBmVIn2XD049e6Mun7ZEDhf1W7MRnw=
   _Description:_ Enables or disables hot reloading of the application. Set to `1` to enable hot reload, or `0` to disable it.\
   _Example:_ `"0"`
 
-***
-
 ### **Typesense Configuration**
 
 * **`TYPESENSE_API_KEY`**\
@@ -207,8 +199,6 @@ ENCRYPT_KEY = f0KVMZHZPgdMStBmVIn2XD049e6Mun7ZEDhf1W7MRnw=
   _Description:_ The timeout value (in seconds) for requests to the Typesense server.\
   _Example:_ `"2"`
 
-***
-
 ### **Model Configuration**
 
 * **`CHAT_MODEL`**\
@@ -217,8 +207,6 @@ ENCRYPT_KEY = f0KVMZHZPgdMStBmVIn2XD049e6Mun7ZEDhf1W7MRnw=
 * **`EMBEDDING_MODEL`**\
   _Description:_ The model used for generating embeddings from text data.\
   _Example:_ `"text-embedding-ada-002"`
-
-***
 
 ### **API Keys**
 
@@ -231,8 +219,6 @@ ENCRYPT_KEY = f0KVMZHZPgdMStBmVIn2XD049e6Mun7ZEDhf1W7MRnw=
 * **`HUGGINGFACEHUB_API_TOKEN`**\
   _Description:_ The API token for accessing Hugging Face Hub services.\
   _Example:_ `""` _(To be provided)_
-
-***
 
 ### **Agent Configuration**
 
@@ -251,7 +237,5 @@ ENCRYPT_KEY = f0KVMZHZPgdMStBmVIn2XD049e6Mun7ZEDhf1W7MRnw=
 * **`ENCRYPT_KEY`**\
   _Description:_ The encryption key used for securely storing database connection data in Typesense. Use Fernet Generated key for this.\
   _Example:_ `"f0KVMZHZPgdMStBmVIn2XD049e6Mun7ZEDhf1W7MRnw="`
-
-***
 
 These environment variables provide flexibility and control over the behavior of the KAI API, ensuring that the application can be easily configured for different environments and use cases.
