@@ -1,15 +1,9 @@
 # Table of contents
 
-* [APIs](README.md)
-  * [Business Glossary API](documentation/api-endpoints-list/business-glossary-api.md)
-  * [Context Store API](documentation/api-endpoints-list/context-store-api.md)
-  * [Database Connection API](documentation/api-endpoints-list/database-connection-api.md)
-  * [Instruction API](documentation/api-endpoints-list/instruction-api.md)
-  * [NL Generation API](documentation/api-endpoints-list/nl-generation-api.md)
-  * [Prompt API](documentation/api-endpoints-list/prompt-api.md)
-  * [RAGs API](documentation/api-endpoints-list/rags-api.md)
-  * [SQL Generation API](documentation/api-endpoints-list/sql-generation-api.md)
-  * [Table Description API](documentation/api-endpoints-list/table-description-api.md)
+* [Getting Started](README.md)
+
+## Documentation
+
 * [Services](documentation/services/README.md)
   * [Business Glossary Services](documentation/services/business-glossary-services.md)
   * [Database Connection Services](documentation/services/database-connection-services.md)
@@ -20,4 +14,13 @@
   * [RAG Services](documentation/services/rag-services.md)
   * [SQL Generation Services](documentation/services/sql-generation-services.md)
   * [Table Description Service](documentation/services/table-description-service.md)
-* [Getting Started](getting-started.md)
+* [APIs](documentation/api-endpoints-list/README.md)
+  * [Business Glossary API](documentation/api-endpoints-list/business-glossary-api.md)
+  * [Context Store API](documentation/api-endpoints-list/context-store-api.md)
+  * [Database Connection API](documentation/api-endpoints-list/database-connection-api.md)
+  * [Instruction API](documentation/api-endpoints-list/instruction-api.md)
+  * [NL Generation API](documentation/api-endpoints-list/nl-generation-api.md)
+  * [Prompt API](documentation/api-endpoints-list/prompt-api.md)
+  * [RAGs API](documentation/api-endpoints-list/rags-api.md)
+  * [SQL Generation API](documentation/api-endpoints-list/sql-generation-api.md)
+  * [Table Description API](documentation/api-endpoints-list/table-description-api.md)
