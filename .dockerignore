@@ -34,9 +34,14 @@ build/
 dist/
 *.egg-info/
 
-# Local Python settings
-.vscode/
+# IDEs and editors
 .idea/
+.gitbook/
+.vscode/
+.ruff_cache/
+*.sublime-workspace
+*.sublime-project
+
 
 # Git-related
 .git
