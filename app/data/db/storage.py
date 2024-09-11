@@ -102,6 +102,8 @@ class Storage(TypeSenseDB):
         filter_by: str = None,
         limit: int = 3,
     ) -> list | None:
+        self.ensure_collection_exists(collection)
+        
         search_requests = {
             "searches": [
                 {

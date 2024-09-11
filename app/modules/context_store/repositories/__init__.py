@@ -68,14 +68,15 @@ class ContextStoreRepository:
         )
 
         relevant_context = []
-        for context in retrieved_context:
-            relevant_context.append(
-                {
-                    "prompt_text": context["prompt_text"],
-                    "sql": context["sql"],
-                    "score": context["score"],
-                }
-            )
+        if retrieved_context:
+            for context in retrieved_context:
+                relevant_context.append(
+                    {
+                        "prompt_text": context["prompt_text"],
+                        "sql": context["sql"],
+                        "score": context["score"],
+                    }
+                )
         return relevant_context
 
     def delete_by_id(self, id: str) -> bool:
