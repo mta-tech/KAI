@@ -41,7 +41,7 @@ class SchemaSQLDatabaseTool(BaseTool):
         tables_schema = "```sql\n"
         for table in self.db_scan:
             if table.table_name in processed_table_names:
-                tables_schema += table.db_schema + "\n"
+                tables_schema += table.table_schema + "\n"
                 descriptions = []
                 if table.table_description is not None:
                     if table.db_schema:
