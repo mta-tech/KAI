@@ -194,6 +194,7 @@ class API:
             "/api/v1/business_glossaries",
             self.create_business_glossary,
             methods=["POST"],
+            status_code=201,
             tags=["Business Glossaries"],
         )
 
