@@ -35,8 +35,10 @@ dist/
 *.egg-info/
 
 # Local Python settings
-.vscode/
 .idea/
+.vscode/
+.gitbook/
+.ruff_cache/
 
 # Git-related
 .git
