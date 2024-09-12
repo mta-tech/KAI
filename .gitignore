@@ -29,6 +29,7 @@ venv.bak/
 .ruff_cache/
 *.sublime-workspace
 *.sublime-project
+SUMMARY.md
 
 # Jupyter Notebook
 .ipynb_checkpoints/
@@ -44,6 +45,7 @@ coverage.xml
 # Pytest
 .cache/
 pytest_cache/
+.pytest_cache/
 
 # Logs
 *.log
