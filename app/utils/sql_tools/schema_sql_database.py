@@ -41,11 +41,11 @@ class SchemaSQLDatabaseTool(BaseTool):
         tables_schema = "```sql\n"
         for table in self.db_scan:
             if table.table_name in processed_table_names:
-                tables_schema += table.table_schema + "\n"
+                tables_schema += table.db_schema + "\n"
                 descriptions = []
                 if table.table_description is not None:
-                    if table.table_schema:
-                        table_name = f"{table.table_schema}.{table.table_name}"
+                    if table.db_schema:
+                        table_name = f"{table.db_schema}.{table.table_name}"
                     else:
                         table_name = table.table_name
                     descriptions.append(
