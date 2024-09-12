@@ -54,9 +54,9 @@ class InfoRelevantColumns(BaseTool):
                             for row in table.examples:
                                 col_info += row[column_name] + ", "
                             col_info = col_info[:-2]
-                            if table.table_schema:
+                            if table.db_schema:
                                 schema_table = (
-                                    f"{table.table_schema}.{table.table_name}"
+                                    f"{table.db_schema}.{table.table_name}"
                                 )
                             else:
                                 schema_table = table.table_name
