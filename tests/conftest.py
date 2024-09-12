@@ -1,3 +1,4 @@
+# THE CODE BELOW IS FROM TUTORIAL
 # from unittest.mock import MagicMock
 # import pytest
 # from app.main import app, get_db
