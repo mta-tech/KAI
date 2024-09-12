@@ -1,11 +1,13 @@
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app  # Import your FastAPI app
+from app.data.db.storage import Storage
+from app.server.config import Settings
 
 client = TestClient(app)
+# storage = Storage(Settings())
 
-@pytest.fixture(scope="module")
-def create_database_connection():
+def test_create_database_connection():
     payload = {
         "alias": "dvdrental",
         "connection_uri": "postgresql://myuser:mypassword@localhost:15432/dvdrental",
@@ -17,10 +19,7 @@ def create_database_connection():
         json=payload
     )
     assert response.status_code == 201
-    return response.json()["id"]  # Return the "id" from the response
 
-def test_create_database_connection(create_database_connection):
-    assert create_database_connection is not None  # Ensure we have the ID
 
 def test_list_database_connections():
     response = client.get("/api/v1/database-connections")

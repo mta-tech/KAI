@@ -1,21 +1,21 @@
-# THE CODE BELOW IS FROM TUTORIAL
-# from unittest.mock import MagicMock
-# import pytest
-# from app.main import app, get_db
+import pytest
+from fastapi.testclient import TestClient
+from app.main import app  # Import your FastAPI app
+from app.data.db.storage import Storage
+from app.server.config import Settings
 
-# mock_session = MagicMock()
+@pytest.fixture(scope="session")
+def typesense_storage():
+    # Initialize storage with settings
+    storage = Storage(Settings())
 
+    # Clean up collections before test
+    existing_collections = storage._get_existing_collections()
+    print(existing_collections)
+    for collection in existing_collections:
+        storage.delete_collection(collection)
+    yield storage  # Provide the storage instance to the test
 
-# def override_get_db():
-#     try:
-#         yield mock_session
-#     finally:
-#         pass
-
-
-# app.dependency_overrides[get_db] = override_get_db
-
-
-# @pytest.fixture
-# def mock_db_session():
-#     return mock_session
+@pytest.fixture(scope="session")
+def client():
+    yield TestClient(app)
