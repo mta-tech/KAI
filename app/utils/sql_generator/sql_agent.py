@@ -112,6 +112,7 @@ class SQLAgent(SQLGenerator):
             llm=self.llm,
             prompt=prompt,
             callback_manager=callback_manager,
+            verbose=False,
         )
         tool_names = [tool.name for tool in tools]
         agent = ZeroShotAgent(llm_chain=llm_chain, allowed_tools=tool_names, **kwargs)
@@ -285,28 +286,22 @@ class SQLAgent(SQLGenerator):
             new_fewshot_examples = None
             number_of_samples = 0
         self.database = SQLDatabase.get_sql_engine(database_connection)
-        # Set Embeddings class depending on azure / not azure
-        if os.getenv("azure_api_key") is not None:
-            embedding = None
-            # embedding = AzureOpenAIEmbeddings(
-            #     openai_api_key=database_connection.decrypt_api_key(),
-            #     model=EMBEDDING_MODEL,
-            # )
-        else:
-            embedding = OpenAIEmbeddings(
-                openai_api_key=self.settings.require("OPENAI_API_KEY"),
-                model=EMBEDDING_MODEL,
-            )
-            toolkit = SQLDatabaseToolkit(
-                queuer=queue,
-                db=self.database,
-                context=[{}],
-                few_shot_examples=new_fewshot_examples,
-                instructions=instructions,
-                is_multiple_schema=True if user_prompt.schemas else False,
-                db_scan=db_scan,
-                embedding=embedding,
-            )
+
+        embedding = OpenAIEmbeddings(
+            openai_api_key=self.settings.require("OPENAI_API_KEY"),
+            model=EMBEDDING_MODEL,
+        )
+        toolkit = SQLDatabaseToolkit(
+            queuer=queue,
+            db=self.database,
+            context=[{}],
+            few_shot_examples=new_fewshot_examples,
+            instructions=instructions,
+            is_multiple_schema=True if user_prompt.schemas else False,
+            db_scan=db_scan,
+            embedding=embedding,
+        )
+        
         agent_executor = self.create_sql_agent(
             toolkit=toolkit,
             verbose=True,

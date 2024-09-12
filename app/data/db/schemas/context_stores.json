@@ -12,7 +12,7 @@
             "reference": "database_connections.id"
         },
         {
-            "name": "prompt",
+            "name": "prompt_text",
             "type": "string"
         },
         {
