@@ -49,34 +49,34 @@ class ContextStoreRepository:
         result = [ContextStore(**row) for row in rows]
         return result
 
-    def find_relevant_context(
+    def find_by_relevance(
         self,
         db_connection_id: str,
         prompt_text: str,
         prompt_embedding: list[float],
-        number_of_contexts: int = 3,
+        limit: int = 3,
         alpha: float = 0.8,
     ) -> list | None:
-        retrieved_context = self.storage.hybrid_search(
+        rows = self.storage.hybrid_search(
             collection=DB_COLLECTION,
             query=prompt_text,
             query_by="prompt_text",
             vector_query=f"prompt_embedding:({prompt_embedding}, alpha:{alpha})",
             exclude_fields="prompt_embedding",
             filter_by=f"db_connection_id:={db_connection_id}",
-            limit=number_of_contexts,
+            limit=limit,
         )
 
-        relevant_context = []
-        for context in retrieved_context:
-            relevant_context.append(
+        result = []
+        for row in rows:
+            result.append(
                 {
-                    "prompt_text": context["prompt_text"],
-                    "sql": context["sql"],
-                    "score": context["score"],
+                    "prompt_text": row["prompt_text"],
+                    "sql": row["sql"],
+                    "score": row["score"],
                 }
             )
-        return relevant_context
+        return result
 
     def delete_by_id(self, id: str) -> bool:
         deleted_count = self.storage.delete_by_id(DB_COLLECTION, id)

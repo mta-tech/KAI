@@ -7,6 +7,7 @@ from app.modules.database_connection.repositories import DatabaseConnectionRepos
 from app.modules.instruction.models import Instruction
 from app.modules.instruction.repositories import InstructionRepository
 from app.modules.prompt.models import Prompt
+from app.utils.model.embedding_model import EmbeddingModel
 
 
 class InstructionService:
@@ -26,17 +27,16 @@ class InstructionService:
                 f"Database connection {instruction_request.db_connection_id} not found"
             )
 
-        # if not db_connection.schemas and prompt_request.schemas:
-        #     raise HTTPException(
-        #         "Schema not supported for this db",
-        #         description=f"The {db_connection.dialect} dialect doesn't support schemas",
-        #     )
+        if not instruction_request.is_default:
+            instruction_embedding = self.get_embedding(
+                instruction_request.condition, instruction_request.rules
+            )
 
         instruction = Instruction(
             db_connection_id=instruction_request.db_connection_id,
             condition=instruction_request.condition,
             rules=instruction_request.rules,
-            condition_embedding=self.get_embedding(instruction_request.condition),
+            instruction_embedding=instruction_embedding,
             is_default=instruction_request.is_default,
             metadata=instruction_request.metadata,
         )
@@ -53,7 +53,22 @@ class InstructionService:
         return self.repository.find_by(filter)
 
     def retrieve_instruction_for_question(self, prompt: Prompt) -> list:
-        instructions = self.get_instructions(prompt.db_connection_id)
+        default_filter = {
+            "db_connection_id": prompt.db_connection_id,
+            "is_default": 'true',
+        }
+        default_instructions = self.repository.find_by(default_filter)
+
+        embedding_model = EmbeddingModel().get_model(
+            model_family="openai", model_name="text-embedding-3-small"
+        )
+        prompt_embedding = embedding_model.embed_query(prompt.text)
+        relevant_instructions = self.repository.find_by_relevance(
+            prompt.db_connection_id, prompt.text, prompt_embedding
+        )
+
+        instructions = default_instructions + relevant_instructions
+
         return [
             {"instruction": f"{instruction.condition}, {instruction.rules}"}
             for instruction in instructions
@@ -68,7 +83,7 @@ class InstructionService:
 
         if update_request.condition is not None:
             instruction.condition = update_request.condition
-            instruction.condition_embedding = self.get_embedding(
+            instruction.instruction_embedding = self.get_embedding(
                 update_request.condition
             )
         if update_request.rules is not None:
@@ -92,7 +107,10 @@ class InstructionService:
 
         return True
 
-    # TODO Link to embedding module
-    def get_embedding(self, text) -> list[float] | None:
-        print(f"Run get_embedding on: {text}")
-        return None
+    def get_embedding(self, condition, rules) -> list[float] | None:
+        embedding_model = EmbeddingModel().get_model(
+            model_family="openai", model_name="text-embedding-3-small"
+        )
+
+        instruction_embedding = embedding_model.embed_query(f"{condition}, {rules}")
+        return instruction_embedding

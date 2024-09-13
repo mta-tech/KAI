@@ -112,7 +112,7 @@ class SQLAgent(SQLGenerator):
             llm=self.llm,
             prompt=prompt,
             callback_manager=callback_manager,
-            verbose=False,
+            verbose=True,
         )
         tool_names = [tool.name for tool in tools]
         agent = ZeroShotAgent(llm_chain=llm_chain, allowed_tools=tool_names, **kwargs)

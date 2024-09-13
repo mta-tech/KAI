@@ -58,7 +58,7 @@ class InstructionRequest(BaseModel):
     db_connection_id: str
     condition: str
     rules: str
-    is_default: bool
+    is_default: bool = False
     metadata: dict | None = None
 
 
@@ -72,7 +72,7 @@ class UpdateInstructionRequest(BaseModel):
 class ContextStoreRequest(BaseModel):
     db_connection_id: str
     prompt_text: str
-    sql: str 
+    sql: str
     metadata: dict | None = None
 
 
@@ -132,6 +132,7 @@ class TextRequest(BaseModel):
     content_type: str | None = "text"
     text_content: str
     metadata: dict | None = None
+
 
 class EmbeddingRequest(BaseModel):
     document_id: str
