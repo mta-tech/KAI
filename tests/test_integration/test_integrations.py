@@ -53,7 +53,7 @@ def test_create_invalid_database_connection(client):
 #     assert response.status_code == 422
     pass
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_list_database_connections(client):
     response = client.get("/api/v1/database-connections")
     assert response.status_code == 200
@@ -92,7 +92,7 @@ def test_update_database_connection(client, test_list_database_connections):
     # assert updated_connection["alias"] == "dvdrental_updated"
     pass
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_list_table_descriptions(client, test_list_database_connections):
     db_connection_id = test_list_database_connections
 
@@ -152,7 +152,7 @@ def test_sync_schemas(client, test_list_table_descriptions):
 
 # TODO: Test for refresh table description still not working
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def test_create_instruction(client, test_list_database_connections):
     db_connection_id = test_list_database_connections
 
@@ -271,7 +271,7 @@ def test_create_context_store(client, test_list_database_connections):
     # # assert context_store["metadata"] == {"key": "value"}
     pass
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_create_business_glossary(client, test_list_database_connections):
     db_connection_id = test_list_database_connections
 
@@ -332,7 +332,7 @@ def test_delete_business_glossary(client, test_create_business_glossary):
     response = client.delete(f"/api/v1/business_glossaries/{business_glossary_id}")
     assert response.status_code == 200  # Assuming 204 No Content is the expected status code
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_create_prompt(client, test_list_database_connections):
     db_connection_id = test_list_database_connections
 
@@ -404,7 +404,8 @@ def test_update_prompt(client, test_create_prompt):
     # assert updated_prompt["metadata"] == {"updated": True}
     pass
 
-def test_create_prompt_and_sql_generation(client, test_list_database_connections):
+@pytest.fixture(scope="session")
+def create_prompt_and_sql_generation(client, test_list_database_connections):
     db_connection_id = test_list_database_connections
     if db_connection_id is None:
         pytest.skip("No database connection available to test SQL generation")
@@ -429,4 +430,73 @@ def test_create_prompt_and_sql_generation(client, test_list_database_connections
     }
     sql_generation_response = client.post(f"/api/v1/prompts/{prompt_id}/sql-generations", json=sql_generation_payload)
     assert sql_generation_response.status_code == 201
-    # sql_generation = sql_generation_response.json()
+    sql_generation = sql_generation_response.json()
+    return prompt_id, sql_generation["id"], sql_generation
+
+def test_create_sql_generation(client, create_prompt_and_sql_generation):
+    _, sql_generation_id, _ = create_prompt_and_sql_generation
+    assert sql_generation_id is not None
+
+def test_get_sql_generations(client, create_prompt_and_sql_generation):
+    prompt_id, _, _ = create_prompt_and_sql_generation
+    response = client.get(f"/api/v1/sql-generations?prompt_id={prompt_id}")
+    assert response.status_code == 200
+    sql_generations = response.json()
+    assert isinstance(sql_generations, list)
+    if sql_generations:
+        assert "id" in sql_generations[0]
+        assert "llm_config" in sql_generations[0]
+
+def test_get_specific_sql_generation(client, create_prompt_and_sql_generation):
+    _, sql_generation_id, _ = create_prompt_and_sql_generation
+    response = client.get(f"/api/v1/sql-generations/{sql_generation_id}")
+    assert response.status_code == 200
+    sql_generation = response.json()
+    assert sql_generation["id"] == sql_generation_id
+    assert "llm_config" in sql_generation
+
+@pytest.fixture(scope="session")
+def create_nl_generation(client, create_prompt_and_sql_generation):
+    _, sql_generation_id, _ = create_prompt_and_sql_generation
+    
+    # Define payload for NL generation
+    nl_generation_payload = {
+        "llm_config": {
+            "llm_name": "gpt-4o-mini"
+        },
+        "max_rows": 100,
+        "metadata": {}
+    }
+    
+    # Post NL generation request
+    response = client.post(f"/api/v1/sql-generations/{sql_generation_id}/nl-generations", json=nl_generation_payload)
+    assert response.status_code == 201
+    nl_generation = response.json()
+    
+    # Validate NL generation response
+    assert "id" in nl_generation
+    # assert "llm_config" in nl_generation
+    # assert nl_generation["llm_config"]["llm_name"] == "gpt-4o-mini"
+    # assert nl_generation["max_rows"] == 100
+    # assert "metadata" in nl_generation
+    
+    return nl_generation["id"], nl_generation
+
+def test_create_nl_generation(client, create_nl_generation):
+    nl_generation_id, _ = create_nl_generation
+    assert nl_generation_id is not None
+
+def test_get_nl_generations(client, create_prompt_and_sql_generation):
+    _, sql_generation_id, _ = create_prompt_and_sql_generation
+    response = client.get(f"/api/v1/nl-generations?sql_generation_id={sql_generation_id}")
+    assert response.status_code == 200
+    nl_generations = response.json()
+    
+    # Validate the list of NL generations
+    assert isinstance(nl_generations, list)
+    if nl_generations:
+        assert "id" in nl_generations[0]
+        assert "max_rows" in nl_generations[0]
+        assert "text" in nl_generations[0]
+
+
