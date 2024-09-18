@@ -39,6 +39,27 @@ class BusinessGlossaryRepository:
             result.append(BusinessGlossary(**row))
         return result
 
+    def find_by_metric(self, prompt: str) -> list[dict]:
+        result = []
+        rows = self.storage.full_text_search(
+            DB_COLLECTION, prompt, columns=["metric", "alias"]
+        )
+        if rows:
+            for row in rows:
+                obj = {}
+                if row['metric'] in prompt:
+                    obj["metric"] = row['metric']
+                    obj["sql"] = row['sql']
+                else:
+                    for alias in row['alias']:
+                        if alias in prompt:
+                            obj["metric"] = alias
+                            obj["sql"] = row['sql']
+                            break
+                if obj:
+                    result.append(obj)
+        return result
+
     def update(
         self,
         business_glossary_id: str,

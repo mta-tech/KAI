@@ -27,6 +27,7 @@ class InstructionService:
                 f"Database connection {instruction_request.db_connection_id} not found"
             )
 
+        instruction_embedding = None
         if not instruction_request.is_default:
             instruction_embedding = self.get_embedding(
                 instruction_request.condition, instruction_request.rules

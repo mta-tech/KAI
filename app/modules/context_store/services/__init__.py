@@ -107,7 +107,7 @@ class ContextStoreService:
 
         return True
 
-    def full_text_search(self, db_connection_id, prompt) -> ContextStore:
+    def retrieve_exact_prompt(self, db_connection_id, prompt) -> ContextStore:
         return self.repository.find_by_prompt(db_connection_id, prompt)
 
     def retrieve_context_for_question(self, prompt: Prompt) -> list[dict]:

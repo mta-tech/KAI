@@ -77,7 +77,13 @@ class Storage(TypeSenseDB):
         results = self.client.collections[collection].documents.search(search_params)
         return [hit["document"] for hit in results["hits"]]
 
-    def find_all(self, collection: str, page: int = 0, limit: int = 0, exclude_fields: list[str] = None) -> list:
+    def find_all(
+        self,
+        collection: str,
+        page: int = 0,
+        limit: int = 0,
+        exclude_fields: list[str] = None,
+    ) -> list:
         self.ensure_collection_exists(collection)
 
         search_params = {
@@ -88,6 +94,20 @@ class Storage(TypeSenseDB):
 
         if exclude_fields:
             search_params["exclude_fields"] = ",".join(exclude_fields)
+
+        results = self.client.collections[collection].documents.search(search_params)
+        return [hit["document"] for hit in results["hits"]]
+
+    def full_text_search(
+        self,
+        collection: str,
+        query: str,
+        columns: list,
+    ):
+        self.ensure_collection_exists(collection)
+        query_by = ",".join(columns)
+
+        search_params = {"q": query, "query_by": query_by}
 
         results = self.client.collections[collection].documents.search(search_params)
         return [hit["document"] for hit in results["hits"]]

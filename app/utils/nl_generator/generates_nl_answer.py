@@ -14,10 +14,14 @@ from app.modules.nl_generation.models import NLGeneration
 from app.modules.prompt.repositories import PromptRepository
 from app.modules.sql_generation.models import LLMConfig, SQLGeneration
 from app.utils.model.chat_model import ChatModel
+from app.utils.nl_generator.nl_history import NLHistory
 from app.utils.sql_database.sql_database import SQLDatabase
 
 HUMAN_TEMPLATE = """Given a Question, a Sql query and the sql query result try to answer the question
 If the sql query result doesn't answer the question just say 'I don't know'
+
+{nl_history}
+
 Answer the question given the sql query and the sql query result.
 Question: {prompt}
 SQL query: {sql_query}
@@ -83,6 +87,7 @@ class GeneratesNlAnswer:
         except Exception as e:
             raise HTTPException("Sensitive SQL keyword detected in the query.") from e
 
+        nl_history = NLHistory.get_nl_history(prompt)
         human_message_prompt = HumanMessagePromptTemplate.from_template(HUMAN_TEMPLATE)
         chat_prompt = ChatPromptTemplate.from_messages([human_message_prompt])
         chain = LLMChain(llm=self.llm, prompt=chat_prompt)
@@ -91,6 +96,7 @@ class GeneratesNlAnswer:
                 "prompt": prompt.text,
                 "sql_query": sql_generation.sql,
                 "sql_query_result": "\n".join([str(row) for row in rows]),
+                "nl_history": nl_history,
             }
         )
 
