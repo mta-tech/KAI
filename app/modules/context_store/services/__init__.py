@@ -117,7 +117,7 @@ class ContextStoreService:
             model_family="openai", model_name="text-embedding-3-small"
         )
         prompt_embedding = embedding_model.embed_query(prompt.text)
-        relevant_context = self.repository.find_relevant_context(
+        relevant_context = self.repository.find_by_relevance(
             prompt.db_connection_id, prompt.text, prompt_embedding
         )
 
