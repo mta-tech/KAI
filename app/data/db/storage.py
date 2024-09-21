@@ -102,6 +102,8 @@ class Storage(TypeSenseDB):
         filter_by: str = None,
         limit: int = 3,
     ) -> list | None:
+        self.ensure_collection_exists(collection)
+        
         search_requests = {
             "searches": [
                 {
@@ -122,24 +124,25 @@ class Storage(TypeSenseDB):
             search_requests, common_search_params
         )
 
-        if results["results"][0]["found"] > 0:
-            hits = results["results"][0]["hits"]
-            # Sort results by rank_fusion_score desc
-            sorted_hits = sorted(
-                hits,
-                key=lambda x: x["hybrid_search_info"]["rank_fusion_score"],
-                reverse=True,
-            )
-            # Take top N results
-            sorted_hits = sorted_hits[:limit]
+        if results:
+            if results["results"][0]["found"] > 0:
+                hits = results["results"][0]["hits"]
+                # Sort results by rank_fusion_score desc
+                sorted_hits = sorted(
+                    hits,
+                    key=lambda x: x["hybrid_search_info"]["rank_fusion_score"],
+                    reverse=True,
+                )
+                # Take top N results
+                sorted_hits = sorted_hits[:limit]
 
-            return [
-                {
-                    **hit["document"],
-                    "score": hit["hybrid_search_info"]["rank_fusion_score"],
-                }
-                for hit in sorted_hits
-            ]
+                return [
+                    {
+                        **hit["document"],
+                        "score": hit["hybrid_search_info"]["rank_fusion_score"],
+                    }
+                    for hit in sorted_hits
+                ]
 
         return None
 

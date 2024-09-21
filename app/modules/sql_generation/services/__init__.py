@@ -74,7 +74,7 @@ class SQLGenerationService:
             sql_generation_request.evaluate = False
 
         # SQL is given in request
-        if sql_generation_request.sql is not None:
+        if sql_generation_request.sql:
             sql_generation = SQLGeneration(
                 prompt_id=prompt_id,
                 llm_config=sql_generation_request.llm_config,
