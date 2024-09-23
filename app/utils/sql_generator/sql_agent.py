@@ -2,7 +2,6 @@ import datetime
 import logging
 import os
 from queue import Queue
-from threading import Thread
 from typing import Any, Dict, List
 
 from langchain.agents.agent import AgentExecutor
@@ -14,12 +13,12 @@ from langchain_openai import OpenAIEmbeddings
 from overrides import override
 
 from app.data.db.storage import Storage
+from app.modules.business_glossary.services import BusinessGlossaryService
 from app.modules.context_store.services import ContextStoreService
 from app.modules.database_connection.models import DatabaseConnection
 from app.modules.instruction.services import InstructionService
 from app.modules.prompt.models import Prompt
 from app.modules.sql_generation.models import SQLGeneration
-from app.modules.sql_generation.repositories import SQLGenerationRepository
 from app.modules.table_description.models import (
     TableDescriptionStatus,
 )
@@ -39,6 +38,7 @@ from app.utils.prompts.agent_prompts import (
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_generator.sql_database_toolkit import SQLDatabaseToolkit
 from app.utils.sql_generator.sql_generator import SQLGenerator
+from app.utils.sql_generator.sql_history import SQLHistory
 from app.utils.sql_tools import replace_unprocessable_characters
 
 logger = logging.getLogger(__name__)
@@ -67,11 +67,12 @@ class SQLAgent(SQLGenerator):
         self,
         toolkit: SQLDatabaseToolkit,
         callback_manager: BaseCallbackManager | None = None,
+        sql_history: str | None = None,
         prefix: str = AGENT_PREFIX,
         suffix: str | None = None,
         format_instructions: str = FORMAT_INSTRUCTIONS,
         input_variables: List[str] | None = None,
-        max_examples: int = 20,
+        max_examples: int = 3,
         number_of_instructions: int = 1,
         max_iterations: int | None = int(os.getenv("AGENT_MAX_ITERATIONS", "15")),  # noqa: B008
         max_execution_time: float | None = None,
@@ -98,9 +99,11 @@ class SQLAgent(SQLGenerator):
             dialect=toolkit.dialect,
             max_examples=max_examples,
         )
+
         prefix = prefix.format(
-            dialect=toolkit.dialect, max_examples=max_examples, agent_plan=plan
+            dialect=toolkit.dialect, sql_history=sql_history, max_examples=max_examples, agent_plan=plan
         )
+
         prompt = ZeroShotAgent.create_prompt(
             tools,
             prefix=prefix,
@@ -138,6 +141,7 @@ class SQLAgent(SQLGenerator):
         storage = Storage(Settings())
         context_store_service = ContextStoreService(storage)
         instruction_service = InstructionService(storage)
+        business_metrics_service = BusinessGlossaryService(storage)
         response = SQLGeneration(
             prompt_id=user_prompt.id,
             llm_config=self.llm_config,
@@ -175,6 +179,17 @@ class SQLAgent(SQLGenerator):
         else:
             new_fewshot_examples = None
             number_of_samples = 0
+
+        # Get business metrics
+        number_of_metrics = 0
+        business_metrics = (
+            business_metrics_service.retrieve_business_metrics_for_question(user_prompt)
+        )
+        if business_metrics is not None:
+            number_of_metrics = len(business_metrics)
+
+        number_of_context = number_of_samples + number_of_metrics
+
         logger.info(
             f"Generating SQL response to question: {str(user_prompt.model_dump())}"
         )
@@ -184,6 +199,7 @@ class SQLAgent(SQLGenerator):
             db=self.database,
             context=context,
             few_shot_examples=new_fewshot_examples,
+            business_metrics=business_metrics,
             instructions=instructions,
             is_multiple_schema=True if user_prompt.schemas else False,
             db_scan=db_scan,
@@ -195,7 +211,8 @@ class SQLAgent(SQLGenerator):
         agent_executor = self.create_sql_agent(
             toolkit=toolkit,
             verbose=True,
-            max_examples=number_of_samples,
+            sql_history=SQLHistory.get_sql_history(user_prompt),
+            max_examples=number_of_context,
             number_of_instructions=len(instructions) if instructions is not None else 0,
             max_execution_time=int(os.environ.get("DH_ENGINE_TIMEOUT", 150)),
         )
@@ -249,77 +266,4 @@ class SQLAgent(SQLGenerator):
         queue: Queue,
         metadata: dict = None,
     ):
-        storage = Storage()
-        context_store_service = ContextStoreService(storage)
-        instruction_service = InstructionService(storage)
-        sql_generation_repository = SQLGenerationRepository(storage)
-        self.llm = self.model.get_model(
-            database_connection=database_connection,
-            temperature=0,
-            model_name=self.llm_config.llm_name,
-            api_base=self.llm_config.api_base,
-            streaming=True,
-        )
-        repository = TableDescriptionRepository(storage)
-        db_scan = repository.get_all_tables_by_db(
-            {
-                "db_connection_id": str(database_connection.id),
-                "sync_status": TableDescriptionStatus.SCANNED.value,
-            }
-        )
-        if not db_scan:
-            raise ValueError("No scanned tables found for database")
-        db_scan = SQLGenerator.filter_tables_by_schema(
-            db_scan=db_scan, prompt=user_prompt
-        )
-        few_shot_examples = context_store_service.retrieve_context_for_question(
-            user_prompt
-        )
-
-        instructions = instruction_service.retrieve_instruction_for_question(
-            user_prompt.db_connection_id
-        )
-        if few_shot_examples is not None:
-            new_fewshot_examples = self.remove_duplicate_examples(few_shot_examples)
-            number_of_samples = len(new_fewshot_examples)
-        else:
-            new_fewshot_examples = None
-            number_of_samples = 0
-        self.database = SQLDatabase.get_sql_engine(database_connection)
-
-        embedding = OpenAIEmbeddings(
-            openai_api_key=self.settings.require("OPENAI_API_KEY"),
-            model=EMBEDDING_MODEL,
-        )
-        toolkit = SQLDatabaseToolkit(
-            queuer=queue,
-            db=self.database,
-            context=[{}],
-            few_shot_examples=new_fewshot_examples,
-            instructions=instructions,
-            is_multiple_schema=True if user_prompt.schemas else False,
-            db_scan=db_scan,
-            embedding=embedding,
-        )
-        
-        agent_executor = self.create_sql_agent(
-            toolkit=toolkit,
-            verbose=True,
-            max_examples=number_of_samples,
-            number_of_instructions=len(instructions) if instructions is not None else 0,
-            max_execution_time=int(os.environ.get("DH_ENGINE_TIMEOUT", 150)),
-        )
-        agent_executor.return_intermediate_steps = True
-        agent_executor.handle_parsing_errors = ERROR_PARSING_MESSAGE
-        thread = Thread(
-            target=self.stream_agent_steps,
-            args=(
-                user_prompt.text,
-                agent_executor,
-                response,
-                sql_generation_repository,
-                queue,
-                metadata,
-            ),
-        )
-        thread.start()
+        pass

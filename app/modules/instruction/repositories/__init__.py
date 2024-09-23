@@ -35,7 +35,7 @@ class InstructionRepository:
         prompt: str,
         prompt_embedding: list[float],
         limit: int = 5,
-        alpha: float = 0.3,
+        alpha: float = 0.6,
     ) -> list[Instruction] | None:
         rows = self.storage.hybrid_search(
             collection=DB_COLLECTION,
@@ -50,7 +50,7 @@ class InstructionRepository:
         result = []
         if rows:
             for row in rows:
-                if row['score'] > 0.1:
+                if row['score'] >= 0.3:
                     result.append(Instruction(**row))
         return result
 

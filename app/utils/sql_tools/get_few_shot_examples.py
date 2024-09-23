@@ -21,7 +21,7 @@ class GetFewShotExamples(BaseTool):
     Always use this tool first and before any other tool!
     """  # noqa: E501
     few_shot_examples: List[dict]
-    
+    business_metrics: List[dict]
 
     @sql_agent_exceptions()
     def _run(
@@ -35,9 +35,19 @@ class GetFewShotExamples(BaseTool):
         else:
             return "Action input for the fewshot_examples_retriever tool should be an integer"
         returned_output = ""
-        for example in self.few_shot_examples[:number_of_samples]:
-            returned_output += f"Question: {example['prompt_text']} \n"
-            returned_output += f"```sql\n{example['sql']}\n```\n"
+
+        if self.few_shot_examples:
+            for example in self.few_shot_examples[:number_of_samples]:
+                returned_output += f"Question: {example['prompt_text']} \n"
+                returned_output += f"```sql\n{example['sql']}\n```\n"
+
+        # Add business Metric as SQL Pairs
+        if self.business_metrics:
+            for metric in self.business_metrics:
+                returned_output += f"ALWAYS USE THIS FORMULA TO CALCULATE {metric['metric']}! \n"
+                returned_output += f"```sql\n{metric['sql']}\n```\n"
+
         if returned_output == "":
             returned_output = "No previously asked Question/SQL pairs are available"
+
         return returned_output

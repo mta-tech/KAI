@@ -55,7 +55,7 @@ class ContextStoreRepository:
         prompt_text: str,
         prompt_embedding: list[float],
         limit: int = 3,
-        alpha: float = 0.8,
+        alpha: float = 1.0,
     ) -> list | None:
         rows = self.storage.hybrid_search(
             collection=DB_COLLECTION,
@@ -68,14 +68,15 @@ class ContextStoreRepository:
         )
 
         result = []
-        for row in rows:
-            result.append(
-                {
-                    "prompt_text": row["prompt_text"],
-                    "sql": row["sql"],
-                    "score": row["score"],
-                }
-            )
+        if rows:
+            for row in rows:
+                result.append(
+                    {
+                        "prompt_text": row["prompt_text"],
+                        "sql": row["sql"],
+                        "score": row["score"],
+                    }
+                )
         return result
 
     def delete_by_id(self, id: str) -> bool:

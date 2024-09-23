@@ -16,7 +16,7 @@
             "type": "string",
             "optional": true
         },
-        {
+        {   
             "name": "alias",
             "type": "string[]",
             "optional": true

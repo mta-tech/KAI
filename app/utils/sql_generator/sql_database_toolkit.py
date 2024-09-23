@@ -23,6 +23,7 @@ class SQLDatabaseToolkit(BaseToolkit):
     db: SQLDatabase = Field(exclude=True)
     context: List[dict] | None = Field(exclude=True, default=None)
     few_shot_examples: List[dict] | None = Field(exclude=True, default=None)
+    business_metrics: List[dict] | None = Field(exclude=True, default=None)
     instructions: List[dict] | None = Field(exclude=True, default=None)
     db_scan: List[TableDescription] = Field(exclude=True)
     embedding: OpenAIEmbeddings = Field(exclude=True)
@@ -67,6 +68,7 @@ class SQLDatabaseToolkit(BaseToolkit):
         if self.few_shot_examples is not None:
             get_fewshot_examples_tool = GetFewShotExamples(
                 few_shot_examples=self.few_shot_examples,
+                business_metrics=self.business_metrics,
             )
             tools.append(get_fewshot_examples_tool)
         return tools
