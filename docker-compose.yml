@@ -30,6 +30,20 @@ services:
     env_file:
       - .env
 
+  typesense_dashboard:
+    image: typesense/dashboard:v1.9.1
+    container_name: typesense_dashboard
+    restart: on-failure
+    ports:
+      - "8106:80"
+    environment:
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY}
+      - TYPESENSE_HOST=http://typesense:8108
+    depends_on:
+      - typesense
+    networks:
+      - kai_network
+
 networks:
   kai_network:
     name: kai_network
