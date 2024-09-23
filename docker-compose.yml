@@ -20,7 +20,7 @@ services:
     container_name: kai_engine
     restart: on-failure
     ports:
-      - "8000:8000"
+      - "8005:8005"
     networks:
       - kai_network
     depends_on:
@@ -30,9 +30,9 @@ services:
     env_file:
       - .env
 
-  typesense_dashboard:
-    image: typesense/dashboard:v1.9.1
-    container_name: typesense_dashboard
+  typesense-dashboard:
+    image: bfritscher/typesense-dashboard:1.9.1
+    container_name: typesense-dashboard
     restart: on-failure
     ports:
       - "8106:80"
