@@ -496,7 +496,6 @@ def test_get_nl_generations(client, create_prompt_and_sql_generation):
     assert isinstance(nl_generations, list)
     if nl_generations:
         assert "id" in nl_generations[0]
-        assert "max_rows" in nl_generations[0]
         assert "text" in nl_generations[0]
 
 

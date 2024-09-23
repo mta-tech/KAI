@@ -84,11 +84,11 @@ class InstructionService:
 
         if update_request.condition is not None:
             instruction.condition = update_request.condition
-            instruction.instruction_embedding = self.get_embedding(
-                update_request.condition
-            )
         if update_request.rules is not None:
             instruction.rules = update_request.rules
+            instruction.instruction_embedding = self.get_embedding(
+                update_request.condition, update_request.rules
+            )
         if update_request.is_default is not None:
             instruction.is_default = update_request.is_default
         if update_request.metadata is not None:
