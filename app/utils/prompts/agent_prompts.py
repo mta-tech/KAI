@@ -5,6 +5,8 @@ Only use the below tools. Only use the information returned by the below tools t
 #
 Here is the plan you have to follow:
 {agent_plan}
+
+{sql_history}
 #
 Using `current_date()` or `current_datetime()` in SQL queries is banned, use SystemTime tool to get the exact time of the query execution.
 If the question does not seem related to the database, return an empty string.

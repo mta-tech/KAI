@@ -72,8 +72,8 @@ class SQLDatabase:
             engine.engine.connect()
             DBConnections.add(database_info.id, engine)
         except Exception as e:
-            raise HTTPException(  # noqa: B904
-                f"Unable to connect to db: {database_info.alias}", description=str(e)
+            raise HTTPException(404,   # noqa: B904
+                f"Unable to connect to db: {database_info.alias} {str(e)}"
             )
         return engine
 

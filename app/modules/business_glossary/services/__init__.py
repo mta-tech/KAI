@@ -1,8 +1,11 @@
 from fastapi import HTTPException
+from sql_metadata import Parser
+
 from app.api.requests import BusinessGlossaryRequest, UpdateBusinessGlossaryRequest
 from app.modules.business_glossary.models import BusinessGlossary
 from app.modules.business_glossary.repositories import BusinessGlossaryRepository
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
+from app.modules.prompt.models import Prompt
 
 
 class BusinessGlossaryService:
@@ -22,6 +25,14 @@ class BusinessGlossaryService:
         if not db_connection:
             raise HTTPException(f"Database connection {db_connection_id} not found")
 
+        try:
+            Parser(business_glossary_request.sql).tables  # noqa: B018
+        except Exception as e:
+            raise HTTPException(
+                404,
+                f"SQL {business_glossary_request.sql} is malformed. Please check the syntax.",
+            ) from e
+
         business_glossary = BusinessGlossary(
             db_connection_id=db_connection_id,
             metric=business_glossary_request.metric,
@@ -36,6 +47,10 @@ class BusinessGlossaryService:
         if not business_glossary:
             raise HTTPException(f"Business Glossary {business_glossary_id} not found")
         return business_glossary
+
+    def retrieve_business_metrics_for_question(self, prompt: Prompt) -> list:
+        result = self.repository.find_by_metric(prompt.text)
+        return result
 
     def update_business_glossary(
         self, business_glossary_id, request: UpdateBusinessGlossaryRequest

@@ -65,7 +65,7 @@ class SQLGenerationService:
         database = SQLDatabase.get_sql_engine(db_connection, True)
 
         # Perform Smart Cache
-        context_store = ContextStoreService(self.storage).full_text_search(
+        context_store = ContextStoreService(self.storage).retrieve_exact_prompt(
             prompt.db_connection_id, prompt.text
         )
         # Assing context store SQL
@@ -74,7 +74,7 @@ class SQLGenerationService:
             sql_generation_request.evaluate = False
 
         # SQL is given in request
-        if sql_generation_request.sql is not None:
+        if sql_generation_request.sql:
             sql_generation = SQLGeneration(
                 prompt_id=prompt_id,
                 llm_config=sql_generation_request.llm_config,
