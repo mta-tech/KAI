@@ -56,7 +56,7 @@ class InstructionService:
     def retrieve_instruction_for_question(self, prompt: Prompt) -> list:
         default_filter = {
             "db_connection_id": prompt.db_connection_id,
-            "is_default": 'true',
+            "is_default": "true",
         }
         default_instructions = self.repository.find_by(default_filter)
 
@@ -70,6 +70,9 @@ class InstructionService:
 
         instructions = default_instructions + relevant_instructions
 
+        # Make sure no instruction is doubled
+        instructions = list(set(instructions))
+        
         return [
             {"instruction": f"{instruction.condition}, {instruction.rules}"}
             for instruction in instructions
