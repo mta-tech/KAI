@@ -5,10 +5,9 @@ from sql_metadata import Parser
 
 from app.modules.sql_generation.models import LLMConfig
 
-
 class DatabaseConnectionRequest(BaseModel):
     alias: str
-    connection_uri: str
+    connection_uri: str = "postgresql://<user>:<password>@<host>/<db-name>"
     schemas: list[str] | None = None
     metadata: dict | None = None
 

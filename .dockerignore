@@ -26,8 +26,8 @@ Dockerfile
 docker-compose.yml
 
 # Environment files (optional, but sensitive info may be stored here)
-# .env
-# *.env
+.env
+*.env
 
 # Build artifacts
 build/

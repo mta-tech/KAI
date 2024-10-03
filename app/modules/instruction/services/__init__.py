@@ -70,8 +70,6 @@ class InstructionService:
 
         instructions = default_instructions + relevant_instructions
 
-        # Make sure no instruction is doubled
-        instructions = list(set(instructions))
         
         return [
             {"instruction": f"{instruction.condition}, {instruction.rules}"}

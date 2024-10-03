@@ -46,7 +46,7 @@ cp .env.example .env
 
 ```
 APP_HOST=0.0.0.0
-APP_PORT=8000
+APP_PORT=8015
 
 # OpenAI credentials and model 
 CHAT_MODEL = "gpt-4o-mini"
@@ -108,7 +108,7 @@ Fernet.generate_key()
 
     ```
     NAME         IMAGE                      COMMAND                  SERVICE      CREATED        STATUS          PORTS
-    kai_engine   kai-kai_engine             "poetry run python -…"   kai_engine   17 hours ago   Up 20 minutes   0.0.0.0:8000->8000/tcp
+    kai_engine   kai-kai_engine             "poetry run python -…"   kai_engine   17 hours ago   Up 20 minutes   0.0.0.0:8015->8015/tcp
     typesense    typesense/typesense:26.0   "/opt/typesense-serv…"   typesense    17 hours ago   Up 20 minutes   0.0.0.0:8108->8108/tcp 
     ```
 4. In your browser visit [http://localhost/docs](http://localhost/docs)
@@ -141,7 +141,7 @@ APP_VERSION=1.0.0
 APP_ENVIRONMENT=LOCAL
 
 APP_HOST=0.0.0.0
-APP_PORT=8000
+APP_PORT=8015
 APP_ENABLE_HOT_RELOAD=0
 
 TYPESENSE_API_KEY = kai_typesense
@@ -176,7 +176,7 @@ ENCRYPT_KEY = f0KVMZHZPgdMStBmVIn2XD049e6Mun7ZEDhf1W7MRnw=
   _Example:_ `"0.0.0.0"`
 * **`APP_PORT`**\
   _Description:_ The port number on which the application will listen for incoming requests.\
-  _Example:_ `"8000"`
+  _Example:_ `"8015"`
 * **`APP_ENABLE_HOT_RELOAD`**\
   _Description:_ Enables or disables hot reloading of the application. Set to `1` to enable hot reload, or `0` to disable it.\
   _Example:_ `"0"`

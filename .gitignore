@@ -84,6 +84,8 @@ app/data/dbdata
 data_*/
 temp/
 
+app/automation
+
 # Ignore testing files
 testing.ipynb
 llama-test.ipynb
