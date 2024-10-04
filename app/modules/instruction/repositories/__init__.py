@@ -43,13 +43,13 @@ class InstructionRepository:
             query_by="condition, rules",
             vector_query=f"instruction_embedding:({prompt_embedding}, alpha:{alpha})",
             exclude_fields="instruction_embedding",
-            filter_by=f"db_connection_id:={db_connection_id}, is_default:={False}",
+            filter_by=f"db_connection_id:={db_connection_id}&&is_default:=false",
             limit=limit,
         )
         result = []
         if rows:
             for row in rows:
-                if row["score"] >= 0.3:
+                if row["score"] >= 0.5:
                     result.append(Instruction(**row))
         return result
 

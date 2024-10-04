@@ -14,7 +14,7 @@ If the there is a very similar question among the fewshot examples, directly use
 """  # noqa: E501
 
 PLAN_WITH_FEWSHOT_EXAMPLES_AND_INSTRUCTIONS = """1) Use the FewshotExamplesRetriever tool to retrieve samples of Question/SQL pairs that are similar to the given question, if there is a similar question among the examples, use the SQL query from the example and modify it to fit the given question.
-2) Use the GetAdminInstructions tool to retrieve the DB admin instructions before calling other tools, to make sure you follow the instructions when writing the SQL query.
+2) Always Use the GetAdminInstructions tool after FewshotExamplesRetriever tool to retrieve the DB admin instructions before calling other tools, to make sure you follow the instructions when writing the SQL query.
 3) Use the DbTablesWithRelevanceScores tool to find relevant tables.
 4) Use the DbRelevantTablesSchema tool to obtain the schema of possibly relevant tables to identify the possibly relevant columns.
 5) Use the DbRelevantColumnsInfo tool to gather more information about the possibly relevant columns, filtering them to find the relevant ones.
@@ -33,7 +33,7 @@ tip7) You should always execute the SQL query by calling the SqlDbQuery tool to 
 """  # noqa: E501
 
 PLAN_WITH_INSTRUCTIONS = """1) Use the DbTablesWithRelevanceScores tool to find relevant tables.
-2) Use the GetAdminInstructions tool to retrieve the DB admin instructions before calling other tools, to make sure you follow the instructions when writing the SQL query.
+2) Always Use the GetAdminInstructions tool after DbTablesWithRelevanceScores to retrieve the DB admin instructions before calling other tools, to make sure you follow the instructions when writing the SQL query.
 2) Use the DbRelevantTablesSchema tool to obtain the schema of possibly relevant tables to identify the possibly relevant columns.
 4) Use the DbRelevantColumnsInfo tool to gather more information about the possibly relevant columns, filtering them to find the relevant ones.
 5) [Optional based on the question] Use the SystemTime tool if the question has any mentions of time or dates.
@@ -49,7 +49,7 @@ tip5) You should always execute the SQL query by calling the SqlDbQuery tool to 
 """  # noqa: E501
 
 PLAN_WITH_FEWSHOT_EXAMPLES = """1) Use the FewshotExamplesRetriever tool to retrieve samples of Question/SQL pairs that are similar to the given question, if there is a similar question among the examples, use the SQL query from the example and modify it to fit the given question.
-2) Use the DbTablesWithRelevanceScores tool to find relevant tables.
+2) Always Use the GetAdminInstructions tool after FewshotExamplesRetriever tool to find relevant tables.
 3) Use the DbRelevantTablesSchema tool to obtain the schema of possibly relevant tables to identify the possibly relevant columns.
 4) Use the DbRelevantColumnsInfo tool to gather more information about the possibly relevant columns, filtering them to find the relevant ones.
 5) [Optional based on the question] Use the SystemTime tool if the question has any mentions of time or dates.
