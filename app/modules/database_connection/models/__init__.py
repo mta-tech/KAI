@@ -5,6 +5,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.utils.core.encrypt import FernetEncrypt
+
 
 class SupportedDialects(Enum):
     POSTGRES = "postgresql"
@@ -28,20 +30,22 @@ class DatabaseConnection(BaseModel):
         return match.group(1)
 
     @classmethod
-    def check_dialect(cls, input_string: str) -> Optional[SupportedDialects]:
+    def set_dialect(cls, input_string) -> Optional[SupportedDialects]:
         for dialect in SupportedDialects:
             if dialect.value in input_string:
                 return dialect.value
         return None
 
     @model_validator(mode="before")
-    def set_dialect(cls, values):
+    def connection_uri_format(cls, values):
         connection_uri = values.get("connection_uri")
-        if connection_uri:
+        fernet_encrypt = FernetEncrypt()
+        try:
+            fernet_encrypt.decrypt(connection_uri)
+        except Exception:
+            # if its encrypted dialect already setted
             dialect_prefix = cls.get_dialect(connection_uri)
-            dialect = cls.check_dialect(dialect_prefix)
-            if dialect:
-                values["dialect"] = dialect
+            values["dialect"] = cls.set_dialect(dialect_prefix)
         return values
 
     @model_validator(mode="before")

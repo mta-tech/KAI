@@ -10,10 +10,36 @@ services:
     command: '--data-dir /data --api-key=${TYPESENSE_API_KEY} --enable-cors'
     env_file:
       - .env
-    networks:
-      - kai_network
-      
+
+  typesense-dashboard:
+    image: bfritscher/typesense-dashboard:1.9.1
+    container_name: typesense-dashboard
+    restart: on-failure
+    ports:
+      - "80:80"
+    depends_on:
+      - typesense
+    env_file:
+      - .env
+
+  text2sql-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: text2sql-agent
+    container_name: text2sql-agent
+    restart: on-failure
+    ports:
+      - "8005:8005"
+    depends_on:
+      - typesense
+    environment:
+      - TYPESENSE_HOST=typesense
+    env_file:
+      - .env
+    pull_policy: never
+
 networks:
-  kai_network:
+  default:
+    external: true
     name: kai_network
-    driver: bridge

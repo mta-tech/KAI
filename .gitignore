@@ -25,6 +25,8 @@ venv.bak/
 # IDEs and editors
 .idea/
 .vscode/
+.gitbook/
+.ruff_cache/
 *.sublime-workspace
 *.sublime-project
 
@@ -42,6 +44,7 @@ coverage.xml
 # Pytest
 .cache/
 pytest_cache/
+.pytest_cache/
 
 # Logs
 *.log
@@ -76,3 +79,14 @@ cython_debug/
 
 # Ignore typesense data
 app/data/dbdata
+
+# Ignore sample data
+data_*/
+temp/
+
+app/automation
+
+# Ignore testing files
+testing.ipynb
+llama-test.ipynb
+notes.rst

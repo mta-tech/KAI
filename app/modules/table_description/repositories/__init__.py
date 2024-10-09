@@ -1,5 +1,7 @@
 from typing import List
 
+from fastapi import HTTPException
+
 from app.data.db.storage import Storage
 from app.modules.table_description.models import TableDescription
 
@@ -54,7 +56,6 @@ class TableDescriptionRepository:
         return table_info
 
     def update(self, table_info: TableDescription) -> TableDescription:
-        # update table description, if columns is exist, update each column info
         table_info_dict = table_info.model_dump(exclude={"id"})
         table_info_dict = {
             k: v for k, v in table_info_dict.items() if v is not None and v != []
@@ -93,7 +94,7 @@ class TableDescriptionRepository:
 
             for column_request in table_description_request.columns:
                 if column_request.name not in columns:
-                    raise Exception(f"Column {column_request.name} doesn't exist")
+                    raise HTTPException(f"Column {column_request.name} doesn't exist")
                 for column in table.columns:
                     if column_request.name == column.name:
                         for field, value in column_request:

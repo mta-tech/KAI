@@ -47,3 +47,7 @@ class TypeSenseDB:
         if collection_name not in existing_collection:
             collection_schema = self._get_schema(collection_name)
             self.client.collections.create(collection_schema)
+
+    def delete_collection(self, collection_name: str) -> None:
+        """Delete a collection from Typesense."""
+        self.client.collections[collection_name].delete()

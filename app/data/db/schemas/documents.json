@@ -1,0 +1,37 @@
+{
+    "name": "documents",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "title",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "content_type",
+            "type": "string"
+        },
+        {
+            "name": "document_size",
+            "type": "int32"
+        },
+        {
+            "name": "text_content",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        }
+    ]
+}

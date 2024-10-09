@@ -1,3 +1,5 @@
+import uuid
+
 from app.data.db import TypeSenseDB
 from app.server.config import Settings
 
@@ -20,6 +22,7 @@ class Storage(TypeSenseDB):
 
     def insert_one(self, collection: str, doc: dict) -> int:
         self.ensure_collection_exists(collection)
+        doc["id"] = str(uuid.uuid4())
         created_id = self.client.collections[collection].documents.create(doc)["id"]
         return created_id
 
@@ -74,7 +77,13 @@ class Storage(TypeSenseDB):
         results = self.client.collections[collection].documents.search(search_params)
         return [hit["document"] for hit in results["hits"]]
 
-    def find_all(self, collection: str, page: int = 0, limit: int = 0) -> list:
+    def find_all(
+        self,
+        collection: str,
+        page: int = 0,
+        limit: int = 0,
+        exclude_fields: list[str] = None,
+    ) -> list:
         self.ensure_collection_exists(collection)
 
         search_params = {
@@ -83,8 +92,79 @@ class Storage(TypeSenseDB):
             "page": page if page > 0 else 1,
         }
 
+        if exclude_fields:
+            search_params["exclude_fields"] = ",".join(exclude_fields)
+
         results = self.client.collections[collection].documents.search(search_params)
         return [hit["document"] for hit in results["hits"]]
+
+    def full_text_search(
+        self,
+        collection: str,
+        query: str,
+        columns: list,
+    ):
+        self.ensure_collection_exists(collection)
+        query_by = ",".join(columns)
+
+        search_params = {"q": query, "query_by": query_by}
+
+        results = self.client.collections[collection].documents.search(search_params)
+        return [hit["document"] for hit in results["hits"]]
+
+    def hybrid_search(
+        self,
+        collection: str,
+        query: str,
+        query_by: str,
+        vector_query: str,
+        exclude_fields: str,
+        filter_by: str = None,
+        limit: int = 3,
+    ) -> list | None:
+        self.ensure_collection_exists(collection)
+        
+        search_requests = {
+            "searches": [
+                {
+                    "collection": collection,
+                    "q": query,
+                    "query_by": query_by,
+                    "vector_query": vector_query,
+                    "exclude_fields": exclude_fields,
+                }
+            ]
+        }
+
+        common_search_params = {}
+        if filter_by:
+            common_search_params["filter_by"] = filter_by
+
+        results = self.client.multi_search.perform(
+            search_requests, common_search_params
+        )
+
+        if results:
+            if results["results"][0]["found"] > 0:
+                hits = results["results"][0]["hits"]
+                # Sort results by rank_fusion_score desc
+                sorted_hits = sorted(
+                    hits,
+                    key=lambda x: x["hybrid_search_info"]["rank_fusion_score"],
+                    reverse=True,
+                )
+                # Take top N results
+                sorted_hits = sorted_hits[:limit]
+
+                return [
+                    {
+                        **hit["document"],
+                        "score": hit["hybrid_search_info"]["rank_fusion_score"],
+                    }
+                    for hit in sorted_hits
+                ]
+
+        return None
 
     def delete_by_id(self, collection: str, id: str) -> int:
         self.ensure_collection_exists(collection)

@@ -17,20 +17,12 @@
         },
         {
             "name": "prompt_embedding",
-            "type": "object"
+            "type": "float[]",
+            "num_dim": 1024
         },
         {
             "name": "sql",
             "type": "string"
-        },
-        {
-            "name": "is_parameterized",
-            "type": "boolean"
-        },
-        {
-            "name": "parameterized_object",
-            "type": "object",
-            "optional": true
         },
         {
             "name": "metadata",

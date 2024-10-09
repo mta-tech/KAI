@@ -1,0 +1,45 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Poetry virtual environments (if enabled)
+.venv/
+
+# macOS specific files
+.DS_Store
+
+# Node modules (if applicable)
+node_modules/
+npm-debug.log
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+
+# Docker-related files
+Dockerfile
+docker-compose.yml
+
+# Environment files (optional, but sensitive info may be stored here)
+.env
+*.env
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local Python settings
+.idea/
+.vscode/
+.gitbook/
+.ruff_cache/
+
+# Git-related
+.git
+.gitignore
