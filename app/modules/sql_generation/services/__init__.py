@@ -21,7 +21,6 @@ from app.utils.sql_evaluator.simple_evaluator import SimpleEvaluator
 from app.utils.sql_generator.sql_agent import SQLAgent
 from app.utils.sql_generator.sql_query_status import create_sql_query_status
 
-
 class SQLGenerationService:
     def __init__(self, storage):
         self.settings = Settings()
