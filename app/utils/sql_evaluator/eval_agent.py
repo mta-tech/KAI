@@ -258,7 +258,7 @@ class EvaluationAgent(Evaluator):
         agent_executor = self.create_evaluation_agent(
             toolkit=toolkit,
             database_connection=database_connection,
-            verbose=True,
+            verbose=False,
             input_variables=["question", "SQL"],
         )
         answer = agent_executor.invoke({"question": user_question, "SQL": sql})[
