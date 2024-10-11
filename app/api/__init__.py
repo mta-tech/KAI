@@ -62,6 +62,7 @@ class API:
         self.nl_generation_service = NLGenerationService(self.storage)
         self.document_service = DocumentService(self.storage)
         self.embedding_service = EmbeddingService(self.storage)
+        
         self._register_routes()
 
     def _register_routes(self) -> None:
@@ -393,6 +394,7 @@ class API:
             methods=["GET"],
             tags=["RAGs"],
         )
+
     def get_router(self) -> fastapi.APIRouter:
         return self.router
 

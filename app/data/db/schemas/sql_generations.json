@@ -53,7 +53,7 @@
             "optional": true
         },
         {
-            "name": "completed_at",
+            "name": "created_at",
             "type": "string"
         },
         {
