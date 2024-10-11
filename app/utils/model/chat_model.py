@@ -1,6 +1,6 @@
 from typing import Any
 
-from langchain_community.chat_models import ChatOllama
+from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from overrides import override
 
@@ -28,7 +28,7 @@ class ChatModel(LLMModel):
             )
         if model_family == "ollama":
             return ChatOllama(
-                model_name=model_name,
+                model=model_name,
                 base_url=self.settings.require("OLLAMA_API_BASE"),
                 **kwargs,
             )
