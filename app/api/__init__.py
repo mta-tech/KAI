@@ -17,6 +17,7 @@ from app.api.requests import (
     PromptSQLGenerationRequest,
     ScannerRequest,
     SQLGenerationRequest,
+    TableDescriptionRequest,
     UpdateBusinessGlossaryRequest,
     UpdateInstructionRequest,
     UpdateMetadataRequest,
@@ -448,11 +449,11 @@ class API:
     def update_table_description(
         self,
         table_description_id: str,
-        database_connection_id: str,
+        table_description_request: TableDescriptionRequest,
     ) -> TableDescriptionResponse:
         """Add descriptions for tables and columns"""
         table_description = self.table_description_service.update_table_description(
-            table_description_id, database_connection_id
+            table_description_id, table_description_request
         )
         return TableDescriptionResponse(**table_description.model_dump())
 
