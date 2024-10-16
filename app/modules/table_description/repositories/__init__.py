@@ -2,6 +2,7 @@ from typing import List
 
 from fastapi import HTTPException
 
+from app.api.requests import TableDescriptionRequest
 from app.data.db.storage import Storage
 from app.modules.table_description.models import TableDescription
 
@@ -83,8 +84,8 @@ class TableDescriptionRepository:
         return result
 
     def update_fields(self, table: TableDescription, table_description_request):
-        if table_description_request.description is not None:
-            table.description = table_description_request.description
+        if table_description_request.table_description is not None:
+            table.table_description = table_description_request.table_description
 
         if table_description_request.metadata is not None:
             table.metadata = table_description_request.metadata

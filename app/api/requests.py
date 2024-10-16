@@ -19,16 +19,16 @@ class ForeignKeyDetail(BaseModel):
 
 class ColumnDescriptionRequest(BaseModel):
     name: str
-    description: str | None
-    is_primary_key: bool | None
-    data_type: str | None
-    low_cardinality: bool | None
-    categories: list[str] | None
-    foreign_key: ForeignKeyDetail | None
+    description: str | None = None
+    is_primary_key: bool | None = None
+    data_type: str | None = None
+    low_cardinality: bool | None = None
+    categories: list[str] | None = None
+    foreign_key: ForeignKeyDetail | None = None
 
 
 class TableDescriptionRequest(BaseModel):
-    description: str | None
+    table_description: str | None = None
     columns: list[ColumnDescriptionRequest] | None
     metadata: dict | None = None
 
