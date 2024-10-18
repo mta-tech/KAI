@@ -35,7 +35,7 @@ class TableDescriptionRepository:
 
     def save_table_info(self, table_info: TableDescription) -> TableDescription:
         table_info_dict = table_info.model_dump(exclude={"id"})
-        table_info_dict["table_name"] = table_info.table_name.lower()
+        table_info_dict["table_name"] = table_info.table_name
 
         filter = {
             "db_connection_id": table_info_dict["db_connection_id"],
