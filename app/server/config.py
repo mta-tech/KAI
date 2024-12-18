@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str | None
     OPENROUTER_API_BASE: str | None
 
+    MODEL_GARDEN_API_KEY: str | None
+    MODEL_GARDEN_API_BASE: str | None
+
     CHAT_MODEL: str | None
     EMBEDDING_MODEL: str | None
 

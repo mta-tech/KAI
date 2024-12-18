@@ -42,4 +42,14 @@ class ChatModel(LLMModel):
                 base_url=self.settings.require("OLLAMA_API_BASE"),
                 **kwargs,
             )
+        if model_family == "model_garden":
+            if api_base is None:
+                api_base = self.settings.require("MODEL_GARDEN_API_BASE")
+            return ChatOpenAI(
+                model_name=model_name,
+                api_key=self.settings.require("MODEL_GARDEN_API_KEY"),
+                base_url=api_base,
+                seed=0,
+                **kwargs,
+            )
         raise ValueError("No model family found upon chat model")
