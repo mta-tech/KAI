@@ -39,7 +39,24 @@ class SQLDatabase:
     @classmethod
     def from_uri(cls, database_uri: str) -> "SQLDatabase":
         """Construct a SQLAlchemy engine from URI."""
-        _engine_args = {}
+        _engine_args = {
+            "pool_size": 10,  # Maximum number of connections to keep in the pool
+            "max_overflow": 5,  # Allow up to 10 connections to be created when pool is full
+            "pool_timeout": 30,  # Timeout for getting connection from pool (seconds)
+            "pool_recycle": 1500,  # Recycle connections after 1 hour
+            "pool_pre_ping": True,  # Verify connections before use
+        }
+        
+        # Configure SSL for Neon Database connections
+        if database_uri.startswith('postgresql') and ('neon.tech' in database_uri.lower()):
+            _engine_args["connect_args"] = {
+                "sslmode": "require"  # Enforce SSL connection for Neon
+            }
+        elif database_uri.startswith('postgresql'):
+            _engine_args["connect_args"] = {
+                "sslmode": "prefer"  # Try SSL first, fallback to non-SSL for local connections
+            }
+        
         if database_uri.lower().startswith("duckdb"):
             config = {"autoload_known_extensions": False}
             _engine_args["connect_args"] = {"config": config}
@@ -72,8 +89,9 @@ class SQLDatabase:
             engine.engine.connect()
             DBConnections.add(database_info.id, engine)
         except Exception as e:
-            raise HTTPException(404,   # noqa: B904
-                f"Unable to connect to db: {database_info.alias} {str(e)}"
+            raise HTTPException(
+                404,  # noqa: B904
+                f"Unable to connect to db: {database_info.alias} {str(e)}",
             )
         return engine
 
