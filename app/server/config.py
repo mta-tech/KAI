@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None
     OPENROUTER_API_KEY: str | None
     OPENROUTER_API_BASE: str | None
+    GOOGLE_API_KEY: str | None
 
     MODEL_GARDEN_API_KEY: str | None
     MODEL_GARDEN_API_BASE: str | None
