@@ -11,8 +11,8 @@ from app.server.errors import sql_agent_exceptions
 class GetFewShotExamples(BaseTool):
     """Tool to obtain few-shot examples from the pool of samples"""
 
-    name = "FewshotExamplesRetriever"
-    description = """
+    name: str = "FewshotExamplesRetriever"
+    description: str = """
     Input: Number of required Question/SQL pairs.
     Output: List of similar Question/SQL pairs related to the given question.
     Use this tool to fetch previously asked Question/SQL pairs as examples for improving SQL query generation.

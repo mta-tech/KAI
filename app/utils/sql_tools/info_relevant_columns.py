@@ -13,8 +13,8 @@ from app.utils.sql_tools import replace_unprocessable_characters
 class InfoRelevantColumns(BaseTool):
     """Tool for getting more information for potentially relevant columns"""
 
-    name = "DbRelevantColumnsInfo"
-    description = """
+    name: str = "DbRelevantColumnsInfo"
+    description: str = """
     Input: Comma-separated list of potentially relevant columns with their corresponding table.
     Output: Information about the values inside the columns and their descriptions.
     Use this tool to gather details about potentially relevant columns. then, filter them, and identify the relevant ones.
