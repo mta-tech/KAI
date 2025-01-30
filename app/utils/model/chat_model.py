@@ -2,6 +2,7 @@ from typing import Any
 
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
+# from langchain_google_genai import ChatGoogleGenerativeAI
 from overrides import override
 
 from app.modules.database_connection.models import DatabaseConnection
@@ -52,4 +53,10 @@ class ChatModel(LLMModel):
                 seed=0,
                 **kwargs,
             )
+        # if model_family == "google":
+        #     return ChatGoogleGenerativeAI(
+        #         model_name=model_name,
+        #         google_api_key=self.settings.require("GOOGLE_API_KEY"),
+        #         **kwargs,
+            # )
         raise ValueError("No model family found upon chat model")

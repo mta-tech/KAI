@@ -160,3 +160,21 @@ If there is a consistent parsing error, please return "I don't know" as your fin
 If you know the final answer and do not need to use any tools, directly return the final answer in this format:
 Final Answer: <your final answer>.
 """
+
+COLUMN_DESCRIPTION_PROMPT = """
+You are an assistant that generates concise column descriptions.
+
+Table Name: {table_name}
+Column Name: {column_name}
+Row Examples: {row_examples}
+
+Provide an one-sentence description of the content or meaning of the data in this column. Do not use phrases like "represents," "this column," or "refers to." Simply describe the data directly without mention the column name or phrase like "This data" as intro in the description.
+"""
+
+TABLE_DESCRIPTION_PROMPT = """
+You are an assistant that generates clear and concise description of tables. I have a table named {table_name}. Below are the column names and their descriptions.
+
+{table_details}
+
+Provide a one-sentence description that explains the overall purpose and context of this table. Focus on what the table represents as a whole, without detailing and mentioning each column. Do not mention the table name or phrase like "This table" as intro in the description.
+"""

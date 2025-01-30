@@ -16,7 +16,7 @@ services:
     container_name: typesense-dashboard
     restart: on-failure
     ports:
-      - "80:80"
+      - "8010:80"
     depends_on:
       - typesense
     env_file:
@@ -41,5 +41,4 @@ services:
 
 networks:
   default:
-    external: true
     name: kai_network

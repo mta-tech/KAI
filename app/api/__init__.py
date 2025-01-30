@@ -90,6 +90,13 @@ class API:
         )
 
         self.router.add_api_route(
+            "/api/v1/database-connections/{db_connection_id}",
+            self.delete_database_connection,
+            methods=["DELETE"],
+            tags=["Database Connections"],
+        )
+
+        self.router.add_api_route(
             "/api/v1/table-descriptions/sync-schemas",
             self.scan_db,
             methods=["POST"],
@@ -123,6 +130,13 @@ class API:
             "/api/v1/table-descriptions/{table_description_id}",
             self.get_table_description,
             methods=["GET"],
+            tags=["Table Descriptions"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/table-descriptions/{table_description_id}",
+            self.delete_table_description,
+            methods=["DELETE"],
             tags=["Table Descriptions"],
         )
 
@@ -423,6 +437,15 @@ class API:
             db_connection_id, request
         )
         return DatabaseConnectionResponse(**db_connection.model_dump())
+    
+    def delete_database_connection(
+        self,
+        db_connection_id: str,
+    ) -> DatabaseConnectionResponse:
+        db_connection = self.database_connection_service.delete_database_connection(
+            db_connection_id
+        )
+        return DatabaseConnectionResponse(**db_connection.model_dump())
 
     def scan_db(
         self, scanner_request: ScannerRequest, background_tasks: BackgroundTasks
@@ -474,6 +497,15 @@ class API:
     ) -> TableDescriptionResponse:
         """Get description"""
         table_description = self.table_description_service.get_table_description(
+            table_description_id
+        )
+        return TableDescriptionResponse(**table_description.model_dump())
+    
+    def delete_table_description(
+        self, table_description_id: str
+    ) -> TableDescriptionResponse:
+        """Delete description"""
+        table_description = self.table_description_service.delete_table_description(
             table_description_id
         )
         return TableDescriptionResponse(**table_description.model_dump())
