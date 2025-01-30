@@ -11,8 +11,8 @@ from app.server.errors import sql_agent_exceptions
 class SystemTime(BaseTool):
     """Tool for finding the current data and time."""
 
-    name = "SystemTime"
-    description = """
+    name: str = "SystemTime"
+    description: str = """
     Input is an empty string, output is the current data and time.
     Always use this tool before generating a query if there is any time or date in the given question.
     """

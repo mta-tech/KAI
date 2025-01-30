@@ -11,8 +11,8 @@ from app.server.errors import sql_agent_exceptions
 class GetUserInstructions(BaseTool):
     """Tool for retrieving the instructions from the user"""
 
-    name = "GetAdminInstructions"
-    description = """
+    name: str = "GetAdminInstructions"
+    description: str = """
     Input: is an empty string.
     Output: Database admin instructions before generating the SQL query.
     The generated SQL query MUST follow the admin instructions even it contradicts with the given question.

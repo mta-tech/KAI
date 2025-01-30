@@ -11,17 +11,6 @@ services:
     env_file:
       - .env
 
-  typesense-dashboard:
-    image: bfritscher/typesense-dashboard:1.9.1
-    container_name: typesense-dashboard
-    restart: on-failure
-    ports:
-      - "8010:80"
-    depends_on:
-      - typesense
-    env_file:
-      - .env
-
   text2sql-agent:
     build:
       context: .
