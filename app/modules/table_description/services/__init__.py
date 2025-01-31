@@ -9,13 +9,14 @@ from app.modules.table_description.repositories import TableDescriptionRepositor
 from app.utils.sql_database.scanner import SqlAlchemyScanner
 
 
-def async_scanning(scanner: SqlAlchemyScanner, engine, table_descriptions, storage):
-    scanner.scan(engine, table_descriptions, TableDescriptionRepository(storage))
+def async_scanning(scanner: SqlAlchemyScanner, engine, table_descriptions, storage, llm_config):
+    scanner.scan(engine, table_descriptions, TableDescriptionRepository(storage), llm_config)
 
 
 class TableDescriptionService:
     def __init__(self, storage: Storage):
         self.storage = storage
+        self.repository = TableDescriptionRepository(self.storage)
 
     def scan_db(
         self, scanner_request: ScannerRequest, background_tasks: BackgroundTasks
@@ -60,7 +61,7 @@ class TableDescriptionService:
                 engine = database.engine
 
                 background_tasks.add_task(
-                    async_scanning, scanner, engine, table_descriptions, self.storage
+                    async_scanning, scanner, engine, table_descriptions, self.storage, scanner_request.llm_config
                 )
         return [TableDescription(**row.model_dump()) for row in rows]
 
@@ -70,7 +71,7 @@ class TableDescriptionService:
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(database_connection_id)
         scanner = SqlAlchemyScanner()
-        database_connection_service = DatabaseConnectionService(self.storage)
+        database_connection_service = DatabaseConnectionService(scanner, self.storage)
         try:
             data = {}
             if db_connection.schemas:
@@ -143,3 +144,16 @@ class TableDescriptionService:
             TableDescription(**table_description.model_dump())
             for table_description in table_descriptions
         ]
+
+    def delete_table_description(self, table_description_id: str) -> TableDescription:
+        table_description = self.repository.find_by_id(table_description_id)
+
+        if table_description is None:
+            raise HTTPException(f"Prompt {table_description_id} not found")
+
+        table_description = self.repository.delete_by_id(table_description_id)
+
+        if not table_description:
+            raise HTTPException(f"Failed to delete instruction {table_description_id}")
+
+        return TableDescription(**table_description.model_dump())

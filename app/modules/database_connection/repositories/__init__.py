@@ -36,3 +36,7 @@ class DatabaseConnectionRepository:
             obj = DatabaseConnection(**doc)
             result.append(obj)
         return result
+    
+    def delete_by_id(self, id: str) -> DatabaseConnection:
+        doc = self.storage.delete_by_id(DB_COLLECTION, id)
+        return DatabaseConnection(**doc) if doc else None

@@ -102,3 +102,7 @@ class TableDescriptionRepository:
                                 continue
                             setattr(column, field, value)
         return self.update(table)
+    
+    def delete_by_id(self, id: str) -> TableDescription:
+        doc = self.storage.delete_by_id(DB_COLLECTION, id)
+        return TableDescription(**doc)
