@@ -101,7 +101,10 @@ class SQLAgent(SQLGenerator):
         )
 
         prefix = prefix.format(
-            dialect=toolkit.dialect, sql_history=sql_history, max_examples=max_examples, agent_plan=plan
+            dialect=toolkit.dialect,
+            sql_history=sql_history,
+            max_examples=max_examples,
+            agent_plan=plan,
         )
 
         prompt = ZeroShotAgent.create_prompt(
@@ -150,6 +153,7 @@ class SQLAgent(SQLGenerator):
         self.llm = self.model.get_model(
             database_connection=database_connection,
             temperature=0,
+            model_family=self.llm_config.llm_family,
             model_name=self.llm_config.llm_name,
             api_base=self.llm_config.api_base,
         )

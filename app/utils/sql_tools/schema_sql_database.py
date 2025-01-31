@@ -13,8 +13,8 @@ from app.utils.sql_tools import replace_unprocessable_characters
 class SchemaSQLDatabaseTool(BaseTool):
     """Tool for getting schema of relevant tables."""
 
-    name = "DbRelevantTablesSchema"
-    description = """
+    name: str = "DbRelevantTablesSchema"
+    description: str = """
     Input: Comma-separated list of tables.
     Output: Schema of the specified tables.
     Use this tool to discover all columns of the relevant tables and identify potentially relevant columns.

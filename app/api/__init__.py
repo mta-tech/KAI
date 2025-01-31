@@ -17,11 +17,12 @@ from app.api.requests import (
     PromptSQLGenerationRequest,
     ScannerRequest,
     SQLGenerationRequest,
+    TableDescriptionRequest,
     UpdateBusinessGlossaryRequest,
     UpdateInstructionRequest,
     UpdateMetadataRequest,
     TextRequest,
-    EmbeddingRequest
+    EmbeddingRequest,
 )
 from app.api.responses import (
     BusinessGlossaryResponse,
@@ -32,7 +33,7 @@ from app.api.responses import (
     PromptResponse,
     SQLGenerationResponse,
     TableDescriptionResponse,
-    DocumentResponse
+    DocumentResponse,
 )
 from app.data.db.storage import Storage
 from app.modules.business_glossary.services import BusinessGlossaryService
@@ -45,6 +46,7 @@ from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.table_description.services import TableDescriptionService
 from app.utils.sql_database.scanner import SqlAlchemyScanner
 from app.modules.rag.services import DocumentService, EmbeddingService
+
 
 class API:
     def __init__(self, storage: Storage) -> None:
@@ -62,6 +64,7 @@ class API:
         self.nl_generation_service = NLGenerationService(self.storage)
         self.document_service = DocumentService(self.storage)
         self.embedding_service = EmbeddingService(self.storage)
+
         self._register_routes()
 
     def _register_routes(self) -> None:
@@ -84,6 +87,13 @@ class API:
             "/api/v1/database-connections/{db_connection_id}",
             self.update_database_connection,
             methods=["PUT"],
+            tags=["Database Connections"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/database-connections/{db_connection_id}",
+            self.delete_database_connection,
+            methods=["DELETE"],
             tags=["Database Connections"],
         )
 
@@ -121,6 +131,13 @@ class API:
             "/api/v1/table-descriptions/{table_description_id}",
             self.get_table_description,
             methods=["GET"],
+            tags=["Table Descriptions"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/table-descriptions/{table_description_id}",
+            self.delete_table_description,
+            methods=["DELETE"],
             tags=["Table Descriptions"],
         )
 
@@ -299,7 +316,7 @@ class API:
         )
 
         self.router.add_api_route(
-          "/api/v1/sql-generations/{sql_generation_id}/nl-generations",
+            "/api/v1/sql-generations/{sql_generation_id}/nl-generations",
             self.create_nl_generation,
             methods=["POST"],
             status_code=201,
@@ -342,7 +359,7 @@ class API:
             methods=["PUT"],
             tags=["NL Generations"],
         )
-        
+
         self.router.add_api_route(
             "/api/v1/rags/upload-document",
             self.upload_document,
@@ -393,6 +410,7 @@ class API:
             methods=["GET"],
             tags=["RAGs"],
         )
+
     def get_router(self) -> fastapi.APIRouter:
         return self.router
 
@@ -421,6 +439,15 @@ class API:
         )
         return DatabaseConnectionResponse(**db_connection.model_dump())
 
+    def delete_database_connection(
+        self,
+        db_connection_id: str,
+    ) -> DatabaseConnectionResponse:
+        db_connection = self.database_connection_service.delete_database_connection(
+            db_connection_id
+        )
+        return DatabaseConnectionResponse(**db_connection.model_dump())
+
     def scan_db(
         self, scanner_request: ScannerRequest, background_tasks: BackgroundTasks
     ) -> list[TableDescriptionResponse]:
@@ -446,11 +473,11 @@ class API:
     def update_table_description(
         self,
         table_description_id: str,
-        database_connection_id: str,
+        table_description_request: TableDescriptionRequest,
     ) -> TableDescriptionResponse:
         """Add descriptions for tables and columns"""
         table_description = self.table_description_service.update_table_description(
-            table_description_id, database_connection_id
+            table_description_id, table_description_request
         )
         return TableDescriptionResponse(**table_description.model_dump())
 
@@ -471,6 +498,15 @@ class API:
     ) -> TableDescriptionResponse:
         """Get description"""
         table_description = self.table_description_service.get_table_description(
+            table_description_id
+        )
+        return TableDescriptionResponse(**table_description.model_dump())
+
+    def delete_table_description(
+        self, table_description_id: str
+    ) -> TableDescriptionResponse:
+        """Delete description"""
+        table_description = self.table_description_service.delete_table_description(
             table_description_id
         )
         return TableDescriptionResponse(**table_description.model_dump())
@@ -649,7 +685,7 @@ class API:
         return self.sql_generation_service.execute_sql_query(
             sql_generation_id, max_rows
         )
-      
+
     def create_nl_generation(
         self, sql_generation_id: str, nl_generation_request: NLGenerationRequest
     ) -> NLGenerationResponse:
@@ -704,12 +740,12 @@ class API:
             text_content = self.pdf_to_text(content)
 
             text_request = TextRequest(
-                title = file.filename,
-                content_type = file.content_type,
-                document_size = len(content),
-                text_content = text_content,
-                )
-            
+                title=file.filename,
+                content_type=file.content_type,
+                document_size=len(content),
+                text_content=text_content,
+            )
+
             # Create the document
             document = self.create_document(text_request)
 
@@ -753,13 +789,10 @@ class API:
     def create_document(self, text_request: TextRequest) -> DocumentResponse:
         document = self.document_service.create_document(text_request)
         return DocumentResponse(**document.model_dump())
-    
+
     def get_documents(self) -> list[DocumentResponse]:
         documents = self.document_service.get_documents()
-        return [
-            DocumentResponse(**document.model_dump())
-            for document in documents
-        ]
+        return [DocumentResponse(**document.model_dump()) for document in documents]
 
     def get_document(self, document_id: str) -> DocumentResponse:
         document = self.document_service.get_document(document_id)
@@ -775,8 +808,7 @@ class API:
                 raise HTTPException(status_code=404, detail=str(e))
             else:
                 raise HTTPException(status_code=500, detail=str(e))
-    
+
     def retrieve_knowledge(self, query: str) -> dict:
         response = self.embedding_service.query(query)
         return {"Final Answer": response}
-  

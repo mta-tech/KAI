@@ -20,9 +20,16 @@ class Settings(BaseSettings):
     TYPESENSE_TIMEOUT: int
 
     OPENAI_API_KEY: str | None
+    OPENROUTER_API_KEY: str | None
+    OPENROUTER_API_BASE: str | None
+    GOOGLE_API_KEY: str | None
+
+    MODEL_GARDEN_API_KEY: str | None
+    MODEL_GARDEN_API_BASE: str | None
+
     CHAT_MODEL: str | None
     EMBEDDING_MODEL: str | None
-      
+
     OLLAMA_API_BASE: str | None
     HUGGINGFACEHUB_API_TOKEN: str | None
 
@@ -30,7 +37,7 @@ class Settings(BaseSettings):
     DH_ENGINE_TIMEOUT: int
     SQL_EXECUTION_TIMEOUT: int
     UPPER_LIMIT_QUERY_RETURN_ROWS: int
-      
+
     ENCRYPT_KEY: str
 
     class Config:

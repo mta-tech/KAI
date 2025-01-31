@@ -5,6 +5,7 @@ from sql_metadata import Parser
 
 from app.modules.sql_generation.models import LLMConfig
 
+
 class DatabaseConnectionRequest(BaseModel):
     alias: str
     connection_uri: str = "postgresql://<user>:<password>@<host>/<db-name>"
@@ -19,22 +20,23 @@ class ForeignKeyDetail(BaseModel):
 
 class ColumnDescriptionRequest(BaseModel):
     name: str
-    description: str | None
-    is_primary_key: bool | None
-    data_type: str | None
-    low_cardinality: bool | None
-    categories: list[str] | None
-    foreign_key: ForeignKeyDetail | None
+    description: str | None = None
+    is_primary_key: bool | None = None
+    data_type: str | None = None
+    low_cardinality: bool | None = None
+    categories: list[str] | None = None
+    foreign_key: ForeignKeyDetail | None = None
 
 
 class TableDescriptionRequest(BaseModel):
-    description: str | None
-    columns: list[ColumnDescriptionRequest] | None
+    table_description: str | None = None
+    columns: list[ColumnDescriptionRequest] | None = None
     metadata: dict | None = None
 
 
 class ScannerRequest(BaseModel):
     table_description_ids: list[str] | None
+    llm_config: LLMConfig | None = None
     metadata: dict | None = None
 
 

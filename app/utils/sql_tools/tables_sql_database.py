@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 class TablesSQLDatabaseTool(BaseTool):
     """Tool which takes in the given question and returns a list of tables with their relevance score to the question"""
 
-    name = "DbTablesWithRelevanceScores"
-    description = """
+    name: str = "DbTablesWithRelevanceScores"
+    description: str = """
     Input: Given question.
     Output: Comma-separated list of tables with their relevance scores, indicating their relevance to the question.
     Use this tool to identify the relevant tables for the given question.
@@ -88,9 +88,7 @@ class TablesSQLDatabaseTool(BaseTool):
                 table_rep = f"Table {table.table_name} contain columns: [{col_rep}], this tables has: {table.table_description}"
             else:
                 table_rep = f"Table {table.table_name} contain columns: [{col_rep}]"
-            table_representations.append(
-                [table.db_schema, table.table_name, table_rep]
-            )
+            table_representations.append([table.db_schema, table.table_name, table_rep])
         df = pd.DataFrame(
             table_representations,
             columns=["db_schema", "table_name", "table_representation"],
@@ -109,7 +107,7 @@ class TablesSQLDatabaseTool(BaseTool):
             else:
                 table_name = row["table_name"]
             table_relevance += (
-                f'Table: `{table_name}`, relevance score: {row["similarities"]}\n'
+                f"Table: `{table_name}`, relevance score: {row['similarities']}\n"
             )
         if len(most_similar_tables) > 0:
             for table in most_similar_tables:

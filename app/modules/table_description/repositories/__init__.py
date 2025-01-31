@@ -35,7 +35,7 @@ class TableDescriptionRepository:
 
     def save_table_info(self, table_info: TableDescription) -> TableDescription:
         table_info_dict = table_info.model_dump(exclude={"id"})
-        table_info_dict["table_name"] = table_info.table_name.lower()
+        table_info_dict["table_name"] = table_info.table_name
 
         filter = {
             "db_connection_id": table_info_dict["db_connection_id"],
@@ -83,8 +83,8 @@ class TableDescriptionRepository:
         return result
 
     def update_fields(self, table: TableDescription, table_description_request):
-        if table_description_request.description is not None:
-            table.description = table_description_request.description
+        if table_description_request.table_description is not None:
+            table.table_description = table_description_request.table_description
 
         if table_description_request.metadata is not None:
             table.metadata = table_description_request.metadata
@@ -102,3 +102,7 @@ class TableDescriptionRepository:
                                 continue
                             setattr(column, field, value)
         return self.update(table)
+    
+    def delete_by_id(self, id: str) -> TableDescription:
+        doc = self.storage.delete_by_id(DB_COLLECTION, id)
+        return TableDescription(**doc)
