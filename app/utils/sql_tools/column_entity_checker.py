@@ -18,8 +18,8 @@ from app.utils.sql_tools import replace_unprocessable_characters
 class ColumnEntityChecker(BaseTool):
     """Tool for checking the existance of an entity inside a column."""
 
-    name = "DbColumnEntityChecker"
-    description = """
+    name: str = "DbColumnEntityChecker"
+    description: str = """
     Input: Column name and its corresponding table, and an entity.
     Output: cell-values found in the column similar to the given entity.
     Use this tool to get cell values similar to the given entity in the given column.

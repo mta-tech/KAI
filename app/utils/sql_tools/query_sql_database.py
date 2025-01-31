@@ -19,8 +19,8 @@ TOP_K = SQLGenerator.get_upper_bound_limit()
 class QuerySQLDataBaseTool(BaseTool):
     """Tool for querying a SQL database."""
 
-    name = "SqlDbQuery"
-    description = """
+    name: str = "SqlDbQuery"
+    description: str = """
     Input: -- A well-formed multi-line SQL query between ```sql and ``` tags.
     Output: Result from the database or an error message if the query is incorrect.
     If an error occurs, rewrite the query and retry.

@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 class TablesSQLDatabaseTool(BaseTool):
     """Tool which takes in the given question and returns a list of tables with their relevance score to the question"""
 
-    name = "DbTablesWithRelevanceScores"
-    description = """
+    name: str = "DbTablesWithRelevanceScores"
+    description: str = """
     Input: Given question.
     Output: Comma-separated list of tables with their relevance scores, indicating their relevance to the question.
     Use this tool to identify the relevant tables for the given question.
