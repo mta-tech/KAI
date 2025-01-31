@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from typing import Any, Dict, List
+import json
 
 import sqlalchemy
 from sqlalchemy import Column, MetaData, Table, inspect, text
@@ -33,14 +34,32 @@ logger = logging.getLogger(__name__)
 
 class PostgreSqlScanner:
     def cardinality_values(self, column: Column, db_engine: Engine) -> list | None:
-        query = text(
-            """
-            SELECT n_distinct, most_common_vals::TEXT::TEXT[] 
-            FROM pg_catalog.pg_stats 
-            WHERE tablename = :table_name 
-            AND attname = :column_name
-            """
-        )
+        if str(db_engine.__dict__.get("url")).startswith("sqlite"):
+            query = text(
+                f"""
+                WITH ValueCounts AS (
+                    SELECT 
+                        {column.name} AS value, 
+                        COUNT(*) AS freq 
+                    FROM {column.table.name}
+                    GROUP BY {column.name}
+                )
+                SELECT 
+                    (SELECT COUNT(DISTINCT {column.name}) FROM {column.table.name}) AS n_distinct,
+                    json_group_array(value) AS most_common_vals
+                FROM ValueCounts
+                """
+            )
+
+        else:
+            query = text(
+                """
+                SELECT n_distinct, most_common_vals::TEXT::TEXT[] 
+                FROM pg_catalog.pg_stats 
+                WHERE tablename = :table_name 
+                AND attname = :column_name
+                """
+            )
 
         with db_engine.connect() as connection:
             result = connection.execute(
@@ -49,6 +68,10 @@ class PostgreSqlScanner:
 
             if len(result) > 0:
                 distinct_count, most_common_vals = result[0]
+                if isinstance(most_common_vals, str):
+                    most_common_vals = json.loads(most_common_vals)
+                    most_common_vals = [str(val) if val is not None else val for val in most_common_vals]
+
                 if MIN_CATEGORY_VALUE <= distinct_count <= MAX_CATEGORY_VALUE:
                     return most_common_vals
 
