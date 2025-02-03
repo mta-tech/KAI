@@ -53,10 +53,6 @@
             "optional": true
         },
         {
-            "name": "completed_at",
-            "type": "string"
-        },
-        {
             "name": "metadata",
             "type": "object",
             "optional": true
