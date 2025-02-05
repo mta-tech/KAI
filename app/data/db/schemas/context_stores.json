@@ -17,8 +17,7 @@
         },
         {
             "name": "prompt_embedding",
-            "type": "float[]",
-            "num_dim": 1024
+            "type": "float[]"
         },
         {
             "name": "sql",
