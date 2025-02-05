@@ -2,7 +2,7 @@ from typing import List
 
 from langchain.agents.agent_toolkits.base import BaseToolkit
 from langchain.tools.base import BaseTool
-from langchain_openai import OpenAIEmbeddings
+from langchain_core.embeddings import Embeddings
 from pydantic import Field
 
 from app.modules.table_description.models import TableDescription
@@ -26,7 +26,7 @@ class SQLDatabaseToolkit(BaseToolkit):
     business_metrics: List[dict] | None = Field(exclude=True, default=None)
     instructions: List[dict] | None = Field(exclude=True, default=None)
     db_scan: List[TableDescription] = Field(exclude=True)
-    embedding: OpenAIEmbeddings = Field(exclude=True)
+    embedding: Embeddings = Field(exclude=True)
     is_multiple_schema: bool = False
 
     @property
