@@ -60,9 +60,7 @@ class InstructionService:
         }
         default_instructions = self.repository.find_by(default_filter)
 
-        embedding_model = EmbeddingModel().get_model(
-            model_family="openai", model_name="text-embedding-3-small"
-        )
+        embedding_model = EmbeddingModel().get_model()
         prompt_embedding = embedding_model.embed_query(prompt.text)
         relevant_instructions = self.repository.find_by_relevance(
             prompt.db_connection_id, prompt.text, prompt_embedding
@@ -70,7 +68,6 @@ class InstructionService:
 
         instructions = default_instructions + relevant_instructions
 
-        
         return [
             {"instruction": f"{instruction.condition}, {instruction.rules}"}
             for instruction in instructions
@@ -110,9 +107,7 @@ class InstructionService:
         return True
 
     def get_embedding(self, condition, rules) -> list[float] | None:
-        embedding_model = EmbeddingModel().get_model(
-            model_family="openai", model_name="text-embedding-3-small"
-        )
+        embedding_model = EmbeddingModel().get_model()
 
         instruction_embedding = embedding_model.embed_query(f"{condition}, {rules}")
         return instruction_embedding

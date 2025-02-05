@@ -56,9 +56,7 @@ class ContextStoreService:
                 )
 
         # Get Embedding Vector from Prompt, used in SQL Generation as Few Show Examples
-        embedding_model = EmbeddingModel().get_model(
-            model_family="openai", model_name="text-embedding-3-small"
-        )
+        embedding_model = EmbeddingModel().get_model()
         prompt_embedding = embedding_model.embed_query(
             context_store_request.prompt_text
         )
@@ -113,9 +111,7 @@ class ContextStoreService:
     def retrieve_context_for_question(self, prompt: Prompt) -> list[dict]:
         logger.info(f"Getting context for {prompt.text}")
 
-        embedding_model = EmbeddingModel().get_model(
-            model_family="openai", model_name="text-embedding-3-small"
-        )
+        embedding_model = EmbeddingModel().get_model()
         prompt_embedding = embedding_model.embed_query(prompt.text)
         relevant_context = self.repository.find_by_relevance(
             prompt.db_connection_id, prompt.text, prompt_embedding
