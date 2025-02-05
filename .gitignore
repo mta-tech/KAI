@@ -88,6 +88,7 @@ app/automation
 
 # Ignore testing files
 testing.ipynb
+temp.ipynb
 llama-test.ipynb
 setup_connection.ipynb
 notes.rst
