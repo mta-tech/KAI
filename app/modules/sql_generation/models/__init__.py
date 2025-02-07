@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class LLMConfig(BaseModel):
     llm_family: str = "openai"
-    llm_name: str = os.getenv("LLM_NAME", "gpt-4-turbo-preview")
+    llm_name: str = os.getenv("LLM_NAME", "gpt-4o-mini")
     api_base: str | None = None
 
 
@@ -25,7 +25,8 @@ class SQLGeneration(BaseModel):
     intermediate_steps: list[IntermediateStep] | None = None
     sql: str | None = None
     status: str = "INVALID"
-    tokens_used: int | None = 0
+    input_tokens_used: int | None = 0
+    output_tokens_used: int | None = 0
     confidence_score: float | None = None
     completed_at: str | None = None
     error: str | None = None

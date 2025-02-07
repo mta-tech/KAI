@@ -13,6 +13,12 @@ from app.modules.database_connection.repositories import DatabaseConnectionRepos
 from app.modules.prompt.models import Prompt
 from app.utils.model.embedding_model import EmbeddingModel
 from app.utils.sql_database.sql_utils import extract_the_schemas_from_sql
+from app.utils.prompts_ner.prompts_ner import (
+    get_ner_labels,
+    get_ner,
+    get_labels_entities,
+    get_prompt_text_ner
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +68,17 @@ class ContextStoreService:
         prompt_embedding = embedding_model.embed_query(
             context_store_request.prompt_text
         )
+        labels = get_ner_labels(context_store_request.prompt_text)
+        labels_entities_ner = get_ner(context_store_request.prompt_text, labels)
+        prompt_text_ner = get_prompt_text_ner(context_store_request.prompt_text, labels_entities_ner)
+        labels_entities = get_labels_entities(labels_entities_ner)
 
         context_store = ContextStore(
             db_connection_id=context_store_request.db_connection_id,
             prompt_text=context_store_request.prompt_text,
+            prompt_text_ner=prompt_text_ner,
+            entities=labels_entities['entities'],
+            labels=labels_entities['labels'],
             prompt_embedding=prompt_embedding,
             sql=context_store_request.sql,
             metadata=context_store_request.metadata,
@@ -109,6 +122,13 @@ class ContextStoreService:
 
     def retrieve_exact_prompt(self, db_connection_id, prompt) -> ContextStore:
         return self.repository.find_by_prompt(db_connection_id, prompt)
+
+    def retrieve_exact_prompt_ner(self, db_connection_id, prompt_text_ner, filter_by) -> ContextStore:
+        return self.repository.find_by_prompt_ner(
+                db_connection_id,
+                prompt_text_ner,
+                filter_by
+            )
 
     def retrieve_context_for_question(self, prompt: Prompt) -> list[dict]:
         logger.info(f"Getting context for {prompt.text}")

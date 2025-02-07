@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     OLLAMA_API_BASE: str | None
     HUGGINGFACEHUB_API_TOKEN: str | None
 
+    GLINER_REPO: str
+    GLINER_LOCAL_PATH: str
+
     AGENT_MAX_ITERATIONS: int
     DH_ENGINE_TIMEOUT: int
     SQL_EXECUTION_TIMEOUT: int

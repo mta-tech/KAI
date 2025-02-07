@@ -231,7 +231,8 @@ class SQLAgent(SQLGenerator):
             except Exception as e:
                 return SQLGeneration(
                     prompt_id=user_prompt.id,
-                    tokens_used=cb.total_tokens,
+                    input_tokens_used=cb.prompt_tokens,
+                    output_tokens_used=cb.completion_tokens,
                     completed_at=str(datetime.datetime.now()),
                     sql="",
                     status="INVALID",
@@ -246,7 +247,8 @@ class SQLAgent(SQLGenerator):
             )
         logger.info(f"cost: {str(cb.total_cost)} tokens: {str(cb.total_tokens)}")
         response.sql = replace_unprocessable_characters(sql_query)
-        response.tokens_used = cb.total_tokens
+        response.input_tokens_used = cb.prompt_tokens
+        response.output_tokens_used = cb.completion_tokens
         response.completed_at = str(datetime.datetime.now())
         if number_of_samples > 0:
             suffix = SUFFIX_WITH_FEW_SHOT_SAMPLES

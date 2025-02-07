@@ -43,3 +43,7 @@ dist/
 # Git-related
 .git
 .gitignore
+
+# GLiNER model
+experimentation/*
+model_data/*
