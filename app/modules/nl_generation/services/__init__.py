@@ -72,7 +72,8 @@ class NLGenerationService:
         )
 
         nl_generation_request = NLGenerationRequest(
-            **nl_generation_sql_generation_request.model_dump()
+            llm_config=nl_generation_sql_generation_request.sql_generation.llm_config,
+            metadata=nl_generation_sql_generation_request.sql_generation.metadata,
         )
 
         nl_generation = self.create_nl_generation(
@@ -90,8 +91,13 @@ class NLGenerationService:
             prompt.id, request.sql_generation
         )
 
-        nl_generation_request = NLGenerationRequest(**request.model_dump())
-        nl_generation = self.create_nl_generation(sql_generation.id, nl_generation_request)
+        nl_generation_request = NLGenerationRequest(
+            llm_config=request.sql_generation.llm_config,
+            metadata=request.sql_generation.metadata,
+        )
+        nl_generation = self.create_nl_generation(
+            sql_generation.id, nl_generation_request
+        )
         return NLGeneration(**nl_generation.model_dump())
 
     def get_nl_generations(self, sql_generation_id: str) -> list[NLGeneration]:
