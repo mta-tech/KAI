@@ -3,6 +3,8 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import datetime
 from langchain_community.callbacks import get_openai_callback
 from fastapi import HTTPException
+from dotenv import load_dotenv
+import logging
 
 from app.api.requests import (
     PromptSQLGenerationRequest,
@@ -23,11 +25,14 @@ from app.utils.sql_generator.sql_query_status import create_sql_query_status
 from app.utils.model.chat_model import ChatModel
 from app.utils.prompts_ner.prompts_ner import (
     get_ner_labels,
-    get_ner,
+    request_ner_service,
     get_prompt_text_ner,
     get_labels_entities,
     generate_ner_llm
 )
+
+load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 class SQLGenerationService:
@@ -85,41 +90,42 @@ class SQLGenerationService:
             output_tokens = 0
             print("Exact context cache HIT!")
 
-        else:
-            labels = get_ner_labels(prompt.text)
-            labels_entities_ner = get_ner(prompt.text, labels)
-            prompt_text_ner = get_prompt_text_ner(prompt.text, labels_entities_ner)
-            
-            filter_by = get_labels_entities(labels_entities_ner)
-            filter_by = {"labels": filter_by.get("labels")}
+        elif os.getenv('GLINER_API_BASE') is not None:
+            try:
+                labels = get_ner_labels(prompt.text)
+                labels_entities_ner = request_ner_service(prompt.text, labels)
+                prompt_text_ner = get_prompt_text_ner(prompt.text, labels_entities_ner)
+                
+                filter_by = get_labels_entities(labels_entities_ner)
+                filter_by = {"labels": filter_by.get("labels")}
 
-            
-            similar_prompts = ContextStoreService(self.storage).retrieve_exact_prompt_ner(
-                prompt.db_connection_id,
-                prompt_text_ner,
-                filter_by
-            )
-
-            if similar_prompts:
-                similar_prompt = similar_prompts[0]
-                llm_model = ChatModel().get_model(
-                    database_connection=None,
-                    model_family=sql_generation_request.llm_config.llm_family,
-                    model_name=sql_generation_request.llm_config.llm_name,
-                    api_base=sql_generation_request.llm_config.api_base,
-                    temperature=0,
-                    max_retries=2
+                
+                similar_prompts = ContextStoreService(self.storage).retrieve_exact_prompt_ner(
+                    prompt.db_connection_id,
+                    prompt_text_ner,
+                    filter_by
                 )
-                
-                with get_openai_callback() as cb:
-                    sql_generation_request.sql = generate_ner_llm(llm_model, similar_prompt['prompt_text'], similar_prompt['sql'], prompt.text)
-                
-                input_tokens = cb.prompt_tokens
-                output_tokens = cb.completion_tokens
-                # cached_labels_entities = get_ner(similar_prompt['prompt_text'], labels)
-                # if all(any(ne["label"] == ce["label"] for ne in labels_entities_ner) for ce in cached_labels_entities):
-                    # sql_generation_request.sql = replace_entities_in_sql(similar_prompt['sql'], cached_labels_entities, labels_entities_ner)
 
+                if similar_prompts:
+                    similar_prompt = similar_prompts[0]
+                    llm_model = ChatModel().get_model(
+                        database_connection=None,
+                        model_family=sql_generation_request.llm_config.llm_family,
+                        model_name=sql_generation_request.llm_config.llm_name,
+                        api_base=sql_generation_request.llm_config.api_base,
+                        temperature=0,
+                        max_retries=2
+                    )
+                    
+                    with get_openai_callback() as cb:
+                        sql_generation_request.sql = generate_ner_llm(llm_model, similar_prompt['prompt_text'], similar_prompt['sql'], prompt.text)
+                    
+                    input_tokens = cb.prompt_tokens
+                    output_tokens = cb.completion_tokens
+            except:
+                logger.warning("Cannot use the GLiNER service. Please check the GLiNER_API_BASE configuration")
+        else:
+            print("NER Service is not used (GLINER_API_BASE is not set)")
         # SQL is given in request
         if sql_generation_request.sql:
             sql_generation = SQLGeneration(

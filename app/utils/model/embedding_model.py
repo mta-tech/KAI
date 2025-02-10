@@ -7,7 +7,7 @@ from overrides import override
 from app.modules.database_connection.models import DatabaseConnection
 from app.utils.model import LLMModel
 
-DIMENSIONS = 1024
+DIMENSIONS = 768
 
 
 class EmbeddingModel(LLMModel):

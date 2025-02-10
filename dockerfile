@@ -18,8 +18,5 @@ RUN poetry config virtualenvs.create false && poetry install --no-interaction --
 # Copy the rest of the application code
 COPY . /app
 
-# Run the model download script
-RUN poetry run python -m app.data.download_model
-
 # Specify the entry point
 ENTRYPOINT ["poetry", "run", "python", "-m", "app.main"]

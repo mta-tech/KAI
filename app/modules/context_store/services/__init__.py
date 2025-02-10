@@ -15,7 +15,7 @@ from app.utils.model.embedding_model import EmbeddingModel
 from app.utils.sql_database.sql_utils import extract_the_schemas_from_sql
 from app.utils.prompts_ner.prompts_ner import (
     get_ner_labels,
-    get_ner,
+    request_ner_service,
     get_labels_entities,
     get_prompt_text_ner
 )
@@ -68,10 +68,19 @@ class ContextStoreService:
         prompt_embedding = embedding_model.embed_query(
             context_store_request.prompt_text
         )
-        labels = get_ner_labels(context_store_request.prompt_text)
-        labels_entities_ner = get_ner(context_store_request.prompt_text, labels)
-        prompt_text_ner = get_prompt_text_ner(context_store_request.prompt_text, labels_entities_ner)
-        labels_entities = get_labels_entities(labels_entities_ner)
+        try:
+            labels = get_ner_labels(context_store_request.prompt_text)
+            labels_entities_ner = request_ner_service(context_store_request.prompt_text, labels)
+            prompt_text_ner = get_prompt_text_ner(context_store_request.prompt_text, labels_entities_ner)
+            labels_entities = get_labels_entities(labels_entities_ner)
+        except:
+            logger.warning("Cannot use the GLiNER service. Please check the GLiNER_API_BASE configuration.")
+            prompt_text_ner = ""
+            labels_entities = {
+                'entities':[],
+                'labels':[]
+            }
+
 
         context_store = ContextStore(
             db_connection_id=context_store_request.db_connection_id,

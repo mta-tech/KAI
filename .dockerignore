@@ -44,6 +44,5 @@ dist/
 .git
 .gitignore
 
-# GLiNER model
+# Experiment-related data
 experimentation/*
-model_data/*

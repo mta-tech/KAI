@@ -92,7 +92,3 @@ llama-test.ipynb
 setup_connection.ipynb
 notes.rst
 experimentation/
-
-# Ignore GLiNER data
-app/data/models/
-model_data
