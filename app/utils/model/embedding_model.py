@@ -20,8 +20,8 @@ class EmbeddingModel(LLMModel):
         api_base: str | None = None,
         **kwargs: Any,
     ) -> Embeddings:
-        model_family = model_family or self.settings.require("EMBEDDING_MODEL_FAMILY")
-        model_name = model_name or self.settings.require("EMBEDDING_MODEL_NAME")
+        model_family = model_family or self.settings.require("EMBEDDING_FAMILY")
+        model_name = model_name or self.settings.require("EMBEDDING_MODEL")
         dimensions = self.settings.require("EMBEDDING_DIMENSIONS")
         if model_family == "openai":
             return OpenAIEmbeddings(

@@ -44,7 +44,8 @@ from app.utils.sql_tools import replace_unprocessable_characters
 logger = logging.getLogger(__name__)
 
 
-EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-large")
+# EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-large")
+EMBEDDING_MODEL = "text-embedding-3-large"
 
 
 class SQLAgent(SQLGenerator):

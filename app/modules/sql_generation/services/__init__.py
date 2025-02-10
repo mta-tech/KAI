@@ -90,7 +90,7 @@ class SQLGenerationService:
             output_tokens = 0
             print("Exact context cache HIT!")
 
-        elif os.getenv('GLINER_API_BASE') is not None:
+        elif os.getenv('GLINER_API_BASE') is not None and os.getenv('GLINER_API_BASE') != '':
             try:
                 labels = get_ner_labels(prompt.text)
                 labels_entities_ner = request_ner_service(prompt.text, labels)

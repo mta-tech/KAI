@@ -15,7 +15,7 @@ class ChatModel(LLMModel):
         self,
         database_connection: DatabaseConnection,
         model_family="openai",
-        model_name="gpt-4-turbo-preview",
+        model_name="gpt-4o-mini",
         api_base: str | None = None,
         **kwargs: Any,
     ) -> Any:
