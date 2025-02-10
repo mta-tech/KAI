@@ -40,11 +40,12 @@ from app.utils.sql_generator.sql_database_toolkit import SQLDatabaseToolkit
 from app.utils.sql_generator.sql_generator import SQLGenerator
 from app.utils.sql_generator.sql_history import SQLHistory
 from app.utils.sql_tools import replace_unprocessable_characters
+from app.utils.model.embedding_model import EmbeddingModel
 
 logger = logging.getLogger(__name__)
 
 
-EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-large")
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
 
 
 class SQLAgent(SQLGenerator):
@@ -207,10 +208,7 @@ class SQLAgent(SQLGenerator):
             instructions=instructions,
             is_multiple_schema=True if user_prompt.schemas else False,
             db_scan=db_scan,
-            embedding=OpenAIEmbeddings(
-                openai_api_key=self.settings.require("OPENAI_API_KEY"),
-                model=EMBEDDING_MODEL,
-            ),
+            embedding=EmbeddingModel().get_model(),
         )
         agent_executor = self.create_sql_agent(
             toolkit=toolkit,
