@@ -204,7 +204,7 @@ class SQLAgent(SQLGenerator):
             instructions=instructions,
             is_multiple_schema=True if user_prompt.schemas else False,
             db_scan=db_scan,
-            embedding=EmbeddingModel().get_model()
+            embedding=EmbeddingModel().get_model(),
         )
         agent_executor = self.create_sql_agent(
             toolkit=toolkit,
