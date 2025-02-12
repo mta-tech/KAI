@@ -10,6 +10,8 @@ def extract_the_schemas_from_sql(sql: str) -> list[str]:
         if "." in table_name:
             schema = table_name.split(".")[0]
             schemas.append(schema.strip())
+    if schemas == []:
+        schemas = ["public"]
     return schemas
 
 
