@@ -44,7 +44,7 @@ class SQLDatabaseToolkit(BaseToolkit):
         tools = []
         query_sql_db_tool = QuerySQLDataBaseTool(db=self.db, context=self.context)
         tools.append(query_sql_db_tool)
-        if self.instructions is not None:
+        if self.instructions:
             tools.append(GetUserInstructions(instructions=self.instructions))
         get_current_datetime = SystemTime()
         tools.append(get_current_datetime)
