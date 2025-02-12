@@ -1,5 +1,6 @@
 import os
 from typing import List
+import re
 
 from langchain.callbacks.manager import (
     CallbackManagerForToolRun,
@@ -41,7 +42,8 @@ class QuerySQLDataBaseTool(BaseTool):
         """Execute the query, return the results or an error message."""
         query = replace_unprocessable_characters(query)
         if "```sql" in query:
-            query = query.replace("```sql", "").replace("```", "")
+            query = re.sub(r"`{3,}sql", "", query)  # Remove triple or more backticks followed by 'sql'
+            query = re.sub(r"`{3,}", "", query)      # Remove triple or more backticks
 
         try:
             return run_with_timeout(

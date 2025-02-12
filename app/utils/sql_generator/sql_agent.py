@@ -202,7 +202,7 @@ class SQLAgent(SQLGenerator):
             few_shot_examples=new_fewshot_examples,
             business_metrics=business_metrics,
             instructions=instructions,
-            is_multiple_schema=True if user_prompt.schemas else False,
+            is_multiple_schema=True if (len(user_prompt.schemas) > 1)  else False,
             db_scan=db_scan,
             embedding=EmbeddingModel().get_model()
         )
