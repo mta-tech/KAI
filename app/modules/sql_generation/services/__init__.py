@@ -1,8 +1,10 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import datetime
-
+from langchain_community.callbacks import get_openai_callback
 from fastapi import HTTPException
+from dotenv import load_dotenv
+import logging
 
 from app.api.requests import (
     PromptSQLGenerationRequest,
@@ -20,6 +22,17 @@ from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_evaluator.simple_evaluator import SimpleEvaluator
 from app.utils.sql_generator.sql_agent import SQLAgent
 from app.utils.sql_generator.sql_query_status import create_sql_query_status
+from app.utils.model.chat_model import ChatModel
+from app.utils.prompts_ner.prompts_ner import (
+    get_ner_labels,
+    request_ner_service,
+    get_prompt_text_ner,
+    get_labels_entities,
+    generate_ner_llm
+)
+
+load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 class SQLGenerationService:
@@ -68,18 +81,59 @@ class SQLGenerationService:
         context_store = ContextStoreService(self.storage).retrieve_exact_prompt(
             prompt.db_connection_id, prompt.text
         )
+
         # Assing context store SQL
         if context_store:
             sql_generation_request.sql = context_store.sql
             sql_generation_request.evaluate = False
+            input_tokens = 0
+            output_tokens = 0
+            print("Exact context cache HIT!")
 
+        elif os.getenv('GLINER_API_BASE') is not None and os.getenv('GLINER_API_BASE') != '':
+            try:
+                labels = get_ner_labels(prompt.text)
+                labels_entities_ner = request_ner_service(prompt.text, labels)
+                prompt_text_ner = get_prompt_text_ner(prompt.text, labels_entities_ner)
+                
+                filter_by = get_labels_entities(labels_entities_ner)
+                filter_by = {"labels": filter_by.get("labels")}
+
+                
+                similar_prompts = ContextStoreService(self.storage).retrieve_exact_prompt_ner(
+                    prompt.db_connection_id,
+                    prompt_text_ner,
+                    filter_by
+                )
+
+                if similar_prompts:
+                    similar_prompt = similar_prompts[0]
+                    llm_model = ChatModel().get_model(
+                        database_connection=None,
+                        model_family=sql_generation_request.llm_config.llm_family,
+                        model_name=sql_generation_request.llm_config.llm_name,
+                        api_base=sql_generation_request.llm_config.api_base,
+                        temperature=0,
+                        max_retries=2
+                    )
+                    
+                    with get_openai_callback() as cb:
+                        sql_generation_request.sql = generate_ner_llm(llm_model, similar_prompt['prompt_text'], similar_prompt['sql'], prompt.text)
+                    
+                    input_tokens = cb.prompt_tokens
+                    output_tokens = cb.completion_tokens
+            except:
+                logger.warning("Cannot use the GLiNER service. Please check the GLiNER_API_BASE configuration")
+        else:
+            print("NER Service is not used (GLINER_API_BASE is not set)")
         # SQL is given in request
         if sql_generation_request.sql:
             sql_generation = SQLGeneration(
                 prompt_id=prompt_id,
                 llm_config=sql_generation_request.llm_config,
                 sql=sql_generation_request.sql,
-                tokens_used=0,
+                input_tokens_used=input_tokens,
+                output_tokens_used=output_tokens
             )
             try:
                 sql_generation = create_sql_query_status(
@@ -211,7 +265,8 @@ class SQLGenerationService:
         self, initial_sql_generation: SQLGeneration, sql_generation: SQLGeneration
     ):
         initial_sql_generation.sql = sql_generation.sql
-        initial_sql_generation.tokens_used = sql_generation.tokens_used
+        initial_sql_generation.input_tokens_used = sql_generation.input_tokens_used
+        initial_sql_generation.output_tokens_used = sql_generation.output_tokens_used
         initial_sql_generation.completed_at = str(datetime.now())
         initial_sql_generation.status = sql_generation.status
         initial_sql_generation.error = sql_generation.error

@@ -43,3 +43,6 @@ dist/
 # Git-related
 .git
 .gitignore
+
+# Experiment-related data
+experimentation/*

@@ -218,7 +218,8 @@ class SQLGenerator(ABC):
             response.error = (str(e),)
         finally:
             queue.put(None)
-            response.tokens_used = cb.total_tokens
+            response.input_tokens_used = cb.prompt_tokens
+            response.output_tokens_used = cb.completion_tokens
             response.completed_at = str(datetime.datetime.now())
             if not response.error:
                 if response.sql:

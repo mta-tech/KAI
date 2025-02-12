@@ -42,6 +42,9 @@ class InstructionResponse(BaseResponse):
 class ContextStoreResponse(BaseResponse):
     db_connection_id: str
     prompt_text: str
+    prompt_text_ner: str
+    labels: list[str]
+    entities: list[str]
     sql: str
 
 
@@ -51,7 +54,8 @@ class SQLGenerationResponse(BaseResponse):
     llm_config: LLMConfig | None
     intermediate_steps: list[IntermediateStep] | None
     sql: str | None
-    tokens_used: int | None
+    input_tokens_used: int | None
+    output_tokens_used: int | None
     confidence_score: float | None
     completed_at: str | None
     error: str | None

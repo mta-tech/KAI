@@ -4,6 +4,11 @@ import logging
 import re
 from typing import List
 from urllib.parse import unquote
+import os
+import requests
+import pandas as pd
+from io import StringIO
+from urllib.parse import urlparse
 
 from fastapi import HTTPException
 import sqlparse
@@ -62,6 +67,44 @@ class SQLDatabase:
         if database_uri.lower().startswith("duckdb"):
             config = {"autoload_known_extensions": False}
             _engine_args["connect_args"] = {"config": config}
+
+        if database_uri.lower().startswith("csv"):
+            csv_path = database_uri.replace("csv://", "").strip()
+            parsed_url = urlparse(csv_path)
+        
+             # Determine table name
+            if parsed_url.scheme in ('http', 'https'):
+                response = requests.get(csv_path)
+                response.raise_for_status()  # Ensure request success
+                csv_data = StringIO(response.text)  # Convert response text to file-like object
+                table_name = os.path.basename(parsed_url.path).split(".")[0]
+            else:
+                table_name = os.path.basename(csv_path).split(".")[0]
+                csv_data = csv_path  # Local file path
+
+            table_name = re.sub(r"[^\w]", "_", table_name)
+            df = pd.read_csv(csv_data, engine='pyarrow')
+
+            # Create an **in-memory** SQLite database 
+            _engine_args.pop("max_overflow", None)
+            _engine_args.pop("pool_timeout", None)
+            _engine_args.pop("pool_pre_ping", None)
+
+            engine = create_engine("sqlite:///:memory:", **_engine_args)
+        
+            # Store DataFrame into SQLite
+            with engine.connect() as conn:
+                df.to_sql(
+                    table_name,
+                    con=conn,
+                    index=False,
+                    if_exists="replace",
+                    method="multi",
+                    chunksize=1000
+                )
+        
+            return cls(engine)
+
         engine = create_engine(database_uri, **_engine_args)
         return cls(engine)
 
