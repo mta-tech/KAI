@@ -27,11 +27,17 @@ class Settings(BaseSettings):
     MODEL_GARDEN_API_KEY: str | None
     MODEL_GARDEN_API_BASE: str | None
 
+    CHAT_FAMILY: str | None
     CHAT_MODEL: str | None
+    
+    EMBEDDING_FAMILY: str | None
     EMBEDDING_MODEL: str | None
+    EMBEDDING_DIMENSIONS: int
 
     OLLAMA_API_BASE: str | None
     HUGGINGFACEHUB_API_TOKEN: str | None
+
+    GLINER_API_BASE: str | None
 
     AGENT_MAX_ITERATIONS: int
     DH_ENGINE_TIMEOUT: int

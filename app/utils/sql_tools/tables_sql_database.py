@@ -7,7 +7,7 @@ from langchain.callbacks.manager import (
     CallbackManagerForToolRun,
 )
 from langchain.tools.base import BaseTool
-from langchain_openai import OpenAIEmbeddings
+from langchain_core.embeddings import Embeddings
 from pydantic import Field
 from sql_metadata import Parser
 
@@ -29,7 +29,7 @@ class TablesSQLDatabaseTool(BaseTool):
     Use this tool to identify the relevant tables for the given question.
     """
     db_scan: List[TableDescription]
-    embedding: OpenAIEmbeddings
+    embedding: Embeddings
     few_shot_examples: List[dict] | None = Field(exclude=True, default=None)
 
     def get_embedding(

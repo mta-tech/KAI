@@ -178,3 +178,19 @@ You are an assistant that generates clear and concise description of tables. I h
 
 Provide a one-sentence description that explains the overall purpose and context of this table. Focus on what the table represents as a whole, without detailing and mentioning each column. Do not mention the table name or phrase like "This table" as intro in the description.
 """
+
+NER_PROMPTS = """
+    You are an SQL agent that can convert text to sql. I give you information as follows:
+    1. Existing prompt. Existing prompt is natural language query that can be converted into SQL query
+    2. Existing SQL. Existing SQL is SQL Query that generated from Existing Prompt
+    3. New Prompt. New Prompt is new natural language query that similar with existing prompt. It will be generated into SQL query.
+
+    Then, belows are information to generate new SQL query:
+    - Existing prompt: `{prompt}`
+    - New prompt: `{new_prompt}`
+
+    Existing SQL:
+    ```{existing_sql}```
+
+    Your task is to generate new SQL Query based on provided information and pattern. Only generate the SQL query without any additional sentence or information.
+    """

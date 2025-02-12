@@ -9,7 +9,6 @@ from langchain.agents.mrkl.base import ZeroShotAgent
 from langchain.callbacks.base import BaseCallbackManager
 from langchain.chains.llm import LLMChain
 from langchain_community.callbacks import get_openai_callback
-from langchain_openai import OpenAIEmbeddings
 from overrides import override
 
 from app.data.db.storage import Storage
@@ -40,11 +39,9 @@ from app.utils.sql_generator.sql_database_toolkit import SQLDatabaseToolkit
 from app.utils.sql_generator.sql_generator import SQLGenerator
 from app.utils.sql_generator.sql_history import SQLHistory
 from app.utils.sql_tools import replace_unprocessable_characters
+from app.utils.model.embedding_model import EmbeddingModel
 
 logger = logging.getLogger(__name__)
-
-
-EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-large")
 
 
 class SQLAgent(SQLGenerator):
@@ -207,10 +204,7 @@ class SQLAgent(SQLGenerator):
             instructions=instructions,
             is_multiple_schema=True if user_prompt.schemas else False,
             db_scan=db_scan,
-            embedding=OpenAIEmbeddings(
-                openai_api_key=self.settings.require("OPENAI_API_KEY"),
-                model=EMBEDDING_MODEL,
-            ),
+            embedding=EmbeddingModel().get_model()
         )
         agent_executor = self.create_sql_agent(
             toolkit=toolkit,
@@ -231,7 +225,8 @@ class SQLAgent(SQLGenerator):
             except Exception as e:
                 return SQLGeneration(
                     prompt_id=user_prompt.id,
-                    tokens_used=cb.total_tokens,
+                    input_tokens_used=cb.prompt_tokens,
+                    output_tokens_used=cb.completion_tokens,
                     completed_at=str(datetime.datetime.now()),
                     sql="",
                     status="INVALID",
@@ -246,7 +241,8 @@ class SQLAgent(SQLGenerator):
             )
         logger.info(f"cost: {str(cb.total_cost)} tokens: {str(cb.total_tokens)}")
         response.sql = replace_unprocessable_characters(sql_query)
-        response.tokens_used = cb.total_tokens
+        response.input_tokens_used = cb.prompt_tokens
+        response.output_tokens_used = cb.completion_tokens
         response.completed_at = str(datetime.datetime.now())
         if number_of_samples > 0:
             suffix = SUFFIX_WITH_FEW_SHOT_SAMPLES
