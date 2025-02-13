@@ -22,7 +22,7 @@
         {
             "name": "instruction_embedding",
             "type": "float[]",
-            "num_dim": 1024,
+            "num_dim": 768,
             "optional": true
         },
         {

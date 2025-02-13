@@ -74,7 +74,8 @@ class EmbeddingService:
         self.typesense_port = os.getenv("TYPESENSE_PORT")
         self.typesense_protocol = os.getenv("TYPESENSE_PROTOCOL")
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        self.chat_model = os.getenv("CHAT_MODEL")
+        # self.chat_model = os.getenv("CHAT_MODEL")
+        self.chat_model = "gpt-4o-mini"
         self.llm = OpenAI(api_key=self.openai_api_key, model=self.chat_model)
         self.embedding_model = OpenAIEmbedding(api_key=self.openai_api_key)
         self.collection_target = "knowledge-stores"

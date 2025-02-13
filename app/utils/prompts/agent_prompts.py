@@ -194,3 +194,15 @@ NER_PROMPTS = """
 
     Your task is to generate new SQL Query based on provided information and pattern. Only generate the SQL query without any additional sentence or information.
     """
+
+PROMPT_NER_LLM = """
+    You are given a text and a predefined list of labels.
+    Your task is to identify and extract named entities from the text that match the given labels. Return the output as a JSON list of dictionaries where each dictionary contains:
+
+    "label": The corresponding label from the provided list.
+    "entity": The extracted entity from the text.
+
+    Input Format:
+    Text: {text}
+    Labels: {labels}
+    """
