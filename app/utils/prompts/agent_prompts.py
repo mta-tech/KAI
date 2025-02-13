@@ -49,12 +49,11 @@ tip5) You should always execute the SQL query by calling the SqlDbQuery tool to 
 """  # noqa: E501
 
 PLAN_WITH_FEWSHOT_EXAMPLES = """1) Use the FewshotExamplesRetriever tool to retrieve samples of Question/SQL pairs that are similar to the given question, if there is a similar question among the examples, use the SQL query from the example and modify it to fit the given question.
-2) Always Use the GetAdminInstructions tool after FewshotExamplesRetriever tool to find relevant tables.
-3) Use the DbRelevantTablesSchema tool to obtain the schema of possibly relevant tables to identify the possibly relevant columns.
-4) Use the DbRelevantColumnsInfo tool to gather more information about the possibly relevant columns, filtering them to find the relevant ones.
-5) [Optional based on the question] Use the SystemTime tool if the question has any mentions of time or dates.
-6) For string columns, always use the DbColumnEntityChecker tool to make sure the entity values are present in the relevant columns.
-7) Write a {dialect} query and always use SqlDbQuery tool the Execute the SQL query on the database to check if the results are correct.
+2) Use the DbRelevantTablesSchema tool to obtain the schema of possibly relevant tables to identify the possibly relevant columns.
+3) Use the DbRelevantColumnsInfo tool to gather more information about the possibly relevant columns, filtering them to find the relevant ones.
+4) [Optional based on the question] Use the SystemTime tool if the question has any mentions of time or dates.
+5) For string columns, always use the DbColumnEntityChecker tool to make sure the entity values are present in the relevant columns.
+6) Write a {dialect} query and always use SqlDbQuery tool the Execute the SQL query on the database to check if the results are correct.
 #
 Some tips to always keep in mind:
 tip1) The maximum number of Question/SQL pairs you can request is {max_examples}.

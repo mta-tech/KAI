@@ -1,9 +1,9 @@
-import datetime
+# import datetime
 import logging
 import os
 from queue import Queue
 from typing import Any, Dict, List
-
+from datetime import datetime
 from langchain.agents.agent import AgentExecutor
 from langchain.agents.mrkl.base import ZeroShotAgent
 from langchain.callbacks.base import BaseCallbackManager
@@ -138,6 +138,7 @@ class SQLAgent(SQLGenerator):
         context: List[dict] = None,
         metadata: dict = None,
     ) -> SQLGeneration:  # noqa: PLR0912
+        generation_start_time = datetime.now()
         storage = Storage(Settings())
         context_store_service = ContextStoreService(storage)
         instruction_service = InstructionService(storage)
@@ -145,7 +146,7 @@ class SQLAgent(SQLGenerator):
         response = SQLGeneration(
             prompt_id=user_prompt.id,
             llm_config=self.llm_config,
-            created_at=str(datetime.datetime.now()),
+            created_at=str(generation_start_time),
         )
         self.llm = self.model.get_model(
             database_connection=database_connection,
@@ -204,8 +205,11 @@ class SQLAgent(SQLGenerator):
             instructions=instructions,
             is_multiple_schema=True if (len(user_prompt.schemas) > 1)  else False,
             db_scan=db_scan,
-            embedding=EmbeddingModel().get_model()
+            embedding=EmbeddingModel().get_model(),
         )
+
+        repository_retrieval_end_time = datetime.now()
+
         agent_executor = self.create_sql_agent(
             toolkit=toolkit,
             verbose=True,
@@ -227,7 +231,7 @@ class SQLAgent(SQLGenerator):
                     prompt_id=user_prompt.id,
                     input_tokens_used=cb.prompt_tokens,
                     output_tokens_used=cb.completion_tokens,
-                    completed_at=str(datetime.datetime.now()),
+                    completed_at=str(datetime.now()),
                     sql="",
                     status="INVALID",
                     error=str(e),
@@ -239,11 +243,12 @@ class SQLAgent(SQLGenerator):
             sql_query = self.extract_query_from_intermediate_steps(
                 result["intermediate_steps"]
             )
+        agent_execution_end_time = datetime.now()
         logger.info(f"cost: {str(cb.total_cost)} tokens: {str(cb.total_tokens)}")
         response.sql = replace_unprocessable_characters(sql_query)
         response.input_tokens_used = cb.prompt_tokens
         response.output_tokens_used = cb.completion_tokens
-        response.completed_at = str(datetime.datetime.now())
+        response.completed_at = str(datetime.now())
         if number_of_samples > 0:
             suffix = SUFFIX_WITH_FEW_SHOT_SAMPLES
         else:
@@ -251,11 +256,25 @@ class SQLAgent(SQLGenerator):
         response.intermediate_steps = self.construct_intermediate_steps(
             result["intermediate_steps"], suffix=suffix
         )
-        return self.create_sql_query_status(
+
+        result = self.create_sql_query_status(
             self.database,
             response.sql,
             response,
         )
+
+        time_taken = {
+            "agent_repository_setup_time": (
+                repository_retrieval_end_time - generation_start_time
+            ).total_seconds(),
+            "agent_execution_time": (
+                agent_execution_end_time - repository_retrieval_end_time
+            ).total_seconds(),
+        }
+        result.metadata = result.metadata or {}
+        result.metadata["timing"] = time_taken
+        # result.metadata.setdefault("timing", {}).update(time_taken)
+        return result
 
     @override
     def stream_response(

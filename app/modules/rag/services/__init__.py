@@ -1,6 +1,6 @@
-
 from fastapi import HTTPException
 from app.api.requests import TextRequest, EmbeddingRequest
+
 # from app.modules.database_connection.models import DatabaseConnection
 # from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.modules.rag.models import DocumentStore
@@ -12,9 +12,11 @@ from llama_index.vector_stores.typesense import TypesenseVectorStore
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core.ingestion import IngestionPipeline
 from llama_index.llms.openai import OpenAI
+
 # from llama_index.core import VectorStoreIndex
 # from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
+
 # from llama_index.core.indices.postprocessor import SimilarityPostprocessor
 from llama_index.core import QueryBundle
 from llama_index.core.retrievers import BaseRetriever
@@ -36,10 +38,10 @@ class DocumentService:
 
     def create_document(self, embedding_request: TextRequest) -> DocumentStore:
         document = DocumentStore(
-            title = embedding_request.title,
-            content_type = "text",
-            document_size = len(embedding_request.text_content),
-            text_content = embedding_request.text_content,
+            title=embedding_request.title,
+            content_type="text",
+            document_size=len(embedding_request.text_content),
+            text_content=embedding_request.text_content,
             metadata=embedding_request.metadata,
         )
         return self.repository.insert(document)
@@ -57,14 +59,16 @@ class DocumentService:
         document = self.repository.find_by_id(document_id)
         if not document:
             raise HTTPException(f"Prompt {document_id} not found")
-        
+
         is_deleted = self.repository.delete_by_id(document_id)
 
         if not is_deleted:
             raise HTTPException(f"Failed to delete document {document_id}")
-        
+
         return True
 
+
+# TODO Embedding Service should use by Settings and Embedding Factory not initiate by itself
 class EmbeddingService:
     def __init__(self, storage):
         self.storage = storage
@@ -80,26 +84,30 @@ class EmbeddingService:
         self.embedding_model = OpenAIEmbedding(api_key=self.openai_api_key)
         self.collection_target = "knowledge-stores"
         self.typesense_client = self.create_typesense_client()
-        self.vector_store = TypesenseVectorStore(client=self.typesense_client,
-                                            collection_name=self.collection_target)
+        self.vector_store = TypesenseVectorStore(
+            client=self.typesense_client, collection_name=self.collection_target
+        )
 
         self.query_engine = self.create_query_engine()
-
 
     def create_embedding(self, embedding_request: EmbeddingRequest) -> DocumentStore:
         document = self.create_llama_document(embedding_request)
         pipeline = self.create_ingestion_pipeline(self.vector_store)
         pipeline.run(documents=[document])
         return True
-    
+
     def create_typesense_client(self) -> Client:
         typesense_client = Client(
             {
                 "api_key": self.typesense_api_key,
-                "nodes": [{"host": self.typesense_host, 
-                           "port": self.typesense_port, 
-                           "protocol": self.typesense_protocol}],
-                           "connection_timeout_seconds": 2,
+                "nodes": [
+                    {
+                        "host": self.typesense_host,
+                        "port": self.typesense_port,
+                        "protocol": self.typesense_protocol,
+                    }
+                ],
+                "connection_timeout_seconds": 2,
             }
         )
         return typesense_client
@@ -119,22 +127,27 @@ class EmbeddingService:
         # metadata = embedding_request.metadata
         title = embedding_request.title
         document = Document(text=text)
-        document.metadata['title'] = title
+        document.metadata["title"] = title
         document.id_ = embedding_request.document_id
         return document
 
-    def create_query_engine(self, top_k: int = 4, cutoff: float = 0.80) -> RetrieverQueryEngine:
-        retriever = VectorDBRetriever(self.vector_store, 
-                                      embed_model=self.embedding_model, 
-                                      query_mode="default", 
-                                      similarity_top_k=top_k)
-        #cutoff is not used for now
+    def create_query_engine(
+        self, top_k: int = 4, cutoff: float = 0.80
+    ) -> RetrieverQueryEngine:
+        retriever = VectorDBRetriever(
+            self.vector_store,
+            embed_model=self.embedding_model,
+            query_mode="default",
+            similarity_top_k=top_k,
+        )
+        # cutoff is not used for now
         query_engine = RetrieverQueryEngine.from_args(retriever, llm=self.llm)
         return query_engine
-    
+
     def query(self, query_request: str) -> str:
         response = self.query_engine.query(query_request)
         return str(response)
+
 
 class VectorDBRetriever(BaseRetriever):
     """Retriever over any vector store."""
@@ -155,9 +168,7 @@ class VectorDBRetriever(BaseRetriever):
 
     def _retrieve(self, query_bundle: QueryBundle) -> List[NodeWithScore]:
         """Retrieve."""
-        query_embedding = self._embed_model.get_query_embedding(
-            query_bundle.query_str
-        )
+        query_embedding = self._embed_model.get_query_embedding(query_bundle.query_str)
         vector_store_query = VectorStoreQuery(
             query_embedding=query_embedding,
             similarity_top_k=self._similarity_top_k,
@@ -173,4 +184,3 @@ class VectorDBRetriever(BaseRetriever):
             nodes_with_scores.append(NodeWithScore(node=node, score=score))
 
         return nodes_with_scores
-    

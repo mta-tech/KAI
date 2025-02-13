@@ -10,6 +10,7 @@ from app.utils.core.encrypt import FernetEncrypt
 
 class SupportedDialects(Enum):
     POSTGRES = "postgresql"
+    CSV = "csv"
 
 
 class DatabaseConnection(BaseModel):

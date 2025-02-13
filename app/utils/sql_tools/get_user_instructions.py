@@ -15,7 +15,7 @@ class GetUserInstructions(BaseTool):
     description: str = """
     Input: is an empty string.
     Output: Database admin instructions before generating the SQL query.
-    The generated SQL query MUST follow the admin instructions even it contradicts with the given question.
+    The generated SQL query MUST follow the admin instructions even if it contradicts with the given question.
     """
     instructions: List[dict]
 

@@ -68,7 +68,6 @@ class InstructionService:
 
         instructions = default_instructions + relevant_instructions
 
-        
         return [
             {"instruction": f"{instruction.condition}, {instruction.rules}"}
             for instruction in instructions

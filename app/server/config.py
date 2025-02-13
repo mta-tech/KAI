@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     CHAT_FAMILY: str | None
     CHAT_MODEL: str | None
-    
+
     EMBEDDING_FAMILY: str | None
     EMBEDDING_MODEL: str | None
     EMBEDDING_DIMENSIONS: int
