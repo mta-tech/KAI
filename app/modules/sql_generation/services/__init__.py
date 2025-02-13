@@ -54,7 +54,7 @@ class SQLGenerationService:
                 if sql_generation_request.llm_config
                 else LLMConfig()
             ),
-            metadata=sql_generation_request.metadata,
+            metadata=sql_generation_request.metadata or {},
         )
 
         # TODO: explore why using this
@@ -85,6 +85,7 @@ class SQLGenerationService:
             prompt.db_connection_id, prompt.text
         )
 
+        sql_generation_setup_end_time = datetime.now()
         # Assing context store SQL
         if context_store:
             sql_generation_request.sql = context_store.sql
@@ -116,7 +117,6 @@ class SQLGenerationService:
             input_tokens = cb.prompt_tokens
             output_tokens = cb.completion_tokens
 
-        sql_generation_setup_end_time = datetime.now()
         # SQL is given in request
         if sql_generation_request.sql:
             sql_generation = SQLGeneration(
