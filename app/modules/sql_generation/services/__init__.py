@@ -28,7 +28,7 @@ from app.utils.prompts_ner.prompts_ner import (
     request_ner_service,
     get_prompt_text_ner,
     get_labels_entities,
-    generate_ner_llm
+    generate_ner_llm,
 )
 
 load_dotenv()
@@ -44,6 +44,7 @@ class SQLGenerationService:
     def create_sql_generation(
         self, prompt_id: str, sql_generation_request: SQLGenerationRequest
     ) -> SQLGeneration:
+        start_time = datetime.now()
         initial_sql_generation = SQLGeneration(
             prompt_id=prompt_id,
             llm_config=(
@@ -90,20 +91,22 @@ class SQLGenerationService:
             output_tokens = 0
             print("Exact context cache HIT!")
 
-        elif os.getenv('GLINER_API_BASE') is not None and os.getenv('GLINER_API_BASE') != '':
+        elif (
+            os.getenv("GLINER_API_BASE") is not None
+            and os.getenv("GLINER_API_BASE") != ""
+        ):
             try:
                 labels = get_ner_labels(prompt.text)
                 labels_entities_ner = request_ner_service(prompt.text, labels)
                 prompt_text_ner = get_prompt_text_ner(prompt.text, labels_entities_ner)
-                
+
                 filter_by = get_labels_entities(labels_entities_ner)
                 filter_by = {"labels": filter_by.get("labels")}
 
-                
-                similar_prompts = ContextStoreService(self.storage).retrieve_exact_prompt_ner(
-                    prompt.db_connection_id,
-                    prompt_text_ner,
-                    filter_by
+                similar_prompts = ContextStoreService(
+                    self.storage
+                ).retrieve_exact_prompt_ner(
+                    prompt.db_connection_id, prompt_text_ner, filter_by
                 )
 
                 if similar_prompts:
@@ -114,18 +117,26 @@ class SQLGenerationService:
                         model_name=sql_generation_request.llm_config.llm_name,
                         api_base=sql_generation_request.llm_config.api_base,
                         temperature=0,
-                        max_retries=2
+                        max_retries=2,
                     )
-                    
+
                     with get_openai_callback() as cb:
-                        sql_generation_request.sql = generate_ner_llm(llm_model, similar_prompt['prompt_text'], similar_prompt['sql'], prompt.text)
-                    
+                        sql_generation_request.sql = generate_ner_llm(
+                            llm_model,
+                            similar_prompt["prompt_text"],
+                            similar_prompt["sql"],
+                            prompt.text,
+                        )
+
                     input_tokens = cb.prompt_tokens
                     output_tokens = cb.completion_tokens
             except:
-                logger.warning("Cannot use the GLiNER service. Please check the GLiNER_API_BASE configuration")
+                logger.warning(
+                    "Cannot use the GLiNER service. Please check the GLiNER_API_BASE configuration"
+                )
         else:
             print("NER Service is not used (GLINER_API_BASE is not set)")
+        sql_generation_setup_end_time = datetime.now()
         # SQL is given in request
         if sql_generation_request.sql:
             sql_generation = SQLGeneration(
@@ -133,7 +144,7 @@ class SQLGenerationService:
                 llm_config=sql_generation_request.llm_config,
                 sql=sql_generation_request.sql,
                 input_tokens_used=input_tokens,
-                output_tokens_used=output_tokens
+                output_tokens_used=output_tokens,
             )
             try:
                 sql_generation = create_sql_query_status(
@@ -150,6 +161,7 @@ class SQLGenerationService:
                     else LLMConfig()
                 ),
             )
+
             try:
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(
@@ -174,6 +186,7 @@ class SQLGenerationService:
             except Exception as e:
                 self.update_error(initial_sql_generation, str(e))
                 raise HTTPException(str(e), initial_sql_generation.id) from e
+        thread_pool_end_time = datetime.now()
         if sql_generation_request.evaluate:
             evaluator = SimpleEvaluator()
             evaluator.llm_config = (
@@ -188,18 +201,41 @@ class SQLGenerationService:
             )
             initial_sql_generation.evaluate = sql_generation_request.evaluate
             initial_sql_generation.confidence_score = confidence_score
-        return self.update_the_initial_sql_generation(
+
+        time_taken = {
+            "sql_generation_setup_time": (
+                sql_generation_setup_end_time - start_time
+            ).total_seconds(),
+            # "sql_generation_total_agent_time": (
+            #     thread_pool_end_time - sql_generation_setup_end_time
+            # ).total_seconds(),
+        }
+
+        initial_sql_generation = self.update_the_initial_sql_generation(
             initial_sql_generation, sql_generation
         )
+        initial_sql_generation.metadata.setdefault("timing", {}).update(time_taken)
+        return initial_sql_generation
 
     def create_prompt_and_sql_generation(
         self, prompt_sql_generation_request: PromptSQLGenerationRequest
     ) -> SQLGeneration:
+        start_time = datetime.now()
         prompt_service = PromptService(self.storage)
         prompt = prompt_service.create_prompt(prompt_sql_generation_request.prompt)
+        prompt_end_time = datetime.now()
+
         sql_generation = self.create_sql_generation(
             prompt.id, prompt_sql_generation_request
         )
+
+        time_taken = {
+            "prompt_creation_time": (prompt_end_time - start_time).total_seconds(),
+        }
+
+        sql_generation.metadata = sql_generation.metadata or {}
+        sql_generation.metadata.setdefault("timing", {}).update(time_taken)
+
         return SQLGeneration(**sql_generation.model_dump())
 
     def get_sql_generations(self, prompt_id: str) -> list[SQLGeneration]:
@@ -271,4 +307,5 @@ class SQLGenerationService:
         initial_sql_generation.status = sql_generation.status
         initial_sql_generation.error = sql_generation.error
         initial_sql_generation.intermediate_steps = sql_generation.intermediate_steps
+        initial_sql_generation.metadata = sql_generation.metadata
         return self.sql_generation_repository.update(initial_sql_generation)
