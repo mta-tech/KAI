@@ -21,6 +21,7 @@ from app.server.config import Settings
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_evaluator.simple_evaluator import SimpleEvaluator
 from app.utils.sql_generator.sql_agent import SQLAgent
+from app.utils.sql_generator.sql_agent_dev import FullContextSQLAgent
 from app.utils.sql_generator.sql_query_status import create_sql_query_status
 from app.utils.model.chat_model import ChatModel
 from app.utils.prompts_ner.prompts_ner import (
@@ -154,13 +155,23 @@ class SQLGenerationService:
                 self.update_error(initial_sql_generation, str(e))
                 raise HTTPException(str(e), initial_sql_generation.id) from e
         else:
-            sql_generator = SQLAgent(
-                (
-                    sql_generation_request.llm_config
-                    if sql_generation_request.llm_config
-                    else LLMConfig()
-                ),
-            )
+            option = sql_generation_request.metadata.get("option", "")
+            if option == "dev":
+                sql_generator = FullContextSQLAgent(
+                    (
+                        sql_generation_request.llm_config
+                        if sql_generation_request.llm_config
+                        else LLMConfig()
+                    ),
+                )
+            else:
+                sql_generator = SQLAgent(
+                    (
+                        sql_generation_request.llm_config
+                        if sql_generation_request.llm_config
+                        else LLMConfig()
+                    ),
+                )
 
             try:
                 with ThreadPoolExecutor(max_workers=1) as executor:
