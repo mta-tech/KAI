@@ -27,6 +27,7 @@ class TablesSQLDatabaseTool(BaseTool):
     Input: Given question.
     Output: Comma-separated list of tables with their relevance scores, indicating their relevance to the question.
     Use this tool to identify the relevant tables for the given question.
+    Only run this tool once and then go to the next plan even if the relevance score is low.
     """
     db_scan: List[TableDescription]
     embedding: Embeddings
@@ -46,6 +47,15 @@ class TablesSQLDatabaseTool(BaseTool):
         return self.embedding.embed_documents(docs)
 
     def cosine_similarity(self, a: List[float], b: List[float]) -> float:
+        if not a or not b:  # Check for empty vectors
+            return 0.0     
+    
+        if len(a) != len(b):  # Ensure both vectors have the same length
+            raise ValueError("Vector embeddings must have the same length")
+
+        if (np.linalg.norm(a) == 0) or (np.linalg.norm(b) == 0):  # Handle zero vectors
+            return 0.0 
+        
         return round(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)), 4)
 
     def similar_tables_based_on_few_shot_examples(self, df: pd.DataFrame) -> List[str]:
@@ -99,6 +109,7 @@ class TablesSQLDatabaseTool(BaseTool):
         )
         df = df.sort_values(by="similarities", ascending=False)
         df = df.head(TOP_TABLES)
+        max_similarities = max(df['similarities'])  # Store max similarity before modifying df
         most_similar_tables = self.similar_tables_based_on_few_shot_examples(df)
         table_relevance = ""
         for _, row in df.iterrows():
@@ -115,5 +126,5 @@ class TablesSQLDatabaseTool(BaseTool):
                     table_name = table[0] + "." + table[1]
                 else:
                     table_name = table[1]
-                table_relevance += f"Table: `{table_name}`, relevance score: {max(df['similarities'])}\n"
+                table_relevance += f"Table: `{table_name}`, relevance score: {max_similarities}\n"
         return table_relevance

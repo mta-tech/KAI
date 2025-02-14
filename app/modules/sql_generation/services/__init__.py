@@ -26,8 +26,10 @@ from app.utils.sql_generator.sql_query_status import create_sql_query_status
 from app.utils.model.chat_model import ChatModel
 from app.utils.prompts_ner.prompts_ner import (
     get_ner_labels,
-    request_ner_service,
-    get_prompt_text_ner,
+    # request_ner_service,
+    request_ner_llm,
+    # get_prompt_text_ner,
+    replace_entities_with_labels,
     get_labels_entities,
     generate_ner_llm,
 )
@@ -52,9 +54,10 @@ class SQLGenerationService:
                 sql_generation_request.llm_config
                 if sql_generation_request.llm_config
                 else LLMConfig()
-            ),
-            metadata=sql_generation_request.metadata,
+            )
         )
+        if not initial_sql_generation.metadata:
+            initial_sql_generation.metadata = {}
 
         # TODO: explore why using this
         langsmith_metadata = (
@@ -84,6 +87,7 @@ class SQLGenerationService:
             prompt.db_connection_id, prompt.text
         )
 
+        sql_generation_setup_end_time = datetime.now()
         # Assing context store SQL
         if context_store:
             sql_generation_request.sql = context_store.sql
@@ -91,53 +95,30 @@ class SQLGenerationService:
             input_tokens = 0
             output_tokens = 0
             print("Exact context cache HIT!")
-
-        elif (
-            os.getenv("GLINER_API_BASE") is not None
-            and os.getenv("GLINER_API_BASE") != ""
-        ):
-            try:
-                labels = get_ner_labels(prompt.text)
-                labels_entities_ner = request_ner_service(prompt.text, labels)
-                prompt_text_ner = get_prompt_text_ner(prompt.text, labels_entities_ner)
-
-                filter_by = get_labels_entities(labels_entities_ner)
-                filter_by = {"labels": filter_by.get("labels")}
-
-                similar_prompts = ContextStoreService(
-                    self.storage
-                ).retrieve_exact_prompt_ner(
-                    prompt.db_connection_id, prompt_text_ner, filter_by
-                )
-
-                if similar_prompts:
-                    similar_prompt = similar_prompts[0]
-                    llm_model = ChatModel().get_model(
-                        database_connection=None,
-                        model_family=sql_generation_request.llm_config.llm_family,
-                        model_name=sql_generation_request.llm_config.llm_name,
-                        api_base=sql_generation_request.llm_config.api_base,
-                        temperature=0,
-                        max_retries=2,
-                    )
-
-                    with get_openai_callback() as cb:
-                        sql_generation_request.sql = generate_ner_llm(
-                            llm_model,
-                            similar_prompt["prompt_text"],
-                            similar_prompt["sql"],
-                            prompt.text,
-                        )
-
-                    input_tokens = cb.prompt_tokens
-                    output_tokens = cb.completion_tokens
-            except:
-                logger.warning(
-                    "Cannot use the GLiNER service. Please check the GLiNER_API_BASE configuration"
-                )
+        
         else:
-            print("NER Service is not used (GLINER_API_BASE is not set)")
-        sql_generation_setup_end_time = datetime.now()
+            llm_model = ChatModel().get_model(
+                    database_connection=None,
+                    model_family=sql_generation_request.llm_config.llm_family,
+                    model_name=sql_generation_request.llm_config.llm_name,
+                    api_base=sql_generation_request.llm_config.api_base,
+                    temperature=0,
+                    max_retries=2
+                )
+
+            with get_openai_callback() as cb:
+                try:                
+                    similar_prompts = self.get_similar_prompts(prompt=prompt, llm_model=llm_model)
+                    if similar_prompts:
+                        print("Similar prompt context HIT!")
+                        similar_prompt = similar_prompts[0]
+                        sql_generation_request.sql = generate_ner_llm(llm_model, similar_prompt['prompt_text'], similar_prompt['sql'], prompt.text)
+                except Exception as e:
+                    print(e)
+                    
+            input_tokens = cb.prompt_tokens
+            output_tokens = cb.completion_tokens
+
         # SQL is given in request
         if sql_generation_request.sql:
             sql_generation = SQLGeneration(
@@ -212,6 +193,8 @@ class SQLGenerationService:
             )
             initial_sql_generation.evaluate = sql_generation_request.evaluate
             initial_sql_generation.confidence_score = confidence_score
+        sql_generation.input_tokens_used += input_tokens
+        sql_generation.output_tokens_used += output_tokens
 
         time_taken = {
             "sql_generation_setup_time": (
@@ -311,6 +294,8 @@ class SQLGenerationService:
     def update_the_initial_sql_generation(
         self, initial_sql_generation: SQLGeneration, sql_generation: SQLGeneration
     ):
+        if not sql_generation.metadata:
+            sql_generation.metadata = {}
         initial_sql_generation.sql = sql_generation.sql
         initial_sql_generation.input_tokens_used = sql_generation.input_tokens_used
         initial_sql_generation.output_tokens_used = sql_generation.output_tokens_used
@@ -320,3 +305,29 @@ class SQLGenerationService:
         initial_sql_generation.intermediate_steps = sql_generation.intermediate_steps
         initial_sql_generation.metadata.update(sql_generation.metadata)
         return self.sql_generation_repository.update(initial_sql_generation)
+
+    def get_similar_prompts(
+            self,
+            prompt: PromptRepository,
+            llm_model: ChatModel
+        ) -> list[dict] | None:
+        labels = get_ner_labels(prompt.text)
+        prompt_text_ner = prompt.text
+    
+        # labels_entities_ner = request_ner_service(prompt.text, labels)
+        labels_entities_ner = request_ner_llm(llm_model, prompt.text, labels)
+        if labels_entities_ner[0]:
+            # prompt_text_ner = get_prompt_text_ner(prompt.text, labels_entities_ner)
+            prompt_text_ner = replace_entities_with_labels(prompt.text, labels_entities_ner)
+        
+        filter_by = get_labels_entities(labels_entities_ner)
+        filter_by = {"labels": filter_by.get("labels")}
+
+        
+        similar_prompts = ContextStoreService(self.storage).retrieve_exact_prompt_ner(
+            prompt.db_connection_id,
+            prompt_text_ner,
+            filter_by
+        )
+
+        return similar_prompts

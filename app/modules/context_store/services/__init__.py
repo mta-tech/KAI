@@ -1,7 +1,8 @@
 import logging
-
+import os
 from fastapi import HTTPException
 from sql_metadata import Parser
+from dotenv import load_dotenv
 
 from app.api.requests import (
     ContextStoreRequest,
@@ -12,14 +13,18 @@ from app.modules.context_store.repositories import ContextStoreRepository
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.modules.prompt.models import Prompt
 from app.utils.model.embedding_model import EmbeddingModel
+from app.utils.model.chat_model import ChatModel
 from app.utils.sql_database.sql_utils import extract_the_schemas_from_sql
 from app.utils.prompts_ner.prompts_ner import (
     get_ner_labels,
-    request_ner_service,
+    # request_ner_service,
+    request_ner_llm,
     get_labels_entities,
-    get_prompt_text_ner
+    # get_prompt_text_ner
+    replace_entities_with_labels
 )
 
+load_dotenv()
 logger = logging.getLogger(__name__)
 
 
@@ -66,18 +71,31 @@ class ContextStoreService:
         prompt_embedding = embedding_model.embed_query(
             context_store_request.prompt_text
         )
+        prompt_text_ner = context_store_request.prompt_text
+        labels_entities = {
+            'entities':[],
+            'labels':[]
+        }
         try:
+            llm_model = ChatModel().get_model(
+                        database_connection=None,
+                        model_family=os.getenv("CHAT_FAMILY"),
+                        model_name=os.getenv("CHAT_MODEL"),
+                        api_base=None,
+                        temperature=0,
+                        max_retries=2
+                    )
             labels = get_ner_labels(context_store_request.prompt_text)
-            labels_entities_ner = request_ner_service(context_store_request.prompt_text, labels)
-            prompt_text_ner = get_prompt_text_ner(context_store_request.prompt_text, labels_entities_ner)
-            labels_entities = get_labels_entities(labels_entities_ner)
-        except:
-            logger.warning("Cannot use the GLiNER service. Please check the GLiNER_API_BASE configuration.")
-            prompt_text_ner = ""
-            labels_entities = {
-                'entities':[],
-                'labels':[]
-            }
+            if labels:
+                # labels_entities_ner = request_ner_service(context_store_request.prompt_text, labels)
+                labels_entities_ner = request_ner_llm(llm_model, context_store_request.prompt_text, labels)
+                # prompt_text_ner = get_prompt_text_ner(context_store_request.prompt_text, labels_entities_ner)
+                if labels_entities_ner[0]:
+                    prompt_text_ner = replace_entities_with_labels(context_store_request.prompt_text, labels_entities_ner)
+                    labels_entities = get_labels_entities(labels_entities_ner)
+        except Exception as e:
+            print(e)
+            pass
 
 
         context_store = ContextStore(

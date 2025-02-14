@@ -34,6 +34,7 @@ from app.api.responses import (
     SQLGenerationResponse,
     TableDescriptionResponse,
     DocumentResponse,
+    RetrieveKnowledgeResponse
 )
 from app.data.db.storage import Storage
 from app.modules.business_glossary.services import BusinessGlossaryService
@@ -809,6 +810,8 @@ class API:
             else:
                 raise HTTPException(status_code=500, detail=str(e))
 
-    def retrieve_knowledge(self, query: str) -> dict:
+    def retrieve_knowledge(self, query: str) -> RetrieveKnowledgeResponse:
         response = self.embedding_service.query(query)
-        return {"Final Answer": response}
+        response_dict = response.model_dump()
+        response_dict["Final Answer"] = response_dict.pop("final_answer")
+        return response_dict

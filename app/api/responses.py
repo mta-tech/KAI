@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.modules.database_connection.models import DatabaseConnection
 from app.modules.sql_generation.models import IntermediateStep, LLMConfig
@@ -71,3 +71,7 @@ class DocumentResponse(BaseResponse):
     document_size: int
     text_content: str | None = None
 
+class RetrieveKnowledgeResponse(BaseModel):
+    final_answer: str=Field(alias="Final Answer")
+    input_tokens_used: int
+    output_tokens_used: int
