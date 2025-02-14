@@ -28,13 +28,15 @@ langchain-ollama = "^0.2.3"
 pandas = "^2.2.2"
 pypdf2 = "^3.0.1"
 python-multipart = "^0.0.9"
-llama-index = "^0.11.7"
-llama-index-vector-stores-typesense = "^0.2.0"
+llama-index = "^0.12.17"
+llama-index-vector-stores-typesense = "^0.3.0"
 pytest = "^8.3.3"
 pytest-mock = "^3.14.0"
 google-generativeai = "^0.8.0"
 langchain-google-genai = "^2.0.9"
 pyarrow = "^19.0.0"
+llama-index-llms-langchain = "^0.6.0"
+llama-index-embeddings-langchain = "^0.3.0"
 
 [build-system]
 requires = ["poetry-core"]

@@ -31,12 +31,28 @@ def request_ner_llm(llm_model, prompt_text: str, labels: list[str]) -> list[dict
     )
 
     result = llm_model.invoke(prompt)
-    print(JsonOutputParser().parse(result.content))
-    return JsonOutputParser().parse(result.content)
+    parsed_result = JsonOutputParser().parse(result.content)
+    print("NER labels-entities\n", parsed_result)
+    return parsed_result
     
 def get_ner_labels(text: str) -> list[str]:
     labels = [
-        'company', 'year', 'month', 'date', 'location', 'country', 'city', 'status', 'category'
+        'year',
+        'month',
+        'province name',
+        'regency name',
+        'city name',
+        'country name',
+        'company name',
+        'hall name',
+        'classification',
+        'commodity name',
+        'conclusion type',
+        'facility type',
+        'purpose type',
+        'product name',
+        'sampling type',
+        'regulation type'
         ]
     return labels
 

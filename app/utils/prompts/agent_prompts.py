@@ -98,7 +98,7 @@ Thought: I should Collect examples of Question/SQL pairs to check if there is a 
 SUFFIX_WITHOUT_FEW_SHOT_SAMPLES = """Begin!
 
 Question: {input}
-Thought: I should find the relevant tables.
+Thought: I should find the relevant tables and choose the top three or less even if the relevant score is low.
 {agent_scratchpad}"""
 
 FINETUNING_SYSTEM_INFORMATION = """
@@ -195,13 +195,16 @@ NER_PROMPTS = """
     """
 
 PROMPT_NER_LLM = """
-    You are given a text and a predefined list of labels.
-    Your task is to identify and extract named entities from the text that match the given labels. Return the output as a JSON list of dictionaries where each dictionary contains:
+You are given a text and a predefined list of labels.
+Your task is to identify and extract named entities from the text that match the given labels. 
+The extracted entity should be more specific than the label, meaning it should refer to an actual instance or example related to the label.
 
-    "label": The corresponding label from the provided list.
-    "entity": The extracted entity from the text.
+Return the output as a JSON list of dictionaries where each dictionary contains:
 
-    Input Format:
-    Text: {text}
-    Labels: {labels}
-    """
+- "label": The corresponding label from the provided list.
+- "entity": The specific instance from the text that corresponds to the label. The entity should be a proper noun, location, object, or any real-world identifiable instance, rather than a generic term.
+
+### Input Format:
+Text: {text}
+Labels: {labels}
+"""

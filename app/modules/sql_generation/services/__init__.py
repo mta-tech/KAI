@@ -53,9 +53,10 @@ class SQLGenerationService:
                 sql_generation_request.llm_config
                 if sql_generation_request.llm_config
                 else LLMConfig()
-            ),
-            metadata=sql_generation_request.metadata or {},
+            )
         )
+        if not initial_sql_generation.metadata:
+            initial_sql_generation.metadata = {}
 
         # TODO: explore why using this
         langsmith_metadata = (
@@ -106,13 +107,13 @@ class SQLGenerationService:
 
             with get_openai_callback() as cb:
                 try:                
-                    similar_prompts = self.get_similar_prompts(self, prompt, llm_model)
+                    similar_prompts = self.get_similar_prompts(prompt=prompt, llm_model=llm_model)
                     if similar_prompts:
                         print("Similar prompt context HIT!")
                         similar_prompt = similar_prompts[0]
                         sql_generation_request.sql = generate_ner_llm(llm_model, similar_prompt['prompt_text'], similar_prompt['sql'], prompt.text)
-                except:
-                    pass
+                except Exception as e:
+                    print(e)
                     
             input_tokens = cb.prompt_tokens
             output_tokens = cb.completion_tokens
@@ -282,6 +283,8 @@ class SQLGenerationService:
     def update_the_initial_sql_generation(
         self, initial_sql_generation: SQLGeneration, sql_generation: SQLGeneration
     ):
+        if not sql_generation.metadata:
+            sql_generation.metadata = {}
         initial_sql_generation.sql = sql_generation.sql
         initial_sql_generation.input_tokens_used = sql_generation.input_tokens_used
         initial_sql_generation.output_tokens_used = sql_generation.output_tokens_used
@@ -304,7 +307,7 @@ class SQLGenerationService:
         labels_entities_ner = request_ner_llm(llm_model, prompt.text, labels)
         if labels_entities_ner[0]:
             # prompt_text_ner = get_prompt_text_ner(prompt.text, labels_entities_ner)
-            prompt_text_ner = replace_entities_with_labels((prompt.text, labels_entities_ner))
+            prompt_text_ner = replace_entities_with_labels(prompt.text, labels_entities_ner)
         
         filter_by = get_labels_entities(labels_entities_ner)
         filter_by = {"labels": filter_by.get("labels")}

@@ -3,15 +3,16 @@ from app.api.requests import TextRequest, EmbeddingRequest
 
 # from app.modules.database_connection.models import DatabaseConnection
 # from app.modules.database_connection.repositories import DatabaseConnectionRepository
-from app.modules.rag.models import DocumentStore
+from app.modules.rag.models import DocumentStore, RetrieveKnowledge
 from app.modules.rag.repositories import DocumentRepository
 
 from llama_index.core import Document
 from llama_index.core.node_parser import TokenTextSplitter
 from llama_index.vector_stores.typesense import TypesenseVectorStore
-from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.embeddings.langchain import LangchainEmbedding
 from llama_index.core.ingestion import IngestionPipeline
-from llama_index.llms.openai import OpenAI
+from llama_index.llms.langchain import LangChainLLM
+from langchain_community.callbacks import get_openai_callback
 
 # from llama_index.core import VectorStoreIndex
 # from llama_index.core.retrievers import VectorIndexRetriever
@@ -24,15 +25,18 @@ from llama_index.core.schema import NodeWithScore
 from llama_index.core.vector_stores import VectorStoreQuery
 from typing import Optional
 from typing import Any, List
-from typesense import Client
 from dotenv import load_dotenv
 import os
+
+from app.data.db.storage import Storage
+from app.utils.model.chat_model import ChatModel
+from app.utils.model.embedding_model import EmbeddingModel
 
 load_dotenv()
 
 
 class DocumentService:
-    def __init__(self, storage):
+    def __init__(self, storage: Storage):
         self.storage = storage
         self.repository = DocumentRepository(self.storage)
 
@@ -70,22 +74,13 @@ class DocumentService:
 
 # TODO Embedding Service should use by Settings and Embedding Factory not initiate by itself
 class EmbeddingService:
-    def __init__(self, storage):
+    def __init__(self, storage: Storage):
         self.storage = storage
         self.repository = DocumentRepository(self.storage)
-        self.typesense_api_key = os.getenv("TYPESENSE_API_KEY")
-        self.typesense_host = os.getenv("TYPESENSE_HOST")
-        self.typesense_port = os.getenv("TYPESENSE_PORT")
-        self.typesense_protocol = os.getenv("TYPESENSE_PROTOCOL")
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        # self.chat_model = os.getenv("CHAT_MODEL")
-        self.chat_model = "gpt-4o-mini"
-        self.llm = OpenAI(api_key=self.openai_api_key, model=self.chat_model)
-        self.embedding_model = OpenAIEmbedding(api_key=self.openai_api_key)
+        self.embedding_model = LangchainEmbedding(EmbeddingModel().get_model())
         self.collection_target = "knowledge-stores"
-        self.typesense_client = self.create_typesense_client()
         self.vector_store = TypesenseVectorStore(
-            client=self.typesense_client, collection_name=self.collection_target
+            client=self.storage.client, collection_name=self.collection_target
         )
 
         self.query_engine = self.create_query_engine()
@@ -95,22 +90,6 @@ class EmbeddingService:
         pipeline = self.create_ingestion_pipeline(self.vector_store)
         pipeline.run(documents=[document])
         return True
-
-    def create_typesense_client(self) -> Client:
-        typesense_client = Client(
-            {
-                "api_key": self.typesense_api_key,
-                "nodes": [
-                    {
-                        "host": self.typesense_host,
-                        "port": self.typesense_port,
-                        "protocol": self.typesense_protocol,
-                    }
-                ],
-                "connection_timeout_seconds": 2,
-            }
-        )
-        return typesense_client
 
     def create_ingestion_pipeline(self, vector_store: TypesenseVectorStore):
         return IngestionPipeline(
@@ -141,12 +120,26 @@ class EmbeddingService:
             similarity_top_k=top_k,
         )
         # cutoff is not used for now
-        query_engine = RetrieverQueryEngine.from_args(retriever, llm=self.llm)
+        llm_model = LangChainLLM(llm=ChatModel().get_model(
+                        database_connection=None,
+                        model_family=os.getenv("CHAT_FAMILY"),
+                        model_name=os.getenv("CHAT_MODEL"),
+                        max_retries=2
+                    ))
+        query_engine = RetrieverQueryEngine.from_args(retriever, llm=llm_model)
         return query_engine
 
-    def query(self, query_request: str) -> str:
-        response = self.query_engine.query(query_request)
-        return str(response)
+    def query(self, query_request: str) -> RetrieveKnowledge:
+        with get_openai_callback() as cb:
+            response = self.query_engine.query(query_request)
+        
+        return_dict = {
+            "final_answer": str(response),
+            "input_tokens_used": cb.prompt_tokens,
+            "output_tokens_used": cb.completion_tokens
+        }
+
+        return RetrieveKnowledge(**return_dict)
 
 
 class VectorDBRetriever(BaseRetriever):

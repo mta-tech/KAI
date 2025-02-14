@@ -86,13 +86,15 @@ class ContextStoreService:
                         max_retries=2
                     )
             labels = get_ner_labels(context_store_request.prompt_text)
-            # labels_entities_ner = request_ner_service(context_store_request.prompt_text, labels)
-            labels_entities_ner = request_ner_llm(llm_model, context_store_request.prompt_text, labels)
-            # prompt_text_ner = get_prompt_text_ner(context_store_request.prompt_text, labels_entities_ner)
-            if labels_entities_ner[0]:
-                prompt_text_ner = replace_entities_with_labels(context_store_request.prompt_text, labels_entities_ner)
-                labels_entities = get_labels_entities(labels_entities_ner)
-        except:
+            if labels:
+                # labels_entities_ner = request_ner_service(context_store_request.prompt_text, labels)
+                labels_entities_ner = request_ner_llm(llm_model, context_store_request.prompt_text, labels)
+                # prompt_text_ner = get_prompt_text_ner(context_store_request.prompt_text, labels_entities_ner)
+                if labels_entities_ner[0]:
+                    prompt_text_ner = replace_entities_with_labels(context_store_request.prompt_text, labels_entities_ner)
+                    labels_entities = get_labels_entities(labels_entities_ner)
+        except Exception as e:
+            print(e)
             pass
 
 
