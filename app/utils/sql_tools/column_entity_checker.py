@@ -1,5 +1,6 @@
 import difflib
 from typing import List
+from sqlalchemy import text
 
 from fastapi import HTTPException
 from langchain.callbacks.manager import (
@@ -18,8 +19,8 @@ from app.utils.sql_tools import replace_unprocessable_characters
 class ColumnEntityChecker(BaseTool):
     """Tool for checking the existance of an entity inside a column."""
 
-    name = "DbColumnEntityChecker"
-    description = """
+    name: str = "DbColumnEntityChecker"
+    description: str = """
     Input: Column name and its corresponding table, and an entity.
     Output: cell-values found in the column similar to the given entity.
     Use this tool to get cell values similar to the given entity in the given column.
@@ -62,16 +63,16 @@ class ColumnEntityChecker(BaseTool):
         except ValueError:
             return "Invalid input format, use following format: table_name -> column_name, entity (entity should be a string without ',')"
         search_pattern = f"%{entity.strip().lower()}%"
-        search_query = f"SELECT DISTINCT {column_name} FROM {table_name} WHERE {column_name} ILIKE :search_pattern"  # noqa: S608
+        search_query = text(f"SELECT DISTINCT {column_name} FROM {table_name} WHERE {column_name} ILIKE :search_pattern")
         try:
-            search_results = self.db.engine.execute(
+            search_results = self.db.engine.connect().execute(
                 search_query, {"search_pattern": search_pattern}
             ).fetchall()
             search_results = search_results[:25]
         except SQLAlchemyError:
             search_results = []
-        distinct_query = f"SELECT DISTINCT {column_name} FROM {table_name}"  # noqa: S608
-        results = self.db.engine.execute(distinct_query).fetchall()
+        distinct_query = text(f"SELECT DISTINCT {column_name} FROM {table_name}")
+        results = self.db.engine.connect().execute(distinct_query).fetchall()
         results = self.find_similar_strings(results, entity)
         similar_items = "Similar items:\n"
         already_added = {}

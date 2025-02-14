@@ -7,7 +7,7 @@ from langchain.callbacks.manager import (
     CallbackManagerForToolRun,
 )
 from langchain.tools.base import BaseTool
-from langchain_openai import OpenAIEmbeddings
+from langchain_core.embeddings import Embeddings
 from pydantic import Field
 from sql_metadata import Parser
 
@@ -22,14 +22,15 @@ logger = logging.getLogger(__name__)
 class TablesSQLDatabaseTool(BaseTool):
     """Tool which takes in the given question and returns a list of tables with their relevance score to the question"""
 
-    name = "DbTablesWithRelevanceScores"
-    description = """
+    name: str = "DbTablesWithRelevanceScores"
+    description: str = """
     Input: Given question.
     Output: Comma-separated list of tables with their relevance scores, indicating their relevance to the question.
     Use this tool to identify the relevant tables for the given question.
+    Only run this tool once and then go to the next plan even if the relevance score is low.
     """
     db_scan: List[TableDescription]
-    embedding: OpenAIEmbeddings
+    embedding: Embeddings
     few_shot_examples: List[dict] | None = Field(exclude=True, default=None)
 
     def get_embedding(
@@ -46,6 +47,15 @@ class TablesSQLDatabaseTool(BaseTool):
         return self.embedding.embed_documents(docs)
 
     def cosine_similarity(self, a: List[float], b: List[float]) -> float:
+        if not a or not b:  # Check for empty vectors
+            return 0.0     
+    
+        if len(a) != len(b):  # Ensure both vectors have the same length
+            raise ValueError("Vector embeddings must have the same length")
+
+        if (np.linalg.norm(a) == 0) or (np.linalg.norm(b) == 0):  # Handle zero vectors
+            return 0.0 
+        
         return round(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)), 4)
 
     def similar_tables_based_on_few_shot_examples(self, df: pd.DataFrame) -> List[str]:
@@ -88,9 +98,7 @@ class TablesSQLDatabaseTool(BaseTool):
                 table_rep = f"Table {table.table_name} contain columns: [{col_rep}], this tables has: {table.table_description}"
             else:
                 table_rep = f"Table {table.table_name} contain columns: [{col_rep}]"
-            table_representations.append(
-                [table.db_schema, table.table_name, table_rep]
-            )
+            table_representations.append([table.db_schema, table.table_name, table_rep])
         df = pd.DataFrame(
             table_representations,
             columns=["db_schema", "table_name", "table_representation"],
@@ -101,6 +109,7 @@ class TablesSQLDatabaseTool(BaseTool):
         )
         df = df.sort_values(by="similarities", ascending=False)
         df = df.head(TOP_TABLES)
+        max_similarities = max(df['similarities'])  # Store max similarity before modifying df
         most_similar_tables = self.similar_tables_based_on_few_shot_examples(df)
         table_relevance = ""
         for _, row in df.iterrows():
@@ -109,7 +118,7 @@ class TablesSQLDatabaseTool(BaseTool):
             else:
                 table_name = row["table_name"]
             table_relevance += (
-                f'Table: `{table_name}`, relevance score: {row["similarities"]}\n'
+                f"Table: `{table_name}`, relevance score: {row['similarities']}\n"
             )
         if len(most_similar_tables) > 0:
             for table in most_similar_tables:
@@ -117,5 +126,5 @@ class TablesSQLDatabaseTool(BaseTool):
                     table_name = table[0] + "." + table[1]
                 else:
                     table_name = table[1]
-                table_relevance += f"Table: `{table_name}`, relevance score: {max(df['similarities'])}\n"
+                table_relevance += f"Table: `{table_name}`, relevance score: {max_similarities}\n"
         return table_relevance

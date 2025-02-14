@@ -24,7 +24,6 @@ from app.modules.table_description.models import (
 from app.modules.table_description.repositories import TableDescriptionRepository
 from app.server.config import Settings
 from app.utils.prompts.agent_prompts import (
-    AGENT_PREFIX,
     ERROR_PARSING_MESSAGE,
     FORMAT_INSTRUCTIONS,
     PLAN_BASE,
@@ -34,8 +33,18 @@ from app.utils.prompts.agent_prompts import (
     SUFFIX_WITH_FEW_SHOT_SAMPLES,
     SUFFIX_WITHOUT_FEW_SHOT_SAMPLES,
 )
+from app.utils.prompts.agent_prompts_dev import (
+    AGENT_PREFIX_DEV,
+    PLAN_WITH_ALL_CONTEXT,
+    SUFFIX_WITH_CONTEXT,
+    SUFFIX_WITHOUT_CONTEXT,
+    FEWSHOT_PROMPT,
+    INSTRUCTION_PROMPT,
+    ADDITIONAL_PROMPT,
+)
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_generator.sql_database_toolkit import SQLDatabaseToolkit
+from app.utils.sql_generator.sql_database_toolkit_dev import SQLDatabaseToolkitDev
 from app.utils.sql_generator.sql_generator import SQLGenerator
 from app.utils.sql_generator.sql_history import SQLHistory
 from app.utils.sql_tools import replace_unprocessable_characters
@@ -44,8 +53,8 @@ from app.utils.model.embedding_model import EmbeddingModel
 logger = logging.getLogger(__name__)
 
 
-class SQLAgent(SQLGenerator):
-    """SQL agent"""
+class FullContextSQLAgent(SQLGenerator):
+    """SQL agent with all tools registered as Full Context Prompts"""
 
     max_number_of_examples: int = 5  # maximum number of question/SQL pairs
     llm: Any = None
@@ -62,15 +71,17 @@ class SQLAgent(SQLGenerator):
 
     def create_sql_agent(
         self,
-        toolkit: SQLDatabaseToolkit,
+        toolkit: SQLDatabaseToolkitDev,
         callback_manager: BaseCallbackManager | None = None,
         sql_history: str | None = None,
-        prefix: str = AGENT_PREFIX,
+        prefix: str = AGENT_PREFIX_DEV,
         suffix: str | None = None,
         format_instructions: str = FORMAT_INSTRUCTIONS,
         input_variables: List[str] | None = None,
         max_examples: int = 3,
-        number_of_instructions: int = 1,
+        # number_of_instructions: int = 1,
+        instructions: List[dict] | None = None,
+        fewshot_examples: List[dict] | None = None,
         max_iterations: int | None = int(os.getenv("AGENT_MAX_ITERATIONS", "15")),  # noqa: B008
         max_execution_time: float | None = None,
         early_stopping_method: str = "generate",
@@ -80,28 +91,37 @@ class SQLAgent(SQLGenerator):
     ) -> AgentExecutor:
         """Construct an SQL agent from an LLM and tools."""
         tools = toolkit.get_tools()
-        if max_examples > 0 and number_of_instructions > 0:
-            plan = PLAN_WITH_FEWSHOT_EXAMPLES_AND_INSTRUCTIONS
-            suffix = SUFFIX_WITH_FEW_SHOT_SAMPLES
-        elif max_examples > 0:
-            plan = PLAN_WITH_FEWSHOT_EXAMPLES
-            suffix = SUFFIX_WITH_FEW_SHOT_SAMPLES
-        elif number_of_instructions > 0:
-            plan = PLAN_WITH_INSTRUCTIONS
-            suffix = SUFFIX_WITHOUT_FEW_SHOT_SAMPLES
-        else:
-            plan = PLAN_BASE
-            suffix = SUFFIX_WITHOUT_FEW_SHOT_SAMPLES
-        plan = plan.format(
+
+        fewshot_prompt = ""
+        instruction_prompt = ""
+        additional_prompt = ""
+
+        suffix = SUFFIX_WITHOUT_CONTEXT
+        if fewshot_examples:
+            fewshot_string = ""
+            for example in fewshot_examples[:max_examples]:
+                fewshot_string += f"Question: {example['prompt_text']} \n"
+                fewshot_string += f"```sql\n{example['sql']}\n```\n"
+            fewshot_prompt = FEWSHOT_PROMPT.format(fewshot_examples=fewshot_string)
+            additional_prompt = ADDITIONAL_PROMPT
+            suffix = SUFFIX_WITH_CONTEXT
+        if instructions:
+            instruction_string = ""
+            for index, instruction in enumerate(instructions):
+                instruction_string += f"{index + 1}) {instruction['instruction']}\n"
+            instruction_prompt = INSTRUCTION_PROMPT.format(
+                admin_instructions=instruction_string
+            )
+
+        agent_plan = PLAN_WITH_ALL_CONTEXT.format(
+            fewshot_prompt=fewshot_prompt,
+            instruction_prompt=instruction_prompt,
+            additional_prompt=additional_prompt,
             dialect=toolkit.dialect,
-            max_examples=max_examples,
         )
 
-        prefix = prefix.format(
-            dialect=toolkit.dialect,
-            sql_history=sql_history,
-            max_examples=max_examples,
-            agent_plan=plan,
+        prefix = AGENT_PREFIX_DEV.format(
+            dialect=toolkit.dialect, agent_plan=agent_plan, sql_history=sql_history
         )
 
         prompt = ZeroShotAgent.create_prompt(
@@ -197,13 +217,13 @@ class SQLAgent(SQLGenerator):
         )
         self.database = SQLDatabase.get_sql_engine(database_connection)
 
-        toolkit = SQLDatabaseToolkit(
+        toolkit = SQLDatabaseToolkitDev(
             db=self.database,
             context=context,
             few_shot_examples=new_fewshot_examples,
             business_metrics=business_metrics,
             instructions=instructions,
-            is_multiple_schema=True if (len(user_prompt.schemas) > 1)  else False,
+            is_multiple_schema=True if (len(user_prompt.schemas) > 1) else False,
             db_scan=db_scan,
             embedding=EmbeddingModel().get_model(),
         )
@@ -214,8 +234,10 @@ class SQLAgent(SQLGenerator):
             toolkit=toolkit,
             verbose=True,
             sql_history=SQLHistory.get_sql_history(user_prompt),
-            max_examples=number_of_context,
-            number_of_instructions=len(instructions) if instructions is not None else 0,
+            # max_examples=number_of_context,
+            # number_of_instructions=len(instructions) if instructions is not None else 0,
+            instructions=instructions,
+            fewshot_examples=new_fewshot_examples,
             max_execution_time=int(os.environ.get("DH_ENGINE_TIMEOUT", 150)),
         )
         agent_executor.return_intermediate_steps = True
@@ -250,9 +272,9 @@ class SQLAgent(SQLGenerator):
         response.output_tokens_used = cb.completion_tokens
         response.completed_at = str(datetime.now())
         if number_of_samples > 0:
-            suffix = SUFFIX_WITH_FEW_SHOT_SAMPLES
+            suffix = SUFFIX_WITH_CONTEXT
         else:
-            suffix = SUFFIX_WITHOUT_FEW_SHOT_SAMPLES
+            suffix = SUFFIX_WITHOUT_CONTEXT
         response.intermediate_steps = self.construct_intermediate_steps(
             result["intermediate_steps"], suffix=suffix
         )

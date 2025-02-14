@@ -22,12 +22,17 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None
     OPENROUTER_API_KEY: str | None
     OPENROUTER_API_BASE: str | None
+    GOOGLE_API_KEY: str | None
 
     MODEL_GARDEN_API_KEY: str | None
     MODEL_GARDEN_API_BASE: str | None
 
+    CHAT_FAMILY: str | None
     CHAT_MODEL: str | None
+
+    EMBEDDING_FAMILY: str | None
     EMBEDDING_MODEL: str | None
+    EMBEDDING_DIMENSIONS: int
 
     OLLAMA_API_BASE: str | None
     HUGGINGFACEHUB_API_TOKEN: str | None

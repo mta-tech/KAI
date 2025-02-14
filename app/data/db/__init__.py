@@ -9,6 +9,7 @@ from app.server.config import Settings
 class TypeSenseDB:
     def __init__(self, setting: Settings):
         self.client = self._initialize_client(setting)
+        self.embedding_dimensions = setting.EMBEDDING_DIMENSIONS
         self.schema_path = "app/data/db/schemas"
 
     def _initialize_client(self, setting: Settings) -> typesense.Client:
@@ -41,11 +42,20 @@ class TypeSenseDB:
         """Retrieve the set of existing collection names."""
         return [col["name"] for col in self.client.collections.retrieve()]
 
+    def _add_embedding_dimensions(self, schema: dict) -> dict:
+        num_dim = self.embedding_dimensions
+        for field in schema.get("fields", []):
+            if "embedding" in field["name"]:
+                field["num_dim"] = num_dim
+
+        return schema
+
     def ensure_collection_exists(self, collection_name: str) -> None:
         """Ensure the collection exists in Typesense; if not, create it."""
         existing_collection = self._get_existing_collections()
         if collection_name not in existing_collection:
             collection_schema = self._get_schema(collection_name)
+            collection_schema = self._add_embedding_dimensions(collection_schema)
             self.client.collections.create(collection_schema)
 
     def delete_collection(self, collection_name: str) -> None:

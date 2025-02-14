@@ -49,12 +49,11 @@ tip5) You should always execute the SQL query by calling the SqlDbQuery tool to 
 """  # noqa: E501
 
 PLAN_WITH_FEWSHOT_EXAMPLES = """1) Use the FewshotExamplesRetriever tool to retrieve samples of Question/SQL pairs that are similar to the given question, if there is a similar question among the examples, use the SQL query from the example and modify it to fit the given question.
-2) Always Use the GetAdminInstructions tool after FewshotExamplesRetriever tool to find relevant tables.
-3) Use the DbRelevantTablesSchema tool to obtain the schema of possibly relevant tables to identify the possibly relevant columns.
-4) Use the DbRelevantColumnsInfo tool to gather more information about the possibly relevant columns, filtering them to find the relevant ones.
-5) [Optional based on the question] Use the SystemTime tool if the question has any mentions of time or dates.
-6) For string columns, always use the DbColumnEntityChecker tool to make sure the entity values are present in the relevant columns.
-7) Write a {dialect} query and always use SqlDbQuery tool the Execute the SQL query on the database to check if the results are correct.
+2) Use the DbRelevantTablesSchema tool to obtain the schema of possibly relevant tables to identify the possibly relevant columns.
+3) Use the DbRelevantColumnsInfo tool to gather more information about the possibly relevant columns, filtering them to find the relevant ones.
+4) [Optional based on the question] Use the SystemTime tool if the question has any mentions of time or dates.
+5) For string columns, always use the DbColumnEntityChecker tool to make sure the entity values are present in the relevant columns.
+6) Write a {dialect} query and always use SqlDbQuery tool the Execute the SQL query on the database to check if the results are correct.
 #
 Some tips to always keep in mind:
 tip1) The maximum number of Question/SQL pairs you can request is {max_examples}.
@@ -99,7 +98,7 @@ Thought: I should Collect examples of Question/SQL pairs to check if there is a 
 SUFFIX_WITHOUT_FEW_SHOT_SAMPLES = """Begin!
 
 Question: {input}
-Thought: I should find the relevant tables.
+Thought: I should find the relevant tables and choose the top three or less even if the relevant score is low.
 {agent_scratchpad}"""
 
 FINETUNING_SYSTEM_INFORMATION = """
@@ -159,4 +158,53 @@ Final Answer: the final answer to the original input question
 If there is a consistent parsing error, please return "I don't know" as your final answer.
 If you know the final answer and do not need to use any tools, directly return the final answer in this format:
 Final Answer: <your final answer>.
+"""
+
+COLUMN_DESCRIPTION_PROMPT = """
+You are an assistant that generates concise column descriptions.
+
+Table Name: {table_name}
+Column Name: {column_name}
+Row Examples: {row_examples}
+
+Provide an one-sentence description of the content or meaning of the data in this column. Do not use phrases like "represents," "this column," or "refers to." Simply describe the data directly without mention the column name or phrase like "This data" as intro in the description.
+"""
+
+TABLE_DESCRIPTION_PROMPT = """
+You are an assistant that generates clear and concise description of tables. I have a table named {table_name}. Below are the column names and their descriptions.
+
+{table_details}
+
+Provide a one-sentence description that explains the overall purpose and context of this table. Focus on what the table represents as a whole, without detailing and mentioning each column. Do not mention the table name or phrase like "This table" as intro in the description.
+"""
+
+NER_PROMPTS = """
+    You are an SQL agent that can convert text to sql. I give you information as follows:
+    1. Existing prompt. Existing prompt is natural language query that can be converted into SQL query
+    2. Existing SQL. Existing SQL is SQL Query that generated from Existing Prompt
+    3. New Prompt. New Prompt is new natural language query that similar with existing prompt. It will be generated into SQL query.
+
+    Then, belows are information to generate new SQL query:
+    - Existing prompt: `{prompt}`
+    - New prompt: `{new_prompt}`
+
+    Existing SQL:
+    ```{existing_sql}```
+
+    Your task is to generate new SQL Query based on provided information and pattern. Only generate the SQL query without any additional sentence or information.
+    """
+
+PROMPT_NER_LLM = """
+You are given a text and a predefined list of labels.
+Your task is to identify and extract named entities from the text that match the given labels. 
+The extracted entity should be more specific than the label, meaning it should refer to an actual instance or example related to the label.
+
+Return the output as a JSON list of dictionaries where each dictionary contains:
+
+- "label": The corresponding label from the provided list.
+- "entity": The specific instance from the text that corresponds to the label. The entity should be a proper noun, location, object, or any real-world identifiable instance, rather than a generic term.
+
+### Input Format:
+Text: {text}
+Labels: {labels}
 """

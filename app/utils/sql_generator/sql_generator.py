@@ -51,7 +51,7 @@ class SQLGenerator(ABC):
         return response
 
     def remove_markdown(self, query: str) -> str:
-        pattern = r"```sql(.*?)```"
+        pattern = r"`{3,}sql(.*?)`{3,}"
         matches = re.findall(pattern, query, re.DOTALL)
         if matches:
             return matches[0].strip()
@@ -74,7 +74,7 @@ class SQLGenerator(ABC):
         return db_scan
 
     def format_sql_query_intermediate_steps(self, step: str) -> str:
-        pattern = r"```sql(.*?)```"
+        pattern = r"`{3,}sql(.*?)`{3,}"
 
         def formatter(match):
             original_sql = match.group(1)
@@ -218,7 +218,8 @@ class SQLGenerator(ABC):
             response.error = (str(e),)
         finally:
             queue.put(None)
-            response.tokens_used = cb.total_tokens
+            response.input_tokens_used = cb.prompt_tokens
+            response.output_tokens_used = cb.completion_tokens
             response.completed_at = str(datetime.datetime.now())
             if not response.error:
                 if response.sql:

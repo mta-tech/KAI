@@ -16,9 +16,21 @@
             "type": "string"
         },
         {
+            "name": "prompt_text_ner",
+            "type": "string"
+        },
+        {
+            "name": "entities",
+            "type": "string[]"
+        },
+        {
+            "name": "labels",
+            "type": "string[]"
+        },
+        {
             "name": "prompt_embedding",
             "type": "float[]",
-            "num_dim": 1024
+            "optional": true
         },
         {
             "name": "sql",

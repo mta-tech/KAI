@@ -2,12 +2,12 @@ from typing import Any
 
 # from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_openai import OpenAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_core.embeddings import Embeddings
 from overrides import override
 
 from app.modules.database_connection.models import DatabaseConnection
 from app.utils.model import LLMModel
-
-DIMENSIONS = 1024
 
 
 class EmbeddingModel(LLMModel):
@@ -15,16 +15,26 @@ class EmbeddingModel(LLMModel):
     def get_model(
         self,
         database_connection: DatabaseConnection | None = None,
-        model_family: str = "openai",
-        model_name: str = "text-embedding-3-small",
+        model_family: str | None = None,
+        model_name: str | None = None,
         api_base: str | None = None,
         **kwargs: Any,
-    ) -> Any:
+    ) -> Embeddings:
+        model_family = model_family or self.settings.require("EMBEDDING_FAMILY")
+        model_name = model_name or self.settings.require("EMBEDDING_MODEL")
+        dimensions = self.settings.require("EMBEDDING_DIMENSIONS")
         if model_family == "openai":
             return OpenAIEmbeddings(
                 model=model_name,
                 api_key=self.settings.require("OPENAI_API_KEY"),
-                dimensions=DIMENSIONS,
+                dimensions=dimensions,
+                **kwargs,
+            )
+        if model_family == "google":
+            return GoogleGenerativeAIEmbeddings(
+                model=model_name,
+                api_key=self.settings.require("GOOGLE_API_KEY"),
+                dimensions=dimensions,
                 **kwargs,
             )
 

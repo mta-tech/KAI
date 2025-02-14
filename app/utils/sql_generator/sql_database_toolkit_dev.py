@@ -17,7 +17,7 @@ from app.utils.sql_tools.system_time import SystemTime
 from app.utils.sql_tools.tables_sql_database import TablesSQLDatabaseTool
 
 
-class SQLDatabaseToolkit(BaseToolkit):
+class SQLDatabaseToolkitDev(BaseToolkit):
     """Available toolkit"""
 
     db: SQLDatabase = Field(exclude=True)
@@ -44,8 +44,6 @@ class SQLDatabaseToolkit(BaseToolkit):
         tools = []
         query_sql_db_tool = QuerySQLDataBaseTool(db=self.db, context=self.context)
         tools.append(query_sql_db_tool)
-        if self.instructions:
-            tools.append(GetUserInstructions(instructions=self.instructions))
         get_current_datetime = SystemTime()
         tools.append(get_current_datetime)
         tables_sql_db_tool = TablesSQLDatabaseTool(
@@ -65,10 +63,4 @@ class SQLDatabaseToolkit(BaseToolkit):
             is_multiple_schema=self.is_multiple_schema,
         )
         tools.append(column_sample_tool)
-        if self.few_shot_examples is not None:
-            get_fewshot_examples_tool = GetFewShotExamples(
-                few_shot_examples=self.few_shot_examples,
-                business_metrics=self.business_metrics,
-            )
-            tools.append(get_fewshot_examples_tool)
         return tools

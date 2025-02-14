@@ -39,7 +39,11 @@
             "type": "string"
         },
         {
-            "name": "tokens_used",
+            "name": "input_tokens_used",
+            "type": "int32"
+        },
+        {
+            "name": "output_tokens_used",
             "type": "int32"
         },
         {
@@ -51,10 +55,6 @@
             "name": "error_message",
             "type": "string",
             "optional": true
-        },
-        {
-            "name": "created_at",
-            "type": "string"
         },
         {
             "name": "metadata",

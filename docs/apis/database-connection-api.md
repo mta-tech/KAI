@@ -85,6 +85,25 @@ The Database Connection API provides endpoints to manage database connections, i
 }
 ```
 
+#### 4. Delete a Database Connection
+
+**Endpoint:** `/api/v1/database-connections/{db_connection_id}`\
+**Method:** `DELETE`\
+**Description:** Delete an existing database connection that was identified by `db_connection_id`.
+
+**Response:**
+
+```json
+{
+    "id": "string",
+    "alias": "string",
+    "connection_uri": "string",
+    "schemas": ["string"],
+    "metadata": {"key": "value"},
+    "created_at": "string"
+}
+```
+
 ### Example Usage
 
 #### Creating a Database Connection
@@ -167,6 +186,30 @@ Content-Type: application/json
 {
     "id": "12345",
     "alias": "updated_database",
+    "connection_uri": "postgresql://user:password@localhost/updated_dbname",
+    "schemas": ["public"],
+    "metadata": {"type": "postgres", "version": "12"},
+    "created_at": "2024-09-09T12:34:56Z"
+}
+```
+
+#### Deleting a Database Connection
+
+To delete an existing database connection, send a `DELETE` request to `/api/v1/database-connections/{db_connection_id}`:
+
+**Request:**
+
+```http
+DELETE /api/v1/database-connections/12345
+Content-Type: application/json
+```
+
+**Response:**
+
+```json
+{
+    "id": "12345",
+    "alias": "deleted_database",
     "connection_uri": "postgresql://user:password@localhost/updated_dbname",
     "schemas": ["public"],
     "metadata": {"type": "postgres", "version": "12"},

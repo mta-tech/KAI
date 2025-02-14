@@ -1,9 +1,10 @@
+from app.data.db.storage import Storage
 from app.modules.rag.models import DocumentStore
 
 DB_COLLECTION = "documents"
 
 class DocumentRepository:
-    def __init__(self, storage):
+    def __init__(self, storage: Storage):
         self.storage = storage
     
     def insert(self, document: DocumentStore) -> DocumentStore:
@@ -46,7 +47,7 @@ class DocumentRepository:
     
 # TODO KNOWLEDGE REPOSITORY
 class KnowledgeRepository:
-    def __init__(self, storage):
+    def __init__(self, storage: Storage):
         self.storage = storage
     
     def insert(self, document: DocumentStore) -> DocumentStore:
