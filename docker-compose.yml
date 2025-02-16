@@ -31,3 +31,4 @@ services:
 networks:
   default:
     name: kai_network
+    external: true
