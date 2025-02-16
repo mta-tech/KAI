@@ -69,7 +69,7 @@
         },
         {
             "name": "table_embedding",
-            "type": "object",
+            "type": "float[]",
             "optional": true
         },
         {
