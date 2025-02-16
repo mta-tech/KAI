@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 
 
 class LLMConfig(BaseModel):
-    llm_family: str = "openai"
-    llm_name: str = os.getenv("LLM_NAME", "gpt-4o-mini")
+    model_family: str = "openai"
+    model_name: str = os.getenv("LLM_NAME", "gpt-4o-mini")
     api_base: str | None = None
 
 
