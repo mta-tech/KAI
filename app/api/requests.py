@@ -85,6 +85,7 @@ class UpdateContextStoreRequest(BaseModel):
 
 class SQLGenerationRequest(BaseModel):
     llm_config: LLMConfig | None
+    using_ner: bool = False
     evaluate: bool = False
     sql: str | None = None
     metadata: dict | None = None

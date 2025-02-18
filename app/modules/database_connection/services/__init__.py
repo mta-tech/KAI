@@ -8,10 +8,11 @@ from app.modules.database_connection.repositories import DatabaseConnectionRepos
 from app.modules.table_description.repositories import TableDescriptionRepository
 from app.utils.core.encrypt import FernetEncrypt
 from app.utils.sql_database.sql_database import SQLDatabase
+from app.utils.sql_database.scanner import SqlAlchemyScanner
 
 
 class DatabaseConnectionService:
-    def __init__(self, scanner, storage: Storage):
+    def __init__(self, scanner: SqlAlchemyScanner, storage: Storage):
         self.scanner = scanner
         self.storage = storage
         self.repository = DatabaseConnectionRepository(self.storage)
