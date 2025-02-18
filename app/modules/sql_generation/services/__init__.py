@@ -88,15 +88,16 @@ class SQLGenerationService:
         )
 
         sql_generation_setup_end_time = datetime.now()
+        input_tokens = 0
+        output_tokens = 0
+        
         # Assing context store SQL
         if context_store:
             sql_generation_request.sql = context_store.sql
             sql_generation_request.evaluate = False
-            input_tokens = 0
-            output_tokens = 0
             print("Exact context cache HIT!")
 
-        else:
+        elif sql_generation_request.using_ner:
             llm_model = ChatModel().get_model(
                 database_connection=None,
                 model_family=sql_generation_request.llm_config.model_family,
