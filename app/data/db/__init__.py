@@ -46,7 +46,10 @@ class TypeSenseDB:
         num_dim = self.embedding_dimensions
         for field in schema.get("fields", []):
             if "embedding" in field["name"]:
-                field["num_dim"] = num_dim
+                try:  # Try to set num_dim value to embedding field
+                    field["num_dim"] = num_dim
+                except Exception as e:
+                    print(e, field)
 
         return schema
 

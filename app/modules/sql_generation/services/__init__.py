@@ -54,7 +54,7 @@ class SQLGenerationService:
                 sql_generation_request.llm_config
                 if sql_generation_request.llm_config
                 else LLMConfig()
-            )
+            ),
         )
         if not initial_sql_generation.metadata:
             initial_sql_generation.metadata = {}
@@ -95,27 +95,34 @@ class SQLGenerationService:
             input_tokens = 0
             output_tokens = 0
             print("Exact context cache HIT!")
-        
+
         else:
             llm_model = ChatModel().get_model(
-                    database_connection=None,
-                    model_family=sql_generation_request.llm_config.llm_family,
-                    model_name=sql_generation_request.llm_config.llm_name,
-                    api_base=sql_generation_request.llm_config.api_base,
-                    temperature=0,
-                    max_retries=2
-                )
+                database_connection=None,
+                model_family=sql_generation_request.llm_config.model_family,
+                model_name=sql_generation_request.llm_config.model_name,
+                api_base=sql_generation_request.llm_config.api_base,
+                temperature=0,
+                max_retries=2,
+            )
 
             with get_openai_callback() as cb:
-                try:                
-                    similar_prompts = self.get_similar_prompts(prompt=prompt, llm_model=llm_model)
+                try:
+                    similar_prompts = self.get_similar_prompts(
+                        prompt=prompt, llm_model=llm_model
+                    )
                     if similar_prompts:
                         print("Similar prompt context HIT!")
                         similar_prompt = similar_prompts[0]
-                        sql_generation_request.sql = generate_ner_llm(llm_model, similar_prompt['prompt_text'], similar_prompt['sql'], prompt.text)
+                        sql_generation_request.sql = generate_ner_llm(
+                            llm_model,
+                            similar_prompt["prompt_text"],
+                            similar_prompt["sql"],
+                            prompt.text,
+                        )
                 except Exception as e:
                     print(e)
-                    
+
             input_tokens = cb.prompt_tokens
             output_tokens = cb.completion_tokens
 
@@ -307,27 +314,24 @@ class SQLGenerationService:
         return self.sql_generation_repository.update(initial_sql_generation)
 
     def get_similar_prompts(
-            self,
-            prompt: PromptRepository,
-            llm_model: ChatModel
-        ) -> list[dict] | None:
+        self, prompt: PromptRepository, llm_model: ChatModel
+    ) -> list[dict] | None:
         labels = get_ner_labels(prompt.text)
         prompt_text_ner = prompt.text
-    
+
         # labels_entities_ner = request_ner_service(prompt.text, labels)
         labels_entities_ner = request_ner_llm(llm_model, prompt.text, labels)
         if labels_entities_ner[0]:
             # prompt_text_ner = get_prompt_text_ner(prompt.text, labels_entities_ner)
-            prompt_text_ner = replace_entities_with_labels(prompt.text, labels_entities_ner)
-        
+            prompt_text_ner = replace_entities_with_labels(
+                prompt.text, labels_entities_ner
+            )
+
         filter_by = get_labels_entities(labels_entities_ner)
         filter_by = {"labels": filter_by.get("labels")}
 
-        
         similar_prompts = ContextStoreService(self.storage).retrieve_exact_prompt_ner(
-            prompt.db_connection_id,
-            prompt_text_ner,
-            filter_by
+            prompt.db_connection_id, prompt_text_ner, filter_by
         )
 
         return similar_prompts

@@ -151,8 +151,8 @@ class SQLAgent(SQLGenerator):
         self.llm = self.model.get_model(
             database_connection=database_connection,
             temperature=0,
-            model_family=self.llm_config.llm_family,
-            model_name=self.llm_config.llm_name,
+            model_family=self.llm_config.model_family,
+            model_name=self.llm_config.model_name,
             api_base=self.llm_config.api_base,
         )
         repository = TableDescriptionRepository(storage)
@@ -203,7 +203,7 @@ class SQLAgent(SQLGenerator):
             few_shot_examples=new_fewshot_examples,
             business_metrics=business_metrics,
             instructions=instructions,
-            is_multiple_schema=True if (len(user_prompt.schemas) > 1)  else False,
+            is_multiple_schema=True if (len(user_prompt.schemas) > 1) else False,
             db_scan=db_scan,
             embedding=EmbeddingModel().get_model(),
         )
