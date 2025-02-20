@@ -78,7 +78,7 @@
 
 **Endpoint:** `/api/v1/context-stores/semantic-search`\
 **Method:** `POST`\
-**Description:** Retrieves the details of `top k` most similar context store entries.
+**Description:** Retrieves the details of `top k` most similar context store entries excluding the exact match.
 
 **Response:**
 

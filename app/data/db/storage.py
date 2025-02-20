@@ -147,6 +147,17 @@ class Storage(TypeSenseDB):
         if results:
             if results["results"][0]["found"] > 0:
                 hits = results["results"][0]["hits"]
+
+                # Deduplicate by prompt_text
+                unique_hits = {}
+                for hit in hits:
+                    prompt_text = hit["document"]["prompt_text"].lower()
+                    if prompt_text not in unique_hits:
+                        unique_hits[prompt_text] = hit  # Keep the first occurrence
+
+                # Convert dictionary values back to a list
+                hits = list(unique_hits.values())
+
                 # Sort results by vector_distance asc
                 sorted_hits = sorted(
                     hits,
