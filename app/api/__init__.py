@@ -8,6 +8,7 @@ from fastapi import BackgroundTasks, File, HTTPException, UploadFile
 from app.api.requests import (
     BusinessGlossaryRequest,
     ContextStoreRequest,
+    SemanticContextStoreRequest,
     DatabaseConnectionRequest,
     InstructionRequest,
     NLGenerationRequest,
@@ -197,6 +198,14 @@ class API:
             "/api/v1/context-stores/{context_store_id}",
             self.get_context_store,
             methods=["GET"],
+            tags=["Context Stores"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/context-stores/semantic-search",
+            self.get_semantic_context_stores,
+            methods=["POST"],
+            status_code=201,
             tags=["Context Stores"],
         )
 
@@ -584,6 +593,17 @@ class API:
     def get_context_store(self, context_store_id: str) -> ContextStoreResponse:
         context_store = self.context_store_service.get_context_store(context_store_id)
         return ContextStoreResponse(**context_store.model_dump())
+    
+    def get_semantic_context_stores(
+        self, context_store_request: SemanticContextStoreRequest
+    ) -> list[dict]:
+        semantic_context_stores = self.context_store_service.get_semantic_context_stores(
+            context_store_request.db_connection_id, context_store_request.prompt_text, context_store_request.top_k
+        )
+        
+        return [
+            context_store for context_store in semantic_context_stores
+        ]
 
     def delete_context_store(self, context_store_id: str) -> dict:
         try:

@@ -119,6 +119,22 @@ class ContextStoreService:
     def get_context_stores(self, db_connection_id) -> list[ContextStore]:
         filter = {"db_connection_id": db_connection_id}
         return self.repository.find_by(filter)
+    
+    def get_semantic_context_stores(
+            self, db_connection_id: str, prompt: str, top_k: int
+    ) -> list[ContextStore]:
+        embedding_model = EmbeddingModel().get_model()
+        prompt_embedding = embedding_model.embed_query(prompt)
+
+        semantic_contexts = self.repository.find_by_relevance(
+            db_connection_id=db_connection_id,
+            prompt_text=prompt,
+            prompt_embedding=prompt_embedding,
+            limit=top_k,
+            alpha=1.0
+        )
+        
+        return semantic_contexts
 
     def update_context_store(
         self, context_store_id, update_request: UpdateContextStoreRequest
