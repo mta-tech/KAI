@@ -1,6 +1,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import datetime
+import pandas as pd
 from langchain_community.callbacks import get_openai_callback
 from fastapi import HTTPException
 from dotenv import load_dotenv
@@ -144,6 +145,8 @@ class SQLGenerationService:
                 self.update_error(initial_sql_generation, str(e))
                 raise HTTPException(str(e), initial_sql_generation.id) from e
         else:
+            if not sql_generation_request.metadata:
+                sql_generation_request.metadata = {}
             option = sql_generation_request.metadata.get("option", "")
             if option == "dev":
                 sql_generator = FullContextSQLAgent(
@@ -273,7 +276,7 @@ class SQLGenerationService:
 
     def execute_sql_query(
         self, sql_generation_id: str, max_rows: int = 100
-    ) -> tuple[str, dict]:
+    ) -> dict:
         sql_generation = self.sql_generation_repository.find_by_id(sql_generation_id)
         if not sql_generation:
             raise HTTPException(f"SQL Generation {sql_generation_id} not found")
@@ -282,7 +285,38 @@ class SQLGenerationService:
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(prompt.db_connection_id)
         database = SQLDatabase.get_sql_engine(db_connection, True)
-        return database.run_sql(sql_generation.sql, max_rows)
+
+        results = database.run_sql(sql_generation.sql, max_rows)
+
+        return_dict = {
+            "id": sql_generation.prompt_id,
+            "sql": sql_generation.sql,
+            "result": results[1].get('result'),
+            "result_str": results[0],
+        }
+        return return_dict
+    
+    def create_csv_execute_sql_query(
+        self, sql_generation_id, max_rows
+    ) -> dict:
+        dir_path = os.getenv("GENERATED_CSV_PATH")
+        os.makedirs(dir_path, exist_ok=True)
+        file_path = os.path.join(dir_path, f"{sql_generation_id}.csv")
+
+        results = self.execute_sql_query(
+            sql_generation_id, max_rows
+        )
+        result = results.get('result', [{}])
+        
+        pd.DataFrame(results).to_csv(file_path, index=False) 
+        
+        return_dict = {
+            "id": sql_generation_id,
+            "file_path": file_path,
+            "sql": results.get('sql'),
+            "result": result
+        }
+        return return_dict        
 
     # ================= HELPERS ================= #
 
