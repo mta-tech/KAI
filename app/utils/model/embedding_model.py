@@ -3,6 +3,7 @@ from typing import Any
 # from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_openai import OpenAIEmbeddings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_ollama import OllamaEmbeddings
 from langchain_core.embeddings import Embeddings
 from overrides import override
 
@@ -37,6 +38,12 @@ class EmbeddingModel(LLMModel):
                 dimensions=dimensions,
                 **kwargs,
             )
+        if model_family == "ollama":
+            return OllamaEmbeddings(
+                model=model_name,
+                base_url=self.settings.require("OLLAMA_API_BASE"),
+                **kwargs,
+            )
 
         # if model_family == "huggingface":
         #     return HuggingFaceEndpointEmbeddings(
@@ -45,7 +52,7 @@ class EmbeddingModel(LLMModel):
         #         huggingfacehub_api_token=self.settings.require(
         #             "HUGGINGFACEHUB_API_TOKEN"
         #         ),
-        #         dimensions=DIMENSIONS,
+        #           dimensions=dimensions,
         #         **kwargs,
         #     )
         raise ValueError("No model family found upon embedding model")
