@@ -8,8 +8,9 @@ from pydantic import Field
 from app.modules.table_description.models import TableDescription
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_tools.column_entity_checker import ColumnEntityChecker
-from app.utils.sql_tools.get_few_shot_examples import GetFewShotExamples
-from app.utils.sql_tools.get_user_instructions import GetUserInstructions
+
+# from app.utils.sql_tools.get_few_shot_examples import GetFewShotExamples
+# from app.utils.sql_tools.get_user_instructions import GetUserInstructions
 from app.utils.sql_tools.info_relevant_columns import InfoRelevantColumns
 from app.utils.sql_tools.query_sql_database import QuerySQLDataBaseTool
 from app.utils.sql_tools.schema_sql_database import SchemaSQLDatabaseTool
