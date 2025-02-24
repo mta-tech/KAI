@@ -326,6 +326,13 @@ class API:
         )
 
         self.router.add_api_route(
+            "/api/v1/sql-generations/{sql_generation_id}/execute-store",
+            self.create_csv_execute_sql_query,
+            methods=["GET"],
+            tags=["SQL Generations"],
+        )
+
+        self.router.add_api_route(
             "/api/v1/sql-generations/{sql_generation_id}/nl-generations",
             self.create_nl_generation,
             methods=["POST"],
@@ -701,9 +708,16 @@ class API:
         )
         return SQLGenerationResponse(**sql_generation.model_dump())
 
-    def execute_sql_query(self, sql_generation_id: str, max_rows: int = 100) -> list:
+    def execute_sql_query(self, sql_generation_id: str, max_rows: int = 100) -> dict:
         """Executes a SQL query against the database and returns the results"""
         return self.sql_generation_service.execute_sql_query(
+            sql_generation_id, max_rows
+        )
+    
+    def create_csv_execute_sql_query(
+        self, sql_generation_id: str, max_rows: int = 100
+    ) -> dict:
+        return self.sql_generation_service.create_csv_execute_sql_query(
             sql_generation_id, max_rows
         )
 
