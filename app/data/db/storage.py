@@ -147,19 +147,31 @@ class Storage(TypeSenseDB):
         if results:
             if results["results"][0]["found"] > 0:
                 hits = results["results"][0]["hits"]
-                # Sort results by rank_fusion_score desc
+
+                # Deduplicate by prompt_text
+                unique_hits = {}
+                for hit in hits:
+                    prompt_text = hit["document"]["prompt_text"].lower()
+                    if prompt_text not in unique_hits:
+                        unique_hits[prompt_text] = hit  # Keep the first occurrence
+
+                # Convert dictionary values back to a list
+                hits = list(unique_hits.values())
+
+                # Sort results by vector_distance asc
                 sorted_hits = sorted(
                     hits,
-                    key=lambda x: x["hybrid_search_info"]["rank_fusion_score"],
-                    reverse=True,
+                    key=lambda x: x["vector_distance"],
+                    reverse=False,
                 )
                 # Take top N results
                 sorted_hits = sorted_hits[:limit]
 
+                # Remapping vector_distance between 0 and 1. Higher is more similar
                 return [
                     {
                         **hit["document"],
-                        "score": hit["hybrid_search_info"]["rank_fusion_score"],
+                        "score": 1 - (hit['vector_distance']/2)
                     }
                     for hit in sorted_hits
                 ]

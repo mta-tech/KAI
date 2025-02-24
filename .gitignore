@@ -83,6 +83,7 @@ app/data/dbdata
 # Ignore sample data
 data_*/
 temp/
+app/data/dbdata/generated_csv/*
 
 app/automation
 
