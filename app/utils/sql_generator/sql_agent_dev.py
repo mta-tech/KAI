@@ -26,12 +26,12 @@ from app.server.config import Settings
 from app.utils.prompts.agent_prompts import (
     ERROR_PARSING_MESSAGE,
     FORMAT_INSTRUCTIONS,
-    PLAN_BASE,
-    PLAN_WITH_FEWSHOT_EXAMPLES,
-    PLAN_WITH_FEWSHOT_EXAMPLES_AND_INSTRUCTIONS,
-    PLAN_WITH_INSTRUCTIONS,
-    SUFFIX_WITH_FEW_SHOT_SAMPLES,
-    SUFFIX_WITHOUT_FEW_SHOT_SAMPLES,
+    # PLAN_BASE,
+    # PLAN_WITH_FEWSHOT_EXAMPLES,
+    # PLAN_WITH_FEWSHOT_EXAMPLES_AND_INSTRUCTIONS,
+    # PLAN_WITH_INSTRUCTIONS,
+    # SUFFIX_WITH_FEW_SHOT_SAMPLES,
+    # SUFFIX_WITHOUT_FEW_SHOT_SAMPLES,
 )
 from app.utils.prompts.agent_prompts_dev import (
     AGENT_PREFIX_DEV,
@@ -43,7 +43,8 @@ from app.utils.prompts.agent_prompts_dev import (
     ADDITIONAL_PROMPT,
 )
 from app.utils.sql_database.sql_database import SQLDatabase
-from app.utils.sql_generator.sql_database_toolkit import SQLDatabaseToolkit
+
+# from app.utils.sql_generator.sql_database_toolkit import SQLDatabaseToolkit
 from app.utils.sql_generator.sql_database_toolkit_dev import SQLDatabaseToolkitDev
 from app.utils.sql_generator.sql_generator import SQLGenerator
 from app.utils.sql_generator.sql_history import SQLHistory
@@ -203,14 +204,14 @@ class FullContextSQLAgent(SQLGenerator):
             number_of_samples = 0
 
         # Get business metrics
-        number_of_metrics = 0
+        # number_of_metrics = 0
         business_metrics = (
             business_metrics_service.retrieve_business_metrics_for_question(user_prompt)
         )
-        if business_metrics is not None:
-            number_of_metrics = len(business_metrics)
+        # if business_metrics is not None:
+        #     number_of_metrics = len(business_metrics)
 
-        number_of_context = number_of_samples + number_of_metrics
+        # number_of_context = number_of_samples + number_of_metrics
 
         logger.info(
             f"Generating SQL response to question: {str(user_prompt.model_dump())}"
