@@ -719,7 +719,7 @@ class API:
         )
         return SQLGenerationResponse(**sql_generation.model_dump())
 
-    def execute_sql_query(self, sql_generation_id: str, max_rows: int = 100) -> dict:
+    def execute_sql_query(self, sql_generation_id: str, max_rows: int = 100) -> list:
         """Executes a SQL query against the database and returns the results"""
         return self.sql_generation_service.execute_sql_query(
             sql_generation_id, max_rows
