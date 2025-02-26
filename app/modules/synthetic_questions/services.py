@@ -12,7 +12,7 @@ from app.modules.context_store.models import ContextStore
 class SyntheticQuestionService:
     def __init__(self, storage: Storage):
         self.storage = storage
-        self.agent = QuestionGenerationAgent()
+        # self.agent = QuestionGenerationAgent()
 
     async def generate_questions(
         self,
