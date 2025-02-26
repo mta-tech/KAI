@@ -22,8 +22,6 @@ services:
       - "8005:8005"
     depends_on:
       - typesense
-    environment:
-      - TYPESENSE_HOST=typesense
     env_file:
       - .env
     pull_policy: never
