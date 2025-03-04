@@ -611,6 +611,17 @@ class API:
     def get_context_store(self, context_store_id: str) -> ContextStoreResponse:
         context_store = self.context_store_service.get_context_store(context_store_id)
         return ContextStoreResponse(**context_store.model_dump())
+    
+    def get_semantic_context_stores(
+        self, context_store_request: SemanticContextStoreRequest
+    ) -> list[dict]:
+        semantic_context_stores = self.context_store_service.get_semantic_context_stores(
+            context_store_request.db_connection_id, context_store_request.prompt_text, context_store_request.top_k
+        )
+        
+        return [
+            context_store for context_store in semantic_context_stores
+        ]
 
     def get_semantic_context_stores(
         self, context_store_request: SemanticContextStoreRequest
@@ -724,6 +735,13 @@ class API:
     def execute_sql_query(self, sql_generation_id: str, max_rows: int = 100) -> list:
         """Executes a SQL query against the database and returns the results"""
         return self.sql_generation_service.execute_sql_query(
+            sql_generation_id, max_rows
+        )
+    
+    def create_csv_execute_sql_query(
+        self, sql_generation_id: str, max_rows: int = 100
+    ) -> dict:
+        return self.sql_generation_service.create_csv_execute_sql_query(
             sql_generation_id, max_rows
         )
 
@@ -867,6 +885,7 @@ class API:
         self, request: SyntheticQuestionRequest
     ) -> SyntheticQuestionResponse:
         questions = await self.synthetic_question_service.generate_questions(
+
             db_connection_id=request.db_connection_id,
             questions_per_batch=request.questions_per_batch,
             num_batches=request.num_batches,

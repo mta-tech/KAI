@@ -76,6 +76,11 @@ class ContextStoreRequest(BaseModel):
     sql: str
     metadata: dict | None = None
 
+class SemanticContextStoreRequest(BaseModel):
+    db_connection_id: str
+    prompt_text: str
+    top_k: int = 3
+
 
 class SemanticContextStoreRequest(BaseModel):
     db_connection_id: str
