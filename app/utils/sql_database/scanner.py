@@ -180,7 +180,24 @@ class TableColumnsDescriptionGenerator:
         ).content
 
         return table_description
+    
+    def reset_table_description(
+            self,
+            table_description: TableDescription,
+            keep_keys: List[str]
+    ) -> TableDescription:
+        default_values = TableDescription(
+            id=table_description.id,
+            db_connection_id=table_description.db_connection_id,
+            db_schema=table_description.db_schema,
+            table_name=table_description.table_name,
+        ).model_dump()
 
+        for key in table_description.model_dump():
+            if key not in keep_keys:
+                setattr(table_description, key, default_values[key])
+
+        return table_description
 
 class SqlAlchemyScanner:
     def create_tables(
@@ -209,6 +226,7 @@ class SqlAlchemyScanner:
         metadata: dict = None,
     ) -> list[TableDescription]:
         rows = []
+        table_description_repo = TableColumnsDescriptionGenerator(llm_config=None)
         for schema, tables in schemas_and_tables.items():
             stored_tables = repository.find_by(
                 {"db_connection_id": str(db_connection_id), "db_schema": schema}
@@ -216,17 +234,26 @@ class SqlAlchemyScanner:
             stored_tables_list = [table.table_name for table in stored_tables]
 
             for table_description in stored_tables:
+                table_description = table_description_repo.reset_table_description(
+                    table_description,
+                    keep_keys=["id", "db_connection_id", "db_schema", "table_name"]
+                )
+                # If source table not exist but exist in Typesense
                 if table_description.table_name not in tables:
+                    table_description = repository.delete_by_id(table_description.id)
                     table_description.sync_status = (
                         TableDescriptionStatus.DEPRECATED.value
                     )
-                    rows.append(repository.save_table_info(table_description))
+                    rows.append(table_description)
                 else:
-                    rows.append(TableDescription(**table_description.model_dump()))
-
+                    table_description.sync_status = (
+                        TableDescriptionStatus.NOT_SCANNED.value
+                    )
+                    rows.append(repository.save_table_info(table_description))
+            
             for table in tables:
+                # Add if source table not stored in Typesense
                 if table not in stored_tables_list:
-                    print(table)
                     rows.append(
                         repository.save_table_info(
                             TableDescription(

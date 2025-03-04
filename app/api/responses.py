@@ -71,6 +71,10 @@ class DocumentResponse(BaseResponse):
     document_size: int
     text_content: str | None = None
 
+class SyntheticQuestionResponse(BaseModel):
+    questions: list[str]
+    metadata: dict | None = None
+
 class RetrieveKnowledgeResponse(BaseModel):
     final_answer: str=Field(alias="Final Answer")
     input_tokens_used: int

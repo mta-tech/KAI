@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     APP_PORT: int
     APP_ENABLE_HOT_RELOAD: bool
 
+    GENERATED_CSV_PATH: str | None
+
     TYPESENSE_API_KEY: str
     TYPESENSE_HOST: str
     TYPESENSE_PORT: int

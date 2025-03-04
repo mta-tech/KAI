@@ -8,9 +8,6 @@ from pydantic import Field
 from app.modules.table_description.models import TableDescription
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_tools.column_entity_checker import ColumnEntityChecker
-
-# from app.utils.sql_tools.get_few_shot_examples import GetFewShotExamples
-# from app.utils.sql_tools.get_user_instructions import GetUserInstructions
 from app.utils.sql_tools.info_relevant_columns import InfoRelevantColumns
 from app.utils.sql_tools.query_sql_database import QuerySQLDataBaseTool
 from app.utils.sql_tools.schema_sql_database import SchemaSQLDatabaseTool
@@ -18,17 +15,14 @@ from app.utils.sql_tools.system_time import SystemTime
 from app.utils.sql_tools.tables_sql_database import TablesSQLDatabaseTool
 
 
-class SQLDatabaseToolkitDev(BaseToolkit):
-    """Available toolkit"""
+class QuestionDatabaseToolkit(BaseToolkit):
+    """Available DB toolkit to generate context for question generation."""
 
     db: SQLDatabase = Field(exclude=True)
-    context: List[dict] | None = Field(exclude=True, default=None)
-    few_shot_examples: List[dict] | None = Field(exclude=True, default=None)
-    business_metrics: List[dict] | None = Field(exclude=True, default=None)
-    instructions: List[dict] | None = Field(exclude=True, default=None)
     db_scan: List[TableDescription] = Field(exclude=True)
     embedding: Embeddings = Field(exclude=True)
     is_multiple_schema: bool = False
+    is_check_sql: bool = False
 
     @property
     def dialect(self) -> str:
@@ -43,14 +37,13 @@ class SQLDatabaseToolkitDev(BaseToolkit):
     def get_tools(self) -> List[BaseTool]:
         """Get the tools in the toolkit."""
         tools = []
-        query_sql_db_tool = QuerySQLDataBaseTool(db=self.db, context=self.context)
-        tools.append(query_sql_db_tool)
+        if self.is_check_sql:
+            query_sql_db_tool = QuerySQLDataBaseTool(db=self.db)
+            tools.append(query_sql_db_tool)
         get_current_datetime = SystemTime()
         tools.append(get_current_datetime)
         tables_sql_db_tool = TablesSQLDatabaseTool(
-            db_scan=self.db_scan,
-            embedding=self.embedding,
-            few_shot_examples=self.few_shot_examples,
+            db_scan=self.db_scan, embedding=self.embedding
         )
         tools.append(tables_sql_db_tool)
         schema_sql_db_tool = SchemaSQLDatabaseTool(db_scan=self.db_scan)
@@ -59,7 +52,6 @@ class SQLDatabaseToolkitDev(BaseToolkit):
         tools.append(info_relevant_tool)
         column_sample_tool = ColumnEntityChecker(
             db=self.db,
-            context=self.context,
             db_scan=self.db_scan,
             is_multiple_schema=self.is_multiple_schema,
         )

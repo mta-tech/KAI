@@ -190,6 +190,22 @@ The SQL Generation API allows you to manage SQL queries generated from natural l
 }
 ```
 
+#### 6. Execute SQL Query and Store to CSV
+
+**Endpoint:** `/api/v1/sql-generations/{sql_generation_id}/store-execute`\
+**Method:** `GET`\
+**Description:** Executes the SQL query associated with the specified SQL generation and store the result as csv file.
+
+**Response:**
+
+```json
+{
+    "id": "string",
+    "file_path": "string",
+    "result": "dict"
+}
+```
+
 ### Example Usage
 
 #### Creating a SQL Generation
@@ -354,6 +370,35 @@ To execute the SQL query associated with a specific SQL generation, send a `GET`
 
 ```http
 GET /api/v1/sql-generations/sqlgen456/execute
+```
+
+**Response:**
+
+```json
+{
+    "id": "sqlgen456",
+    "file_path": "app\\data\\dbdata\\generated_csv\\sqlgen456.csv",
+    "result": [
+        {
+        "blod_type": "A",
+        "count": "15"
+        },
+        {
+        "blood_type": "AB",
+        "count": "37"
+        }
+    ]
+}
+```
+
+#### Executing a SQL Query and Store Into CSV
+
+To execute the SQL query associated with a specific SQL generation and store into csv, send a `GET` request to `/api/v1/sql-generations/{sql_generation_id}/store-execute`:
+
+**Request:**
+
+```http
+GET /api/v1/sql-generations/sqlgen456/store-execute
 ```
 
 **Response:**

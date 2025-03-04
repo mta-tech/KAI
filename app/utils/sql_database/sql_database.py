@@ -204,19 +204,31 @@ class SQLDatabase:
         If the statement returns no rows, an empty string is returned.
         """
 
-        def serialize_row(row: Row) -> dict:
-            return dict(row._mapping)
+        def serialize_row(result: list) -> dict:
+            # Handle duplicate field names
+            unique_fields = []
+            counter = {}
+
+            for field in result[0]._fields:
+                if field in counter:
+                    counter[field] += 1
+                    unique_fields.append(f"{field}{counter[field]}")
+                else:
+                    counter[field] = 1
+                    unique_fields.append(field)
+
+            return [dict(zip(unique_fields, values)) for values in result]
 
         with self._engine.connect() as connection:
             command = self.parser_to_filter_commands(command)
             cursor = connection.execute(text(command))
             if cursor.returns_rows and top_k:
                 result = cursor.fetchmany(top_k)
-                serialized_result = [serialize_row(row) for row in result]
+                serialized_result = serialize_row(result)
                 return str(serialized_result), {"result": serialized_result}
             if cursor.returns_rows:
                 result = cursor.fetchall()
-                serialized_result = [serialize_row(row) for row in result]
+                serialized_result = serialize_row(result)
                 return str(serialized_result), {"result": serialized_result}
         return "", {}
 

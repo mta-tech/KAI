@@ -8,6 +8,7 @@ from fastapi import BackgroundTasks, File, HTTPException, UploadFile
 from app.api.requests import (
     BusinessGlossaryRequest,
     ContextStoreRequest,
+    SemanticContextStoreRequest,
     DatabaseConnectionRequest,
     InstructionRequest,
     NLGenerationRequest,
@@ -23,6 +24,7 @@ from app.api.requests import (
     UpdateMetadataRequest,
     TextRequest,
     EmbeddingRequest,
+    SyntheticQuestionRequest,
 )
 from app.api.responses import (
     BusinessGlossaryResponse,
@@ -34,7 +36,8 @@ from app.api.responses import (
     SQLGenerationResponse,
     TableDescriptionResponse,
     DocumentResponse,
-    RetrieveKnowledgeResponse
+    RetrieveKnowledgeResponse,
+    SyntheticQuestionResponse,
 )
 from app.data.db.storage import Storage
 from app.modules.business_glossary.services import BusinessGlossaryService
@@ -45,8 +48,9 @@ from app.modules.nl_generation.services import NLGenerationService
 from app.modules.prompt.services import PromptService
 from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.table_description.services import TableDescriptionService
-from app.utils.sql_database.scanner import SqlAlchemyScanner
 from app.modules.rag.services import DocumentService, EmbeddingService
+from app.modules.synthetic_questions.services import SyntheticQuestionService
+from app.utils.sql_database.scanner import SqlAlchemyScanner
 
 
 class API:
@@ -65,6 +69,7 @@ class API:
         self.nl_generation_service = NLGenerationService(self.storage)
         self.document_service = DocumentService(self.storage)
         self.embedding_service = EmbeddingService(self.storage)
+        self.synthetic_question_service = SyntheticQuestionService(self.storage)
 
         self._register_routes()
 
@@ -201,6 +206,14 @@ class API:
         )
 
         self.router.add_api_route(
+            "/api/v1/context-stores/semantic-search",
+            self.get_semantic_context_stores,
+            methods=["POST"],
+            status_code=201,
+            tags=["Context Stores"],
+        )
+
+        self.router.add_api_route(
             "/api/v1/context-stores/{context_store_id}",
             self.delete_context_store,
             methods=["DELETE"],
@@ -317,6 +330,13 @@ class API:
         )
 
         self.router.add_api_route(
+            "/api/v1/sql-generations/{sql_generation_id}/execute-store",
+            self.create_csv_execute_sql_query,
+            methods=["GET"],
+            tags=["SQL Generations"],
+        )
+
+        self.router.add_api_route(
             "/api/v1/sql-generations/{sql_generation_id}/nl-generations",
             self.create_nl_generation,
             methods=["POST"],
@@ -410,6 +430,13 @@ class API:
             self.retrieve_knowledge,
             methods=["GET"],
             tags=["RAGs"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/synthetic-questions",
+            self.generate_synthetic_questions,
+            methods=["POST"],
+            tags=["Question Generation"],
         )
 
     def get_router(self) -> fastapi.APIRouter:
@@ -584,6 +611,17 @@ class API:
     def get_context_store(self, context_store_id: str) -> ContextStoreResponse:
         context_store = self.context_store_service.get_context_store(context_store_id)
         return ContextStoreResponse(**context_store.model_dump())
+    
+    def get_semantic_context_stores(
+        self, context_store_request: SemanticContextStoreRequest
+    ) -> list[dict]:
+        semantic_context_stores = self.context_store_service.get_semantic_context_stores(
+            context_store_request.db_connection_id, context_store_request.prompt_text, context_store_request.top_k
+        )
+        
+        return [
+            context_store for context_store in semantic_context_stores
+        ]
 
     def delete_context_store(self, context_store_id: str) -> dict:
         try:
@@ -684,6 +722,13 @@ class API:
     def execute_sql_query(self, sql_generation_id: str, max_rows: int = 100) -> list:
         """Executes a SQL query against the database and returns the results"""
         return self.sql_generation_service.execute_sql_query(
+            sql_generation_id, max_rows
+        )
+    
+    def create_csv_execute_sql_query(
+        self, sql_generation_id: str, max_rows: int = 100
+    ) -> dict:
+        return self.sql_generation_service.create_csv_execute_sql_query(
             sql_generation_id, max_rows
         )
 
@@ -815,3 +860,15 @@ class API:
         response_dict = response.model_dump()
         response_dict["Final Answer"] = response_dict.pop("final_answer")
         return response_dict
+
+    async def generate_synthetic_questions(
+        self, request: SyntheticQuestionRequest
+    ) -> SyntheticQuestionResponse:
+        questions = self.synthetic_question_service.generate_questions(
+            db_connection_id=request.db_connection_id,
+            questions_per_batch=request.questions_per_batch,
+            num_batches=request.num_batches,
+            peeking_context_stores=request.peeking_context_stores,
+            evaluate=request.evaluate
+        )
+        return SyntheticQuestionResponse(questions=questions, metadata=request.metadata)

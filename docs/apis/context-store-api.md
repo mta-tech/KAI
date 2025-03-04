@@ -74,7 +74,23 @@
 }
 ```
 
-#### 4. Update a Context Store
+#### 4. Retrieve Similar Context Stores
+
+**Endpoint:** `/api/v1/context-stores/semantic-search`\
+**Method:** `POST`\
+**Description:** Retrieves the details of `top k` most similar context store entries excluding the exact match.
+
+**Response:**
+
+```json
+{
+    "db_connection_id": "string",
+    "prompt": "string",
+    "top_k": "int"
+}
+```
+
+#### 5. Update a Context Store
 
 **Endpoint:** `/api/v1/context-stores/{context_store_id}`\
 **Method:** `PUT`\
@@ -103,7 +119,7 @@
 }
 ```
 
-#### 5. Delete a Context Store
+#### 6. Delete a Context Store
 
 **Endpoint:** `/api/v1/context-stores/{context_store_id}`\
 **Method:** `DELETE`\
@@ -201,6 +217,35 @@ GET /api/v1/context-stores/ctx123
     "metadata": {"created_by": "admin"},
     "created_at": "2024-09-09T12:34:56Z"
 }
+```
+
+#### Retrieving Similar Context Stores
+
+To retrieve a specific context store, send a `POST` request to `/api/v1/context-stores/semantic-search`:
+
+**Request:**
+
+```http
+POST /api/v1/context-stores/semantic-search
+Content-Type: application/json
+
+{
+    "db_connection_id": "db123"
+    "prompt": How many regency in,
+    "top_k": 3
+}
+```
+
+**Response:**
+
+```json
+[
+    {
+        "prompt_text": "How many regency in Kutai?",
+        "sql": "SELECT SUM(amount) AS revenue FROM sales",
+        "score": "0.8117260634899139"
+    }
+]
 ```
 
 #### Updating a Context Store

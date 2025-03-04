@@ -76,6 +76,11 @@ class ContextStoreRequest(BaseModel):
     sql: str
     metadata: dict | None = None
 
+class SemanticContextStoreRequest(BaseModel):
+    db_connection_id: str
+    prompt_text: str
+    top_k: int = 3
+
 
 class UpdateContextStoreRequest(BaseModel):
     prompt_text: Optional[str] = None
@@ -85,6 +90,7 @@ class UpdateContextStoreRequest(BaseModel):
 
 class SQLGenerationRequest(BaseModel):
     llm_config: LLMConfig | None
+    using_ner: bool = False
     evaluate: bool = False
     sql: str | None = None
     metadata: dict | None = None
@@ -139,4 +145,13 @@ class EmbeddingRequest(BaseModel):
     document_id: str
     title: str | None = None
     text_content: str
+    metadata: dict | None = None
+
+
+class SyntheticQuestionRequest(BaseModel):
+    db_connection_id: str
+    questions_per_batch: int = 5
+    num_batches: int = 1
+    peeking_context_stores: bool = False
+    evaluate: bool = False
     metadata: dict | None = None
