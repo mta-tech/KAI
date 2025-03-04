@@ -3,6 +3,7 @@ from typing import Any
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.chat_models.base import BaseChatModel
 from overrides import override
 
 from app.modules.database_connection.models import DatabaseConnection
@@ -18,7 +19,7 @@ class ChatModel(LLMModel):
         model_name="gpt-4o-mini",
         api_base: str | None = None,
         **kwargs: Any,
-    ) -> Any:
+    ) -> BaseChatModel:
         if model_family == "openai":
             return ChatOpenAI(
                 model_name=model_name,
