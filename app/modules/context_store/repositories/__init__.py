@@ -31,7 +31,7 @@ class ContextStoreRepository:
     def find_by_prompt(
         self, db_connection_id: str, prompt_text: str
     ) -> ContextStore | None:
-        row = self.storage.find_one(
+        row = self.storage.find_exactly_one(
             DB_COLLECTION,
             {"db_connection_id": db_connection_id, "prompt_text": prompt_text},
         )
@@ -79,12 +79,9 @@ class ContextStoreRepository:
                     }
                 )
         return result
-    
+
     def find_by_prompt_ner(
-        self,
-        db_connection_id: str,
-        prompt_text_ner: str,
-        filter_by: dict = None
+        self, db_connection_id: str, prompt_text_ner: str, filter_by: dict = None
     ) -> list | None:
         self.storage.ensure_collection_exists(DB_COLLECTION)
 
@@ -113,21 +110,23 @@ class ContextStoreRepository:
         results = self.storage.client.multi_search.perform(
             search_requests, common_search_params
         )
-        
+
         result = []
         if results:
             if results["results"][0]["found"] > 0:
                 hits = results["results"][0]["hits"]
                 for row in hits:
-                    score = SequenceMatcher(None, row['document']["prompt_text_ner"], prompt_text_ner).ratio()
+                    score = SequenceMatcher(
+                        None, row["document"]["prompt_text_ner"], prompt_text_ner
+                    ).ratio()
                     print("Score similarity:", score)
-                    if  score >= 0.95:
+                    if score >= 0.95:
                         print("Cached HIT!")
                         result.append(
                             {
-                                "prompt_text": row['document']["prompt_text"],
-                                "prompt_text_ner": row['document']["prompt_text_ner"],
-                                "sql": row['document']["sql"],
+                                "prompt_text": row["document"]["prompt_text"],
+                                "prompt_text_ner": row["document"]["prompt_text_ner"],
+                                "sql": row["document"]["sql"],
                                 "score": score,
                             }
                         )
