@@ -23,6 +23,7 @@ from app.utils.model.chat_model import ChatModel
 from app.utils.prompts.agent_prompts import (
     COLUMN_DESCRIPTION_PROMPT,
     TABLE_DESCRIPTION_PROMPT,
+    TABLE_DESCRIPTION_INSTRUCTION,
 )
 
 MIN_CATEGORY_VALUE = 1
@@ -83,8 +84,13 @@ class TableColumnsDescriptionGenerator:
         self.llm_config = llm_config
         self.model = ChatModel()
 
-    def create_chain(self, prompt_template: str) -> Any:
-        prompt = ChatPromptTemplate.from_messages([("user", prompt_template)])
+    def create_chain(self, prompt_template: str, instruction: str) -> Any:
+        if instruction and len(instruction) > 10:
+            prompt_template = prompt_template + TABLE_DESCRIPTION_INSTRUCTION.format(instruction=instruction)
+
+        prompt = ChatPromptTemplate.from_messages(
+            [("user", prompt_template)]
+        )
 
         # Get the appropriate LLM model using ChatModel
         llm_model = self.model.get_model(
@@ -92,7 +98,7 @@ class TableColumnsDescriptionGenerator:
             model_family=self.llm_config.model_family,
             model_name=self.llm_config.model_name,
             api_base=self.llm_config.api_base,
-            temperature=0.2,
+            temperature=0.5,
             max_retries=2,
             max_tokens=128,
         )
@@ -140,11 +146,15 @@ class TableColumnsDescriptionGenerator:
         return column_descriptions
 
     def get_column_description(
-        self, meta: MetaData, db_engine: Engine, table: str, rows_number: int = 5
+        self,
+        meta: MetaData,
+        db_engine: Engine,
+        table: str,
+        rows_number: int = 5,
+        instruction: str = '',
     ) -> List[Dict[str, Any]]:
         print(f"Generate column descriptions table: {table}")
-
-        chain = self.create_chain(COLUMN_DESCRIPTION_PROMPT)
+        chain = self.create_chain(COLUMN_DESCRIPTION_PROMPT, instruction)
 
         columns = [col for col in meta.tables[table].columns if "." not in col.name]
         examples_query = sqlalchemy.select(*columns).distinct().limit(rows_number)
@@ -165,11 +175,13 @@ class TableColumnsDescriptionGenerator:
     def get_table_description(
         self,
         table: str,
-        columns_description,
+        columns_description: dict,
+        instruction: str,
     ) -> str:
         print(f"Generate table description: {table}")
-
-        chain = self.create_chain(TABLE_DESCRIPTION_PROMPT)
+        chain = self.create_chain(
+            TABLE_DESCRIPTION_PROMPT, instruction
+        )
 
         table_details = "\n".join(
             f"{key}: {value}" for key, value in columns_description.items()
@@ -423,6 +435,7 @@ class SqlAlchemyScanner:
         scanner_service: PostgreSqlScanner,
         schema: str | None = None,
         llm_config: LLMConfig = None,
+        instruction: str = '',
     ) -> TableDescription:
         print(f"Scanning table: {table_name}")
         inspector = inspect(db_engine)
@@ -454,11 +467,11 @@ class SqlAlchemyScanner:
         if llm_config:
             table_columns_descriptions = TableColumnsDescriptionGenerator(llm_config)
             columns_description = table_columns_descriptions.get_column_description(
-                meta=meta, db_engine=db_engine, table=table_name, rows_number=5
+                meta=meta, db_engine=db_engine, table=table_name, rows_number=5, instruction=instruction
             )
 
             table_description = table_columns_descriptions.get_table_description(
-                table=table_name, columns_description=columns_description
+                table=table_name, columns_description=columns_description, instruction=instruction
             )
 
             for column in table_columns:
@@ -480,6 +493,7 @@ class SqlAlchemyScanner:
             error_message="",
             sync_status=TableDescriptionStatus.SCANNED.value,
             db_schema=schema,
+            instruction=instruction,
         )
 
         repository.save_table_info(object)
@@ -491,6 +505,7 @@ class SqlAlchemyScanner:
         table_descriptions: list[TableDescription],
         repository: TableDescriptionRepository,
         llm_config: LLMConfig = None,
+        instruction: str = ''
     ) -> None:
         scanner_service = PostgreSqlScanner()
 
@@ -510,6 +525,7 @@ class SqlAlchemyScanner:
                     scanner_service=scanner_service,
                     schema=table.db_schema,
                     llm_config=llm_config,
+                    instruction=instruction,
                 )
             except Exception as e:
                 raise e

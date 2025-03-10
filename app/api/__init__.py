@@ -745,13 +745,6 @@ class API:
             sql_generation_id, max_rows
         )
 
-    def create_csv_execute_sql_query(
-        self, sql_generation_id: str, max_rows: int = 100
-    ) -> dict:
-        return self.sql_generation_service.create_csv_execute_sql_query(
-            sql_generation_id, max_rows
-        )
-
     def create_nl_generation(
         self, sql_generation_id: str, nl_generation_request: NLGenerationRequest
     ) -> NLGenerationResponse:

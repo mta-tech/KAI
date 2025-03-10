@@ -43,3 +43,4 @@ class TableDescription(BaseModel):
     error_message: str | None = None
     metadata: dict | None = None
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    instruction: str | None = ''
