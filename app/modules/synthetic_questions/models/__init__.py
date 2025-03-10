@@ -18,9 +18,11 @@ class QuestionSQLPair(BaseModel):
     metadata: dict | None = None
 
 
-class QuestionGeneration(BaseModel):
+class QuestionGenerationConfig(BaseModel):
     """
-    Represents a question generation attempt, including configuration and results.
+    Represents a question generation configuration and results.
+    This class contains both the configuration parameters for question generation
+    and stores the generated question-SQL pairs.
     """
 
     id: UUID = Field(default_factory=uuid4)
@@ -30,9 +32,8 @@ class QuestionGeneration(BaseModel):
     num_batches: int = 1
     peeking_context_stores: bool = False
     evaluate: bool = False
-    question_sql_pairs: list[QuestionSQLPair] = []
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     metadata: dict | None = None
 
 
-__all__ = ["QuestionGeneration", "QuestionSQLPair", "LLMConfig"]
+__all__ = ["QuestionGenerationConfig", "QuestionSQLPair", "LLMConfig"]

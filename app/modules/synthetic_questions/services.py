@@ -1,6 +1,9 @@
 from typing import List
 from app.data.db.storage import Storage
-from app.modules.synthetic_questions.models import QuestionGeneration, QuestionSQLPair
+from app.modules.synthetic_questions.models import (
+    QuestionGenerationConfig,
+    QuestionSQLPair,
+)
 from app.utils.question_generator.question_agent import QuestionGenerationAgent
 from app.modules.table_description.models import TableDescription
 from app.modules.table_description.models import (
@@ -12,7 +15,7 @@ from app.modules.context_store.models import ContextStore
 class SyntheticQuestionService:
     def __init__(self, storage: Storage):
         self.storage = storage
-        # self.agent = QuestionGenerationAgent()
+        self.agent = QuestionGenerationAgent()
 
     async def generate_questions(
         self,
@@ -22,9 +25,12 @@ class SyntheticQuestionService:
         peeking_context_stores: bool = False,
         evaluate: bool = False,
         llm_config=None,
-    ) -> List[str]:
+    ) -> List[QuestionSQLPair]:
         """
         Generate synthetic questions based on database schema and optionally context stores.
+
+        This method runs multiple question generation agents in parallel, one for each batch.
+        Each agent will generate 'questions_per_batch' questions independently.
 
         Args:
             db_connection_id (str): ID of the database connection to use for context
@@ -45,45 +51,68 @@ class SyntheticQuestionService:
             raise ValueError(f"Database connection {db_connection_id} not found")
 
         # Get table descriptions for context
-        table_descriptions = self.storage.find(
+        table_descriptions_data = self.storage.find(
             collection="table_descriptions",
             filter={
                 "db_connection_id": db_connection_id,
                 "sync_status": TableDescriptionStatus.SCANNED.value,
             },
         )
-        if not table_descriptions:
+        if not table_descriptions_data:
             raise ValueError(
                 f"Table descriptions for database connection {db_connection_id} not found or not scanned"
             )
 
-        table_descriptions = [TableDescription(**row) for row in table_descriptions]
+        # Convert raw data to TableDescription objects
+        table_descriptions = [
+            TableDescription(**row) for row in table_descriptions_data
+        ]
 
         # Get context stores if enabled
         context_stores = []
         if peeking_context_stores:
-            context_stores = self.storage.find(
+            context_stores_data = self.storage.find(
                 collection="context_stores",
                 filter={"db_connection_id": db_connection_id},
             )
-        context_stores = [ContextStore(**row) for row in context_stores]
+            context_stores = [ContextStore(**row) for row in context_stores_data]
 
-        # Create question generation configuration
-        question_generation = QuestionGeneration(
-            db_connection_id=db_connection_id,
-            llm_config=llm_config,
-            questions_per_batch=questions_per_batch,
-            num_batches=num_batches,
-            peeking_context_stores=peeking_context_stores,
-            evaluate=evaluate,
-        )
+        # Create tasks to run agents in parallel
+        tasks = []
+        for batch_index in range(num_batches):
+            # Create a question generation configuration for this batch
+            # Each batch will have a single iteration (num_batches=1)
+            question_generation_config = QuestionGenerationConfig(
+                db_connection_id=db_connection_id,
+                llm_config=llm_config,
+                questions_per_batch=questions_per_batch,
+                num_batches=1,  # Each agent handles just one batch
+                peeking_context_stores=peeking_context_stores,
+                evaluate=evaluate,
+            )
 
-        # Run the question generation agent
-        result = await self.agent.run(
-            question_generation=question_generation,
-            table_descriptions=table_descriptions,
-            context_stores=context_stores,
-        )
+            # Create a new agent for each batch to ensure parallel processing
+            agent = QuestionGenerationAgent()
 
-        # Extract just the questions from the question-SQL pairs
-        return [pair.question for pair in result.question_sql_pairs]
+            # Add the task to the list
+            tasks.append(
+                agent.run(
+                    question_generation_config=question_generation_config,
+                    table_descriptions=table_descriptions,
+                    context_stores=context_stores,
+                )
+            )
+
+        # Run all tasks in parallel and wait for all to complete
+        import asyncio
+
+        print(f"Starting {num_batches} question generation agents in parallel")
+        results = await asyncio.gather(*tasks)
+
+        # Combine all questions from all batches
+        all_questions = []
+        for question_sql_pairs in results:
+            all_questions.extend([pair.question for pair in question_sql_pairs])
+
+        print(f"Generated a total of {len(all_questions)} questions")
+        return all_questions

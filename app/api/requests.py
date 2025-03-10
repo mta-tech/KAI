@@ -82,6 +82,12 @@ class SemanticContextStoreRequest(BaseModel):
     top_k: int = 3
 
 
+class SemanticContextStoreRequest(BaseModel):
+    db_connection_id: str
+    prompt_text: str
+    top_k: int = 3
+
+
 class UpdateContextStoreRequest(BaseModel):
     prompt_text: Optional[str] = None
     sql: Optional[str] = None
@@ -150,6 +156,7 @@ class EmbeddingRequest(BaseModel):
 
 class SyntheticQuestionRequest(BaseModel):
     db_connection_id: str
+    llm_config: LLMConfig | None
     questions_per_batch: int = 5
     num_batches: int = 1
     peeking_context_stores: bool = False
