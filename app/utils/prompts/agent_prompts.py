@@ -178,6 +178,11 @@ You are an assistant that generates clear and concise description of tables. I h
 Provide a one-sentence description that explains the overall purpose and context of this table. Focus on what the table represents as a whole, without detailing and mentioning each column. Do not mention the table name or phrase like "This table" as intro in the description.
 """
 
+TABLE_DESCRIPTION_INSTRUCTION = """
+This instruction is top priority. You must follow this instruction:
+{instruction}
+"""
+
 NER_PROMPTS = """
     You are an SQL agent that can convert text to sql. I give you information as follows:
     1. Existing prompt. Existing prompt is natural language query that can be converted into SQL query

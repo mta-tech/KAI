@@ -16,6 +16,11 @@
             "type": "string"
         },
         {
+            "name": "instruction",
+            "type": "string",
+            "optional": true
+        },
+        {
             "name": "table_name",
             "type": "string"
         },

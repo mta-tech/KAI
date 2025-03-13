@@ -8,6 +8,7 @@ from fastapi import BackgroundTasks, File, HTTPException, UploadFile
 from app.api.requests import (
     BusinessGlossaryRequest,
     ContextStoreRequest,
+    GetContextStoreByNameRequest,
     SemanticContextStoreRequest,
     DatabaseConnectionRequest,
     InstructionRequest,
@@ -205,6 +206,12 @@ class API:
             tags=["Context Stores"],
         )
 
+        self.router.add_api_route(
+            "/api/v1/context-stores/get-by-prompt",
+            self.get_context_store_by_prompt,
+            methods=["POST"],
+            tags=["Context Stores"],
+        )
         self.router.add_api_route(
             "/api/v1/context-stores/semantic-search",
             self.get_semantic_context_stores,
@@ -612,6 +619,17 @@ class API:
         context_store = self.context_store_service.get_context_store(context_store_id)
         return ContextStoreResponse(**context_store.model_dump())
 
+    def get_context_store_by_prompt(
+        self, context_store_request: GetContextStoreByNameRequest
+    ) -> list[ContextStoreResponse]:
+        context_stores = self.context_store_service.get_context_stores_by_prompt(
+            context_store_request.db_connection_id, context_store_request.prompt_text
+        )
+        return [
+            ContextStoreResponse(**context_store.model_dump())
+            for context_store in context_stores
+        ]
+
     def get_semantic_context_stores(
         self, context_store_request: SemanticContextStoreRequest
     ) -> list[dict]:
@@ -724,13 +742,6 @@ class API:
     def execute_sql_query(self, sql_generation_id: str, max_rows: int = 100) -> list:
         """Executes a SQL query against the database and returns the results"""
         return self.sql_generation_service.execute_sql_query(
-            sql_generation_id, max_rows
-        )
-
-    def create_csv_execute_sql_query(
-        self, sql_generation_id: str, max_rows: int = 100
-    ) -> dict:
-        return self.sql_generation_service.create_csv_execute_sql_query(
             sql_generation_id, max_rows
         )
 

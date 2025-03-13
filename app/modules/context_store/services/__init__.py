@@ -21,7 +21,7 @@ from app.utils.prompts_ner.prompts_ner import (
     request_ner_llm,
     get_labels_entities,
     # get_prompt_text_ner
-    replace_entities_with_labels
+    replace_entities_with_labels,
 )
 
 load_dotenv()
@@ -72,38 +72,38 @@ class ContextStoreService:
             context_store_request.prompt_text
         )
         prompt_text_ner = context_store_request.prompt_text
-        labels_entities = {
-            'entities':[],
-            'labels':[]
-        }
+        labels_entities = {"entities": [], "labels": []}
         try:
             llm_model = ChatModel().get_model(
-                        database_connection=None,
-                        model_family=os.getenv("CHAT_FAMILY"),
-                        model_name=os.getenv("CHAT_MODEL"),
-                        api_base=None,
-                        temperature=0,
-                        max_retries=2
-                    )
+                database_connection=None,
+                model_family=os.getenv("CHAT_FAMILY"),
+                model_name=os.getenv("CHAT_MODEL"),
+                api_base=None,
+                temperature=0,
+                max_retries=2,
+            )
             labels = get_ner_labels(context_store_request.prompt_text)
             if labels:
                 # labels_entities_ner = request_ner_service(context_store_request.prompt_text, labels)
-                labels_entities_ner = request_ner_llm(llm_model, context_store_request.prompt_text, labels)
+                labels_entities_ner = request_ner_llm(
+                    llm_model, context_store_request.prompt_text, labels
+                )
                 # prompt_text_ner = get_prompt_text_ner(context_store_request.prompt_text, labels_entities_ner)
                 if labels_entities_ner[0]:
-                    prompt_text_ner = replace_entities_with_labels(context_store_request.prompt_text, labels_entities_ner)
+                    prompt_text_ner = replace_entities_with_labels(
+                        context_store_request.prompt_text, labels_entities_ner
+                    )
                     labels_entities = get_labels_entities(labels_entities_ner)
         except Exception as e:
             print(e)
             pass
 
-
         context_store = ContextStore(
             db_connection_id=context_store_request.db_connection_id,
             prompt_text=context_store_request.prompt_text,
             prompt_text_ner=prompt_text_ner,
-            entities=labels_entities['entities'],
-            labels=labels_entities['labels'],
+            entities=labels_entities["entities"],
+            labels=labels_entities["labels"],
             prompt_embedding=prompt_embedding,
             sql=context_store_request.sql,
             metadata=context_store_request.metadata,
@@ -119,9 +119,15 @@ class ContextStoreService:
     def get_context_stores(self, db_connection_id) -> list[ContextStore]:
         filter = {"db_connection_id": db_connection_id}
         return self.repository.find_by(filter)
-    
+
+    def get_context_stores_by_prompt(
+        self, db_connection_id: str, prompt_text: str
+    ) -> list[ContextStore]:
+        filter = {"db_connection_id": db_connection_id, "prompt_text": prompt_text}
+        return self.repository.find_by(filter)
+
     def get_semantic_context_stores(
-            self, db_connection_id: str, prompt: str, top_k: int
+        self, db_connection_id: str, prompt: str, top_k: int
     ) -> list[ContextStore]:
         embedding_model = EmbeddingModel().get_model()
         prompt_embedding = embedding_model.embed_query(prompt)
@@ -130,18 +136,18 @@ class ContextStoreService:
             db_connection_id=db_connection_id,
             prompt_text=prompt,
             prompt_embedding=prompt_embedding,
-            limit=top_k+1,
-            alpha=1.0
+            limit=top_k + 1,
+            alpha=1.0,
         )
 
         # Exclude the exact match
         semantic_contexts = [
             context
             for context in semantic_contexts
-            if context['prompt_text'].lower() != prompt.lower()
-            and context['score'] < 0.99
+            if context["prompt_text"].lower() != prompt.lower()
+            and context["score"] < 0.99
         ][:top_k]
-        
+
         return semantic_contexts
 
     def update_context_store(
@@ -172,12 +178,12 @@ class ContextStoreService:
     def retrieve_exact_prompt(self, db_connection_id, prompt) -> ContextStore:
         return self.repository.find_by_prompt(db_connection_id, prompt)
 
-    def retrieve_exact_prompt_ner(self, db_connection_id, prompt_text_ner, filter_by) -> ContextStore:
+    def retrieve_exact_prompt_ner(
+        self, db_connection_id, prompt_text_ner, filter_by
+    ) -> ContextStore:
         return self.repository.find_by_prompt_ner(
-                db_connection_id,
-                prompt_text_ner,
-                filter_by
-            )
+            db_connection_id, prompt_text_ner, filter_by
+        )
 
     def retrieve_context_for_question(self, prompt: Prompt) -> list[dict]:
         logger.info(f"Getting context for {prompt.text}")

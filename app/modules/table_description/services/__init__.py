@@ -9,8 +9,17 @@ from app.modules.table_description.repositories import TableDescriptionRepositor
 from app.utils.sql_database.scanner import SqlAlchemyScanner
 
 
-def async_scanning(scanner: SqlAlchemyScanner, engine, table_descriptions, storage, llm_config):
-    scanner.scan(engine, table_descriptions, TableDescriptionRepository(storage), llm_config)
+def async_scanning(
+    scanner: SqlAlchemyScanner,
+    engine,
+    table_descriptions,
+    storage,
+    llm_config,
+    instruction,
+) -> None:
+    scanner.scan(
+        engine, table_descriptions, TableDescriptionRepository(storage), llm_config, instruction
+    )
 
 
 class TableDescriptionService:
@@ -61,7 +70,7 @@ class TableDescriptionService:
                 engine = database.engine
 
                 background_tasks.add_task(
-                    async_scanning, scanner, engine, table_descriptions, self.storage, scanner_request.llm_config
+                    async_scanning, scanner, engine, table_descriptions, self.storage, scanner_request.llm_config, scanner_request.instruction
                 )
         return [TableDescription(**row.model_dump()) for row in rows]
 

@@ -36,6 +36,7 @@ class TableDescriptionRequest(BaseModel):
 
 class ScannerRequest(BaseModel):
     table_description_ids: list[str] | None
+    instruction: str | None
     llm_config: LLMConfig | None = None
     metadata: dict | None = None
 
@@ -75,6 +76,11 @@ class ContextStoreRequest(BaseModel):
     prompt_text: str
     sql: str
     metadata: dict | None = None
+
+
+class GetContextStoreByNameRequest(BaseModel):
+    db_connection_id: str
+    prompt_text: str
 
 
 class SemanticContextStoreRequest(BaseModel):
