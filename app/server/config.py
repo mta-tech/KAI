@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     APP_HOST: str
     APP_PORT: int
     APP_ENABLE_HOT_RELOAD: bool
+    GENERATED_CSV_PATH: str = "app\\data\\dbdata\\generated_csv"
 
     TYPESENSE_API_KEY: str
     TYPESENSE_HOST: str

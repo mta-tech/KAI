@@ -20,6 +20,18 @@ class Storage(TypeSenseDB):
             return results["hits"][0]["document"]
         return None
 
+    def find_exactly_one(self, collection: str, filter: dict) -> dict:
+        self.ensure_collection_exists(collection)
+
+        filter_string = " && ".join(f"{key}:={value}" for key, value in filter.items())
+
+        search_params = {"q": "*", "filter_by": filter_string}
+
+        results = self.client.collections[collection].documents.search(search_params)
+        if results["found"] > 0:
+            return results["hits"][0]["document"]
+        return None
+
     def insert_one(self, collection: str, doc: dict) -> int:
         self.ensure_collection_exists(collection)
         doc["id"] = str(uuid.uuid4())
@@ -169,10 +181,7 @@ class Storage(TypeSenseDB):
 
                 # Remapping vector_distance between 0 and 1. Higher is more similar
                 return [
-                    {
-                        **hit["document"],
-                        "score": 1 - (hit['vector_distance']/2)
-                    }
+                    {**hit["document"], "score": 1 - (hit["vector_distance"] / 2)}
                     for hit in sorted_hits
                 ]
 
