@@ -78,6 +78,11 @@ class ContextStoreRequest(BaseModel):
     metadata: dict | None = None
 
 
+class GetContextStoreByNameRequest(BaseModel):
+    db_connection_id: str
+    prompt_text: str
+
+
 class SemanticContextStoreRequest(BaseModel):
     db_connection_id: str
     prompt_text: str
