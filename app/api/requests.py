@@ -137,6 +137,23 @@ class UpdateBusinessGlossaryRequest(BaseModel):
     metadata: dict | None = None
 
 
+class AliasRequest(BaseModel):
+    name: str
+    db_connection_id: str
+    target_name: str
+    target_type: str
+    description: str | None = None
+    metadata: dict | None = None
+
+
+class UpdateAliasRequest(BaseModel):
+    name: str | None = None
+    target_name: str | None = None
+    target_type: str | None = None
+    description: str | None = None
+    metadata: dict | None = None
+
+
 class UpdateMetadataRequest(BaseModel):
     metadata: dict | None
 
