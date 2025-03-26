@@ -138,8 +138,8 @@ class UpdateBusinessGlossaryRequest(BaseModel):
 
 
 class AliasRequest(BaseModel):
-    name: str
     db_connection_id: str
+    name: str
     target_name: str
     target_type: str
     description: str | None = None
