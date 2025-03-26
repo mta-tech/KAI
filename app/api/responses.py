@@ -75,6 +75,13 @@ class SyntheticQuestionResponse(BaseModel):
     questions: list[str]
     metadata: dict | None = None
 
+class AliasResponse(BaseResponse):
+    db_connection_id: str
+    name: str
+    target_name: str
+    target_type: str
+    description: str | None = None
+
 class RetrieveKnowledgeResponse(BaseModel):
     final_answer: str=Field(alias="Final Answer")
     input_tokens_used: int
