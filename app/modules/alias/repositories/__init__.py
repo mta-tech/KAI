@@ -10,14 +10,10 @@ class AliasRepository:
 
     def insert(self, alias: Alias) -> Alias:
         alias_dict = alias.model_dump(exclude={"id"})
-        alias.id = str(
-            self.storage.insert_one(DB_COLLECTION, alias_dict)
-        )
+        alias.id = str(self.storage.insert_one(DB_COLLECTION, alias_dict))
         return alias
 
-    def find_by(
-        self, filter: dict, page: int = 0, limit: int = 0
-    ) -> list[Alias]:
+    def find_by(self, filter: dict, page: int = 0, limit: int = 0) -> list[Alias]:
         if page > 0 and limit > 0:
             rows = self.storage.find(DB_COLLECTION, filter, page=page, limit=limit)
         else:
@@ -27,14 +23,28 @@ class AliasRepository:
             result.append(Alias(**row))
         return result
 
-    def find_by_name(self, name: str) -> Alias | None:
-        row = self.storage.find_exactly_one(
-            DB_COLLECTION,
-            {"name": name},
-        )
-        if not row:
+    def find_by_name(self, name: str, db_connection_id: str = None) -> Alias | None:
+        if db_connection_id:
+            # Use full text search with db_connection_id filter
+            results = self.storage.full_text_search_by_db_connection_id(
+                DB_COLLECTION,
+                db_connection_id,
+                name,
+                ["name"]
+            )
+            if results and len(results) > 0:
+                return Alias(**results[0])
             return None
-        return Alias(**row)
+        else:
+            # Fallback to exact match if no db_connection_id provided
+            filter = {"name": name}
+            row = self.storage.find_exactly_one(
+                DB_COLLECTION,
+                filter,
+            )
+            if not row:
+                return None
+            return Alias(**row)
 
     def find_by_id(self, id: str) -> Alias | None:
         row = self.storage.find_one(DB_COLLECTION, {"id": id})
