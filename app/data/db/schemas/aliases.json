@@ -1,0 +1,45 @@
+{
+    "name": "aliases",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "db_connection_id",
+            "type": "string",
+            "reference": "database_connections.id"
+        },
+        {
+            "name": "name",
+            "type": "string"
+        },
+        {
+            "name": "target_name",
+            "type": "string"
+        },
+        {
+            "name": "target_type",
+            "type": "string"
+        },
+        {
+            "name": "description",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        },
+        {
+            "name": "updated_at",
+            "type": "string"
+        }
+    ]
+}
