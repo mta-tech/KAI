@@ -57,9 +57,9 @@ class AliasRepository:
         result = [Alias(**row) for row in rows]
         return result
 
-    def delete_by_id(self, id: str) -> bool:
-        deleted_count = self.storage.delete_by_id(DB_COLLECTION, id)
-        return deleted_count > 0
+    def delete_by_id(self, id: str) -> Alias | None:
+        docs = self.storage.delete_by_id(DB_COLLECTION, id)
+        return Alias(**docs) if docs else None
 
     def update(self, id: str, alias: Alias) -> Alias:
         self.storage.update_or_create(

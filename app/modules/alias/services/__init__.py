@@ -95,7 +95,7 @@ class AliasService:
         self.repository.update(alias_id, alias)
         return alias
 
-    def delete_alias(self, alias_id: str) -> bool:
+    def delete_alias(self, alias_id: str) -> Alias:
         alias = self.repository.find_by_id(alias_id)
         if not alias:
             raise HTTPException(status_code=404, detail=f"Alias {alias_id} not found")
@@ -107,4 +107,4 @@ class AliasService:
                 status_code=500, detail=f"Failed to delete alias {alias_id}"
             )
 
-        return True
+        return Alias(**is_deleted.model_dump())

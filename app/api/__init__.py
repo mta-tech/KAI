@@ -999,7 +999,7 @@ class API:
             created_at=alias.created_at,
         )
 
-    def delete_alias(self, alias_id: str) -> bool:
+    def delete_alias(self, alias_id: str) -> AliasResponse:
         return self.alias_service.delete_alias(alias_id)
 
     async def generate_synthetic_questions(
