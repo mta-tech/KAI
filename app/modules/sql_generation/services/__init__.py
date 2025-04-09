@@ -318,7 +318,7 @@ class SQLGenerationService:
         # return return_dict
 
     def create_csv_execute_sql_query(self, sql_generation_id, max_rows) -> dict:
-        dir_path = os.getenv("GENERATED_CSV_PATH", "app\data\dbdata\generated_csv")
+        dir_path = os.getenv("GENERATED_CSV_PATH", "app\\data\\dbdata\\generated_csv")
         os.makedirs(dir_path, exist_ok=True)
         file_path = os.path.join(dir_path, f"{sql_generation_id}.csv")
 
@@ -433,27 +433,31 @@ class SQLGenerationService:
                     # Optimize sliding window approach to reduce time complexity
                     # Pre-compute n-grams from the prompt for faster matching
                     words = normalized_prompt.split()
-                    max_phrase_length = min(len(words), 5)  # Consider phrases up to 5 words
-                    
+                    max_phrase_length = min(
+                        len(words), 5
+                    )  # Consider phrases up to 5 words
+
                     # Create a set of potential phrases to check (reduces duplicates)
                     phrases_to_check = set()
                     for phrase_length in range(1, max_phrase_length + 1):
                         for i in range(len(words) - phrase_length + 1):
-                            phrases_to_check.add(" ".join(words[i:i + phrase_length]))
-                    
+                            phrases_to_check.add(" ".join(words[i : i + phrase_length]))
+
                     # Check similarity against each unique phrase
                     found_match = False
                     for phrase in phrases_to_check:
                         # Early optimization: if phrase is much shorter/longer than alias_name, skip
                         if abs(len(phrase) - len(alias_name)) > len(alias_name) * 0.5:
                             continue
-                            
+
                         similarity = self._calculate_similarity(alias_name, phrase)
                         if similarity >= 0.8:  # 80% similarity threshold
-                            relevant_aliases.append(self._format_alias_for_context(alias))
+                            relevant_aliases.append(
+                                self._format_alias_for_context(alias)
+                            )
                             found_match = True
                             break
-                    
+
                     # If we found a match, continue to the next alias
                     if found_match:
                         continue
@@ -463,12 +467,18 @@ class SQLGenerationService:
             return []
 
     def _format_alias_for_context(self, alias: Alias) -> dict:
-        """Format an alias object for inclusion in the context."""
+        """
+        Format an alias object for inclusion in the context.
+
+        Only includes the essential information needed for the LLM prompt:
+        - alias name
+        - real name (target_name)
+        - target type
+        """
         return {
             "name": alias.name,
             "target_name": alias.target_name,
             "target_type": alias.target_type,
-            "description": alias.description if alias.description else "",
         }
 
     def _calculate_similarity(self, str1: str, str2: str) -> float:

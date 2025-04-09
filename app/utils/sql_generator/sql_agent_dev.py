@@ -83,6 +83,7 @@ class FullContextSQLAgent(SQLGenerator):
         # number_of_instructions: int = 1,
         instructions: List[dict] | None = None,
         fewshot_examples: List[dict] | None = None,
+        aliases: List[dict] | None = None,
         max_iterations: int | None = int(os.getenv("AGENT_MAX_ITERATIONS", "15")),  # noqa: B008
         max_execution_time: float | None = None,
         early_stopping_method: str = "generate",
@@ -96,6 +97,7 @@ class FullContextSQLAgent(SQLGenerator):
         fewshot_prompt = ""
         instruction_prompt = ""
         additional_prompt = ""
+        alias_prompt = ""
 
         suffix = SUFFIX_WITHOUT_CONTEXT
         if fewshot_examples:
@@ -113,11 +115,19 @@ class FullContextSQLAgent(SQLGenerator):
             instruction_prompt = INSTRUCTION_PROMPT.format(
                 admin_instructions=instruction_string
             )
+            
+        # Format alias information if provided
+        if aliases and len(aliases) > 0:
+            alias_prompt = "**) The user's query contains aliases. Here are the mappings between alias names and their actual database objects:\n"
+            for alias in aliases:
+                alias_prompt += f"- Alias: '{alias['name']}' refers to {alias['target_type']} '{alias['target_name']}'\n"
+            alias_prompt += "When generating SQL, use the actual database object names (target_name), not the alias names."
 
         agent_plan = PLAN_WITH_ALL_CONTEXT.format(
             fewshot_prompt=fewshot_prompt,
             instruction_prompt=instruction_prompt,
             additional_prompt=additional_prompt,
+            alias_prompt=alias_prompt,
             dialect=toolkit.dialect,
         )
 
@@ -239,6 +249,7 @@ class FullContextSQLAgent(SQLGenerator):
             # number_of_instructions=len(instructions) if instructions is not None else 0,
             instructions=instructions,
             fewshot_examples=new_fewshot_examples,
+            aliases=metadata.get("aliases") if metadata and "aliases" in metadata else None,
             max_execution_time=int(os.environ.get("DH_ENGINE_TIMEOUT", 150)),
         )
         agent_executor.return_intermediate_steps = True
