@@ -418,6 +418,20 @@ class SQLGenerationService:
             # Find aliases that might be referenced in the prompt
             relevant_aliases = []
 
+            # Prepare data for Strategy 2, avoids recomputing phrases for each alias
+            # Optimize sliding window approach to reduce time complexity
+            # Pre-compute n-grams from the prompt for faster matching
+            words = normalized_prompt.split()
+            max_phrase_length = min(
+                len(words), 5
+            )  # Consider phrases up to 5 words
+
+            # Create a set of potential phrases to check (reduces duplicates)
+            phrases_to_check = set()
+            for phrase_length in range(1, max_phrase_length + 1):
+                for i in range(len(words) - phrase_length + 1):
+                    phrases_to_check.add(" ".join(words[i : i + phrase_length]))
+
             for alias in all_aliases:
                 # Try different matching strategies
                 alias_name = alias.name.lower()
@@ -430,19 +444,6 @@ class SQLGenerationService:
                 # Strategy 2: Fuzzy matching for longer aliases (3+ characters)
                 # This handles typos and slight variations in alias names
                 if len(alias_name) >= 3:
-                    # Optimize sliding window approach to reduce time complexity
-                    # Pre-compute n-grams from the prompt for faster matching
-                    words = normalized_prompt.split()
-                    max_phrase_length = min(
-                        len(words), 5
-                    )  # Consider phrases up to 5 words
-
-                    # Create a set of potential phrases to check (reduces duplicates)
-                    phrases_to_check = set()
-                    for phrase_length in range(1, max_phrase_length + 1):
-                        for i in range(len(words) - phrase_length + 1):
-                            phrases_to_check.add(" ".join(words[i : i + phrase_length]))
-
                     # Check similarity against each unique phrase
                     found_match = False
                     for phrase in phrases_to_check:
