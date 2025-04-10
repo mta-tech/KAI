@@ -124,6 +124,21 @@ class Storage(TypeSenseDB):
         results = self.client.collections[collection].documents.search(search_params)
         return [hit["document"] for hit in results["hits"]]
 
+    def full_text_search_by_db_connection_id(
+        self, collection: str, db_connection_id: str, query: str, columns: list
+    ) -> list:
+        self.ensure_collection_exists(collection)
+        query_by = ",".join(columns)
+
+        search_params = {
+            "q": query,
+            "query_by": query_by,
+            "filter_by": f"db_connection_id:={db_connection_id}",
+        }
+
+        results = self.client.collections[collection].documents.search(search_params)
+        return [hit["document"] for hit in results["hits"]]
+
     def hybrid_search(
         self,
         collection: str,

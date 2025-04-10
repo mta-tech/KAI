@@ -13,7 +13,10 @@ If the question does not seem related to the database, return an empty string.
 If the there is a very similar question among the fewshot examples, directly use the SQL query from the example and modify it to fit the given question and execute the query to make sure it is correct.
 """  # noqa: E501
 
-PLAN_WITH_ALL_CONTEXT = """{fewshot_prompt}
+PLAN_WITH_ALL_CONTEXT = """{alias_prompt}
+
+
+{fewshot_prompt}
 
 {instruction_prompt}
 

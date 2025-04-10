@@ -6,6 +6,7 @@ from fastapi import BackgroundTasks, File, HTTPException, UploadFile
 # from fastapi.responses import JSONResponse
 
 from app.api.requests import (
+    AliasRequest,
     BusinessGlossaryRequest,
     ContextStoreRequest,
     GetContextStoreByNameRequest,
@@ -20,6 +21,7 @@ from app.api.requests import (
     ScannerRequest,
     SQLGenerationRequest,
     TableDescriptionRequest,
+    UpdateAliasRequest,
     UpdateBusinessGlossaryRequest,
     UpdateInstructionRequest,
     UpdateMetadataRequest,
@@ -28,6 +30,7 @@ from app.api.requests import (
     SyntheticQuestionRequest,
 )
 from app.api.responses import (
+    AliasResponse,
     BusinessGlossaryResponse,
     ContextStoreResponse,
     DatabaseConnectionResponse,
@@ -41,6 +44,7 @@ from app.api.responses import (
     SyntheticQuestionResponse,
 )
 from app.data.db.storage import Storage
+from app.modules.alias.services import AliasService
 from app.modules.business_glossary.services import BusinessGlossaryService
 from app.modules.context_store.services import ContextStoreService
 from app.modules.database_connection.services import DatabaseConnectionService
@@ -71,6 +75,7 @@ class API:
         self.document_service = DocumentService(self.storage)
         self.embedding_service = EmbeddingService(self.storage)
         self.synthetic_question_service = SyntheticQuestionService(self.storage)
+        self.alias_service = AliasService(self.storage)
 
         self._register_routes()
 
@@ -437,6 +442,49 @@ class API:
             self.retrieve_knowledge,
             methods=["GET"],
             tags=["RAGs"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/aliases",
+            self.create_alias,
+            methods=["POST"],
+            status_code=201,
+            tags=["Aliases"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/aliases",
+            self.get_aliases,
+            methods=["GET"],
+            tags=["Aliases"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/aliases/get-by-name",
+            self.get_alias_by_name,
+            methods=["GET"],
+            tags=["Aliases"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/aliases/{alias_id}",
+            self.get_alias,
+            methods=["GET"],
+            tags=["Aliases"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/aliases/{alias_id}",
+            self.update_alias,
+            methods=["PUT"],
+            tags=["Aliases"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/aliases/{alias_id}",
+            self.delete_alias,
+            methods=["DELETE"],
+            tags=["Aliases"],
         )
 
         self.router.add_api_route(
@@ -880,6 +928,79 @@ class API:
         response_dict = response.model_dump()
         response_dict["Final Answer"] = response_dict.pop("final_answer")
         return response_dict
+
+    def create_alias(self, alias_request: AliasRequest) -> AliasResponse:
+        alias = self.alias_service.create_alias(alias_request)
+        return AliasResponse(
+            id=alias.id,
+            db_connection_id=alias.db_connection_id,
+            name=alias.name,
+            target_name=alias.target_name,
+            target_type=alias.target_type,
+            description=alias.description,
+            metadata=alias.metadata,
+            created_at=alias.created_at,
+        )
+
+    def get_aliases(self, db_connection_id: str, target_type: str = None) -> list[AliasResponse]:
+        aliases = self.alias_service.get_aliases(db_connection_id, target_type)
+        return [
+            AliasResponse(
+                id=alias.id,
+                db_connection_id=alias.db_connection_id,
+                name=alias.name,
+                target_name=alias.target_name,
+                target_type=alias.target_type,
+                description=alias.description,
+                metadata=alias.metadata,
+                created_at=alias.created_at,
+            )
+            for alias in aliases
+        ]
+
+    def get_alias_by_name(self, name: str, db_connection_id: str) -> AliasResponse:
+        alias = self.alias_service.get_alias_by_name(name, db_connection_id)
+        return AliasResponse(
+            id=alias.id,
+            db_connection_id=alias.db_connection_id,
+            name=alias.name,
+            target_name=alias.target_name,
+            target_type=alias.target_type,
+            description=alias.description,
+            metadata=alias.metadata,
+            created_at=alias.created_at,
+        )
+
+    def get_alias(self, alias_id: str) -> AliasResponse:
+        alias = self.alias_service.get_alias(alias_id)
+        return AliasResponse(
+            id=alias.id,
+            db_connection_id=alias.db_connection_id,
+            name=alias.name,
+            target_name=alias.target_name,
+            target_type=alias.target_type,
+            description=alias.description,
+            metadata=alias.metadata,
+            created_at=alias.created_at,
+        )
+
+    def update_alias(
+        self, alias_id: str, update_request: UpdateAliasRequest
+    ) -> AliasResponse:
+        alias = self.alias_service.update_alias(alias_id, update_request)
+        return AliasResponse(
+            id=alias.id,
+            db_connection_id=alias.db_connection_id,
+            name=alias.name,
+            target_name=alias.target_name,
+            target_type=alias.target_type,
+            description=alias.description,
+            metadata=alias.metadata,
+            created_at=alias.created_at,
+        )
+
+    def delete_alias(self, alias_id: str) -> AliasResponse:
+        return self.alias_service.delete_alias(alias_id)
 
     async def generate_synthetic_questions(
         self, request: SyntheticQuestionRequest
