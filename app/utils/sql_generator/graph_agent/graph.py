@@ -2,6 +2,7 @@ from typing import Any, Dict
 
 from langchain_core.language_models import BaseLLM
 from langgraph.graph import StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from app.utils.sql_generator.graph_agent.state import SQLAgentState
 from app.utils.sql_generator.graph_agent.nodes import (
@@ -16,7 +17,7 @@ from app.utils.sql_generator.graph_agent.nodes import (
 )
 
 
-def build_sql_agent_graph(llm: BaseLLM) -> Any:
+def build_sql_agent_graph(llm: BaseLLM) -> CompiledStateGraph:
     """Build and compile the SQL agent graph."""
 
     # Create a new graph with the SQLAgentState

@@ -27,6 +27,7 @@ from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_evaluator.simple_evaluator import SimpleEvaluator
 from app.utils.sql_generator.sql_agent import SQLAgent
 from app.utils.sql_generator.sql_agent_dev import FullContextSQLAgent
+from app.utils.sql_generator.graph_agent import LangGraphSQLAgent
 from app.utils.sql_generator.sql_query_status import create_sql_query_status
 from app.utils.model.chat_model import ChatModel
 from app.utils.prompts_ner.prompts_ner import (
@@ -169,6 +170,14 @@ class SQLGenerationService:
             option = sql_generation_request.metadata.get("option", "")
             if option == "dev":
                 sql_generator = FullContextSQLAgent(
+                    (
+                        sql_generation_request.llm_config
+                        if sql_generation_request.llm_config
+                        else LLMConfig()
+                    ),
+                )
+            elif option == "graph":
+                sql_generator = LangGraphSQLAgent(
                     (
                         sql_generation_request.llm_config
                         if sql_generation_request.llm_config

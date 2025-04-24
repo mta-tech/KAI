@@ -21,11 +21,11 @@ logger = logging.getLogger(__name__)
 
 class LangGraphSQLAgent(SQLGenerator):
     """SQL agent implemented using LangGraph."""
-    
-    def __init__(self, llm_config, model):
-        super().__init__(llm_config, model)
+
+    def __init__(self, llm_config):
+        super().__init__(llm_config)
         self.settings = Settings()
-        
+
     def _get_llm(self, database_connection: DatabaseConnection):
         """Get the LLM model configured for the specific database connection."""
         return self.model.get_model(
@@ -35,7 +35,7 @@ class LangGraphSQLAgent(SQLGenerator):
             model_name=self.llm_config.model_name,
             api_base=self.llm_config.api_base,
         )
-    
+
     @override
     def generate_response(
         self,
@@ -46,20 +46,20 @@ class LangGraphSQLAgent(SQLGenerator):
     ) -> SQLGeneration:
         """Generate SQL response using LangGraph."""
         generation_start_time = datetime.now()
-        
+
         # Initialize response object
         response = SQLGeneration(
             prompt_id=user_prompt.id,
             llm_config=self.llm_config,
             created_at=str(generation_start_time),
         )
-        
+
         # Get LLM
         llm = self._get_llm(database_connection)
-        
+
         # Build the graph
         graph = build_sql_agent_graph(llm)
-        
+
         # Initialize the state
         initial_state = SQLAgentState(
             question=user_prompt.text,
@@ -67,25 +67,29 @@ class LangGraphSQLAgent(SQLGenerator):
             prompt_id=str(user_prompt.id),
             metadata=metadata or {},
         )
-        
+
         # Execute the graph with token tracking
         with get_openai_callback() as cb:
             try:
                 logger.info(f"Generating SQL response to question: {user_prompt.text}")
                 final_state = graph.invoke(initial_state)
-                
+
                 # Update response with results from final state
-                response.sql = replace_unprocessable_characters(final_state.generated_sql or "")
+                response.sql = replace_unprocessable_characters(
+                    final_state.generated_sql or ""
+                )
                 response.status = final_state.status
                 response.error = final_state.error
                 response.input_tokens_used = cb.prompt_tokens
                 response.output_tokens_used = cb.completion_tokens
                 response.completed_at = str(datetime.now())
-                
+
                 # Add metadata about timing
-                repository_retrieval_end_time = datetime.now()  # This would be more precise in a real implementation
+                repository_retrieval_end_time = (
+                    datetime.now()
+                )  # This would be more precise in a real implementation
                 agent_execution_end_time = datetime.now()
-                
+
                 time_taken = {
                     "agent_repository_setup_time": (
                         repository_retrieval_end_time - generation_start_time
@@ -94,12 +98,14 @@ class LangGraphSQLAgent(SQLGenerator):
                         agent_execution_end_time - repository_retrieval_end_time
                     ).total_seconds(),
                 }
-                
+
                 response.metadata = response.metadata or {}
                 response.metadata["timing"] = time_taken
-                
-                logger.info(f"cost: {str(cb.total_cost)} tokens: {str(cb.total_tokens)}")
-                
+
+                logger.info(
+                    f"cost: {str(cb.total_cost)} tokens: {str(cb.total_tokens)}"
+                )
+
             except Exception as e:
                 logger.error(f"Error in SQL generation: {str(e)}")
                 return SQLGeneration(
@@ -111,7 +117,7 @@ class LangGraphSQLAgent(SQLGenerator):
                     status="INVALID",
                     error=str(e),
                 )
-        
+
         # Validate the query if needed (this could also be part of the graph)
         if response.sql and response.status != "INVALID":
             self.database = SQLDatabase.get_sql_engine(database_connection)
@@ -120,9 +126,9 @@ class LangGraphSQLAgent(SQLGenerator):
                 response.sql,
                 response,
             )
-        
+
         return response
-    
+
     @override
     def stream_response(
         self,
@@ -136,12 +142,12 @@ class LangGraphSQLAgent(SQLGenerator):
         # This is a placeholder for streaming implementation
         # LangGraph supports streaming, but it requires more complex setup
         # For now, we'll just generate the full response and put it in the queue
-        
+
         result = self.generate_response(
             user_prompt=user_prompt,
             database_connection=database_connection,
             metadata=metadata,
         )
-        
+
         # Put the result in the queue
         queue.put(result)
