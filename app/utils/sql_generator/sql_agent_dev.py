@@ -50,6 +50,7 @@ from app.utils.sql_generator.sql_generator import SQLGenerator
 from app.utils.sql_generator.sql_history import SQLHistory
 from app.utils.sql_tools import replace_unprocessable_characters
 from app.utils.model.embedding_model import EmbeddingModel
+from app.utils.sql_generator.custom_output_parser import CustomMRKLOutputParser
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +62,10 @@ class FullContextSQLAgent(SQLGenerator):
     llm: Any = None
     settings = Settings()
 
-    def remove_duplicate_examples(self, fewshot_exmaples: List[dict]) -> List[dict]:
+    def remove_duplicate_examples(self, fewshot_examples: List[dict]) -> List[dict]:
         returned_result = []
         seen_list = []
-        for example in fewshot_exmaples:
+        for example in fewshot_examples:
             if example["prompt_text"] not in seen_list:
                 seen_list.append(example["prompt_text"])
                 returned_result.append(example)
@@ -149,7 +150,7 @@ class FullContextSQLAgent(SQLGenerator):
             verbose=False,
         )
         tool_names = [tool.name for tool in tools]
-        agent = ZeroShotAgent(llm_chain=llm_chain, allowed_tools=tool_names, **kwargs)
+        agent = ZeroShotAgent(llm_chain=llm_chain, allowed_tools=tool_names, output_parser=CustomMRKLOutputParser(), **kwargs)
         return AgentExecutor.from_agent_and_tools(
             agent=agent,
             tools=tools,
