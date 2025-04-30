@@ -73,13 +73,27 @@ def collect_context(state: SQLAgentState) -> SQLAgentState:
             created_at=state.created_at,
         )
 
-        # Get table descriptions (db_scan)
-        db_scan = repository.get_all_tables_by_db(
-            {
-                "db_connection_id": state.db_connection_id,
-                "sync_status": TableDescriptionStatus.SCANNED.value,
-            }
-        )
+        # Use ThreadPoolExecutor to fetch context in parallel
+        with ThreadPoolExecutor() as executor:
+            # Get table descriptions (db_scan)
+            future_db_scan = executor.submit(
+                repository.get_all_tables_by_db,
+                {
+                    "db_connection_id": state.db_connection_id,
+                    "sync_status": TableDescriptionStatus.SCANNED.value,
+                }
+            )
+            # Get few-shot examples
+            future_few_shots_examples = executor.submit(context_store_service.retrieve_context_for_question, prompt)
+            # Get instructions
+            future_instructions = executor.submit(instruction_service.retrieve_instruction_for_question, prompt)
+            # Get business metrics
+            future_metrics = executor.submit(business_metrics_service.retrieve_business_metrics_for_question, prompt)
+
+            db_scan = future_db_scan.result()
+            few_shot_examples = future_few_shots_examples.result()
+            instructions = future_instructions.result()
+            business_metrics = future_metrics.result()
 
         if not db_scan:
             state.error = "No scanned tables found for database"
@@ -91,20 +105,6 @@ def collect_context(state: SQLAgentState) -> SQLAgentState:
             db_scan = SQLGenerator.filter_tables_by_schema(
                 db_scan=db_scan, prompt=prompt
             )
-
-        # Use ThreadPoolExecutor to fetch context in parallel
-        with ThreadPoolExecutor() as executor:
-            # Get few-shot examples
-            future_few_shots_examples = executor.submit(context_store_service.retrieve_context_for_question, prompt)
-            # Get instructions
-            future_instructions = executor.submit(instruction_service.retrieve_instruction_for_question, prompt)
-            # Get business metrics
-            future_metrics = executor.submit(business_metrics_service.retrieve_business_metrics_for_question, prompt)
-
-            few_shot_examples = future_few_shots_examples.result()
-            instructions = future_instructions.result()
-            business_metrics = future_metrics.result()
-
         # Get aliases from metadata if available
         aliases = state.metadata.get("aliases") if state.metadata else None
 
@@ -152,10 +152,11 @@ def remove_duplicate_examples(examples: List[dict]) -> List[dict]:
         List of examples with duplicates removed
     """
     returned_result = []
-    seen_list = []
+    seen_list = set()
     for example in examples:
-        if example["prompt_text"] not in seen_list:
-            seen_list.append(example["prompt_text"])
+        prompt_text = example["prompt_text"]
+        if prompt_text not in seen_list:
+            seen_list.add(prompt_text)
             returned_result.append(example)
     return returned_result
 
@@ -389,10 +390,10 @@ def analyze_schemas(state: SQLAgentState) -> SQLAgentState:
                     for column in table.get("columns", []):
                         column_info = {
                             "name": column["name"],
-                            "type": column.get("type", "UNKNOWN"),
+                            "type": column.get("data_type", "UNKNOWN"),
                             "description": column.get("description", ""),
                             "is_primary_key": column.get("is_primary_key", False),
-                            "is_foreign_key": column.get("is_foreign_key", False),
+                            "is_foreign_key": column.get("foreign_key", False),
                             "references": column.get("references", None),
                             "low_cardinality": column.get("low_cardinality", False),
                             "categories": column.get("categories", []),
@@ -582,6 +583,10 @@ def generate_query(state: SQLAgentState, llm: BaseLLM) -> SQLAgentState:
         # Construct the prompt for the LLM
         prompt = construct_sql_generation_prompt(state)
 
+        # print("="*50)
+        # print(prompt)
+        # print("="*50)
+
         # Call the LLM to generate SQL
         logger.info("Calling LLM to generate SQL")
         response = llm.invoke(prompt)
@@ -708,7 +713,7 @@ def construct_sql_generation_prompt(state: SQLAgentState) -> str:
 
     # Add error information if this is a refinement
     if state.iteration_count > 1 and state.error:
-        prompt += f"### Previous Error\n{state.error}\n\n"
+        prompt += f"### Previous Error and SQL Query\n{state.error}\n\n"
 
     # Add final instruction
     prompt += "### Task\n"
