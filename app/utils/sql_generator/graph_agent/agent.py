@@ -68,6 +68,7 @@ class LangGraphSQLAgent(SQLGenerator):
             metadata=metadata or {},
         )
 
+        repository_retrieval_end_time = datetime.now()
         # Execute the graph with token tracking
         with get_openai_callback() as cb:
             try:
@@ -76,18 +77,16 @@ class LangGraphSQLAgent(SQLGenerator):
 
                 # Update response with results from final state
                 response.sql = replace_unprocessable_characters(
-                    final_state.generated_sql or ""
+                    final_state.get('generated_sql') or ""
                 )
-                response.status = final_state.status
-                response.error = final_state.error
+                response.status = final_state.get('status')
+                response.error = final_state.get('error')
                 response.input_tokens_used = cb.prompt_tokens
                 response.output_tokens_used = cb.completion_tokens
                 response.completed_at = str(datetime.now())
 
-                # Add metadata about timing
-                repository_retrieval_end_time = (
-                    datetime.now()
-                )  # This would be more precise in a real implementation
+
+                # This would be more precise in a real implementation
                 agent_execution_end_time = datetime.now()
 
                 time_taken = {
