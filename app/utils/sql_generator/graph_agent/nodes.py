@@ -2,6 +2,8 @@ from typing import List
 from datetime import datetime
 import logging
 import numpy as np
+from langchain_core.language_models import BaseLLM
+from concurrent.futures import ThreadPoolExecutor
 
 from app.data.db.storage import Storage
 from app.modules.business_glossary.services import BusinessGlossaryService
@@ -24,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def collect_context(state: SQLAgentState) -> SQLAgentState:
+    start_time = datetime.now()
     """Collect context from various services.
 
     This node is responsible for:
@@ -65,6 +68,7 @@ def collect_context(state: SQLAgentState) -> SQLAgentState:
         prompt = Prompt(
             id=state.prompt_id,
             text=state.question,
+            db_connection_id=state.db_connection_id,
             schemas=db_connection.schemas if hasattr(db_connection, "schemas") else [],
             created_at=state.created_at,
         )
@@ -88,16 +92,18 @@ def collect_context(state: SQLAgentState) -> SQLAgentState:
                 db_scan=db_scan, prompt=prompt
             )
 
-        # Get few-shot examples
-        few_shot_examples = context_store_service.retrieve_context_for_question(prompt)
+        # Use ThreadPoolExecutor to fetch context in parallel
+        with ThreadPoolExecutor() as executor:
+            # Get few-shot examples
+            future_few_shots_examples = executor.submit(context_store_service.retrieve_context_for_question, prompt)
+            # Get instructions
+            future_instructions = executor.submit(instruction_service.retrieve_instruction_for_question, prompt)
+            # Get business metrics
+            future_metrics = executor.submit(business_metrics_service.retrieve_business_metrics_for_question, prompt)
 
-        # Get instructions
-        instructions = instruction_service.retrieve_instruction_for_question(prompt)
-
-        # Get business metrics
-        business_metrics = (
-            business_metrics_service.retrieve_business_metrics_for_question(prompt)
-        )
+            few_shot_examples = future_few_shots_examples.result()
+            instructions = future_instructions.result()
+            business_metrics = future_metrics.result()
 
         # Get aliases from metadata if available
         aliases = state.metadata.get("aliases") if state.metadata else None
@@ -125,7 +131,9 @@ def collect_context(state: SQLAgentState) -> SQLAgentState:
             f"{len(state.business_metrics) if state.business_metrics else 0} business metrics, "
             f"{len(state.aliases) if state.aliases else 0} aliases."
         )
-
+        print("="*50)
+        print(f"Time for collecting context: {datetime.now()-start_time}")
+        print("="*50)
         return state
     except Exception as e:
         logger.error(f"Error collecting context: {str(e)}")
@@ -171,6 +179,7 @@ def identify_relevant_tables(state: SQLAgentState) -> SQLAgentState:
     Returns:
         Updated state with relevant tables
     """
+    start_time = datetime.now()
     try:
         logger.info(f"Identifying relevant tables for question: {state.question}")
 
@@ -190,12 +199,11 @@ def identify_relevant_tables(state: SQLAgentState) -> SQLAgentState:
         table_representations = []
         for table in state.db_scan:
             # Create column representation
-            col_rep = ""
-            for column in table.get("columns", []):
-                if column.get("description"):
-                    col_rep += f"{column['name']}: {column['description']}, "
-                else:
-                    col_rep += f"{column['name']}, "
+            col_parts = [
+                f"{col['name']}: {col['description']}" if col.get("description") else col["name"]
+                for col in table.get("columns", [])
+            ]
+            col_rep = ", ".join(col_parts)
 
             # Create table representation
             if table.get("table_description"):
@@ -212,17 +220,22 @@ def identify_relevant_tables(state: SQLAgentState) -> SQLAgentState:
                 }
             )
 
-        # Calculate similarities
-        for table in table_representations:
-            table_embedding = embedding_model.embed_query(table["representation"])
-            similarity = cosine_similarity(question_embedding, table_embedding)
-            table["similarity"] = similarity
+        # Batch embed table representations
+        texts = [table["representation"] for table in table_representations]
+        table_embeddings = embedding_model.embed_documents(texts)  # Batch embedding
+
+        # Compute batch similarities
+        similarities = batch_cosine_similarity(question_embedding, table_embeddings)
+        for table, sim in zip(table_representations, similarities):
+            table["similarity"] = sim
+
 
         # Sort by similarity
         table_representations.sort(key=lambda x: x["similarity"], reverse=True)
 
         # Get tables from few-shot examples
         few_shot_tables = []
+        seen_tables = set()
         if state.few_shot_examples:
             try:
                 from sql_metadata import Parser
@@ -235,14 +248,17 @@ def identify_relevant_tables(state: SQLAgentState) -> SQLAgentState:
                                 # Find matching tables in db_scan
                                 for table in state.db_scan:
                                     if table["table_name"] == table_name:
-                                        few_shot_tables.append(
-                                            {
-                                                "db_schema": table.get("db_schema"),
-                                                "table_name": table["table_name"],
-                                                "similarity": 1.0,  # High similarity since it's from examples
-                                                "from_few_shot": True,
-                                            }
-                                        )
+                                        key = f"{table.get('db_schema', '')}.{table_name}"
+                                        if key not in seen_tables:
+                                            seen_tables.add(key)
+                                            few_shot_tables.append(
+                                                {
+                                                    "db_schema": table.get("db_schema"),
+                                                    "table_name": table["table_name"],
+                                                    "similarity": 1.0,  # High similarity since it's from examples
+                                                    "from_few_shot": True,
+                                                }
+                                            )
                         except Exception as e:
                             logger.error(
                                 f"Error parsing SQL in few-shot example: {str(e)}"
@@ -252,31 +268,14 @@ def identify_relevant_tables(state: SQLAgentState) -> SQLAgentState:
                     "sql_metadata not available, skipping few-shot table extraction"
                 )
 
-        # Combine and deduplicate
-        seen_tables = set()
-        combined_tables = []
-
-        # Add few-shot tables first
-        for table in few_shot_tables:
-            table_key = (
-                f"{table['db_schema']}.{table['table_name']}"
-                if table.get("db_schema")
-                else table["table_name"]
-            )
-            if table_key not in seen_tables:
-                seen_tables.add(table_key)
-                combined_tables.append(table)
-
-        # Add similarity-based tables
+        # Combine few-shot + top-K similar
+        combined_tables = list(few_shot_tables)
         top_k = 20  # Limit to top 20 tables
+
         for table in table_representations[:top_k]:
-            table_key = (
-                f"{table['db_schema']}.{table['table_name']}"
-                if table.get("db_schema")
-                else table["table_name"]
-            )
-            if table_key not in seen_tables:
-                seen_tables.add(table_key)
+            key = f"{table.get('db_schema', '')}.{table['table_name']}"
+            if key not in seen_tables:
+                seen_tables.add(key)
                 combined_tables.append(table)
 
         # Update state
@@ -284,14 +283,16 @@ def identify_relevant_tables(state: SQLAgentState) -> SQLAgentState:
 
         # Log results
         table_names = [
-            f"{t.get('db_schema', '')}.{t['table_name']}"
-            if t.get("db_schema")
-            else t["table_name"]
+            f"{t.get('db_schema', '')}.{t['table_name']}" if t.get("db_schema") else t["table_name"]
             for t in combined_tables
         ]
         logger.info(
             f"Identified {len(state.relevant_tables)} relevant tables: {', '.join(table_names)}"
         )
+
+        print("="*50)
+        print(f"Time for identifying table: {datetime.now()-start_time}")
+        print("="*50)
 
         return state
     except Exception as e:
@@ -302,27 +303,41 @@ def identify_relevant_tables(state: SQLAgentState) -> SQLAgentState:
         return state
 
 
-def cosine_similarity(a: List[float], b: List[float]) -> float:
-    """Calculate cosine similarity between two vectors.
-
-    Args:
-        a: First vector
-        b: Second vector
-
-    Returns:
-        Cosine similarity score
+def batch_cosine_similarity(query_vector: List[float], matrix: List[List[float]]) -> List[float]:
     """
-    if not a or not b:  # Check for empty vectors
-        return 0.0
+    Compute cosine similarity between a single vector and a matrix of vectors.
+    
+    Args:
+        query_vector: 1D list of floats
+        matrix: 2D list of floats (n_samples x dim)
+    
+    Returns:
+        List of cosine similarity scores
+    """
+    if not matrix:
+        return []
 
-    if len(a) != len(b):  # Ensure both vectors have the same length
-        raise ValueError("Vector embeddings must have the same length")
+    query = np.array(query_vector, dtype=float)
+    mat   = np.array(matrix, dtype=float)
 
-    if (np.linalg.norm(a) == 0) or (np.linalg.norm(b) == 0):  # Handle zero vectors
-        return 0.0
+    # Normalize query and matrix
+    query_norm = np.linalg.norm(query)
+    mat_norms = np.linalg.norm(mat, axis=1)
 
-    return round(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)), 4)
+    # Avoid division by zero
+    if query_norm == 0:
+        return [0.0] * len(mat)
 
+    # Compute dot products
+    dot_products = np.dot(mat, query)
+
+    # Compute cosine similarity
+    similarities = dot_products / (mat_norms * query_norm)
+
+    # Replace NaNs (from zero division) with 0
+    similarities = np.nan_to_num(similarities)
+
+    return similarities.round(4).tolist()
 
 # Schema Analysis Node
 
@@ -341,6 +356,7 @@ def analyze_schemas(state: SQLAgentState) -> SQLAgentState:
     Returns:
         Updated state with table schemas
     """
+    start_time = datetime.now()
     try:
         logger.info("Analyzing schemas for relevant tables")
 
@@ -409,6 +425,10 @@ def analyze_schemas(state: SQLAgentState) -> SQLAgentState:
             f"Analyzed schemas for {len(schemas)} tables: {', '.join(schema_summary)}"
         )
 
+        print("="*50)
+        print(f"Time for analyzing schema: {datetime.now()-start_time}")
+        print("="*50)
+
         return state
     except Exception as e:
         logger.error(f"Error analyzing schemas: {str(e)}")
@@ -434,6 +454,7 @@ def analyze_columns(state: SQLAgentState) -> SQLAgentState:
     Returns:
         Updated state with relevant column information
     """
+    start_time = datetime.now()
     try:
         logger.info("Analyzing columns for relevant tables")
 
@@ -521,6 +542,10 @@ def analyze_columns(state: SQLAgentState) -> SQLAgentState:
             f"Analyzed {len(column_info)} columns, identified {len(relevant_columns)} as potentially relevant"
         )
 
+        print("="*50)
+        print(f"Time for analyzing columns: {datetime.now()-start_time}")
+        print("="*50)
+
         return state
     except Exception as e:
         logger.error(f"Error analyzing columns: {str(e)}")
@@ -532,7 +557,7 @@ def analyze_columns(state: SQLAgentState) -> SQLAgentState:
 # Query Generation Node
 
 
-def generate_query(state: SQLAgentState, llm) -> SQLAgentState:
+def generate_query(state: SQLAgentState, llm: BaseLLM) -> SQLAgentState:
     """Generate SQL query based on collected information.
 
     This node is responsible for:
@@ -547,6 +572,7 @@ def generate_query(state: SQLAgentState, llm) -> SQLAgentState:
     Returns:
         Updated state with generated SQL query
     """
+    start_time = datetime.now()
     try:
         logger.info(f"Generating SQL query for question: {state.question}")
 
@@ -561,7 +587,7 @@ def generate_query(state: SQLAgentState, llm) -> SQLAgentState:
         response = llm.invoke(prompt)
 
         # Extract SQL from the response
-        sql_query = extract_sql_from_response(response)
+        sql_query = extract_sql_from_response(response.content)
 
         if not sql_query:
             logger.warning("No SQL query found in LLM response")
@@ -578,6 +604,10 @@ def generate_query(state: SQLAgentState, llm) -> SQLAgentState:
         logger.info(
             f"Generated SQL query (iteration {state.iteration_count}): {sql_query[:100]}..."
         )
+
+        print("="*50)
+        print(f"Time for generating Query: {datetime.now()-start_time}")
+        print("="*50)
 
         return state
     except Exception as e:
@@ -749,6 +779,7 @@ def validate_query(state: SQLAgentState) -> SQLAgentState:
     Returns:
         Updated state with execution result or error
     """
+    start_time = datetime.now()
     try:
         logger.info("Validating generated SQL query")
 
@@ -763,7 +794,7 @@ def validate_query(state: SQLAgentState) -> SQLAgentState:
         db_connection_repository = DatabaseConnectionRepository(storage)
 
         # Get database connection
-        db_connection = db_connection_repository.get_by_id(state.db_connection_id)
+        db_connection = db_connection_repository.find_by_id(state.db_connection_id)
         if not db_connection:
             state.error = (
                 f"Database connection with ID {state.db_connection_id} not found"
@@ -813,6 +844,10 @@ def validate_query(state: SQLAgentState) -> SQLAgentState:
 
             # Don't mark as invalid yet, give a chance to refine
             logger.warning(f"Error executing SQL query: {str(e)}")
+
+        print("="*50)
+        print(f"Time for validating query: {datetime.now()-start_time}")
+        print("="*50)
 
         return state
     except Exception as e:
