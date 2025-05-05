@@ -6,12 +6,16 @@ from langchain_community.callbacks import get_openai_callback
 from fastapi import HTTPException
 from dotenv import load_dotenv
 import logging
+import re
+from difflib import SequenceMatcher
 
 from app.api.requests import (
     PromptSQLGenerationRequest,
     SQLGenerationRequest,
     UpdateMetadataRequest,
 )
+from app.modules.alias.services import AliasService
+from app.modules.alias.models import Alias
 from app.modules.context_store.services import ContextStoreService
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.modules.prompt.repositories import PromptRepository
@@ -23,6 +27,7 @@ from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_evaluator.simple_evaluator import SimpleEvaluator
 from app.utils.sql_generator.sql_agent import SQLAgent
 from app.utils.sql_generator.sql_agent_dev import FullContextSQLAgent
+from app.utils.sql_generator.graph_agent import LangGraphSQLAgent
 from app.utils.sql_generator.sql_query_status import create_sql_query_status
 from app.utils.model.chat_model import ChatModel
 from app.utils.prompts_ner.prompts_ner import (
@@ -44,6 +49,7 @@ class SQLGenerationService:
         self.settings = Settings()
         self.storage = storage
         self.sql_generation_repository = SQLGenerationRepository(storage)
+        self.alias_service = AliasService(storage)
 
     def create_sql_generation(
         self, prompt_id: str, sql_generation_request: SQLGenerationRequest
@@ -88,10 +94,24 @@ class SQLGenerationService:
             prompt.db_connection_id, prompt.text
         )
 
+        # Check for aliases in the prompt and add them as context
+        relevant_aliases = self.find_aliases_in_prompt(
+            prompt.text, prompt.db_connection_id
+        )
+        if relevant_aliases:
+            initial_sql_generation.metadata["aliases"] = relevant_aliases
+            # Add aliases to langsmith_metadata to pass to the SQL Agent
+            if not langsmith_metadata:
+                langsmith_metadata = {}
+            langsmith_metadata["aliases"] = relevant_aliases
+            logger.info(
+                f"Found {len(relevant_aliases)} aliases referenced in prompt: {prompt_id}"
+            )
+
         sql_generation_setup_end_time = datetime.now()
         input_tokens = 0
         output_tokens = 0
-        
+
         # Assing context store SQL
         if context_store:
             sql_generation_request.sql = context_store.sql
@@ -150,6 +170,14 @@ class SQLGenerationService:
             option = sql_generation_request.metadata.get("option", "")
             if option == "dev":
                 sql_generator = FullContextSQLAgent(
+                    (
+                        sql_generation_request.llm_config
+                        if sql_generation_request.llm_config
+                        else LLMConfig()
+                    ),
+                )
+            elif option == "graph":
+                sql_generator = LangGraphSQLAgent(
                     (
                         sql_generation_request.llm_config
                         if sql_generation_request.llm_config
@@ -285,9 +313,9 @@ class SQLGenerationService:
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(prompt.db_connection_id)
         database = SQLDatabase.get_sql_engine(db_connection, True)
-        
+
         return database.run_sql(sql_generation.sql, max_rows)
-    
+
         # results = database.run_sql(sql_generation.sql, max_rows)
 
         # return_dict = {
@@ -297,28 +325,24 @@ class SQLGenerationService:
         #     "result_str": results[0],
         # }
         # return return_dict
-    
-    def create_csv_execute_sql_query(
-        self, sql_generation_id, max_rows
-    ) -> dict:
-        dir_path = os.getenv("GENERATED_CSV_PATH", "app\data\dbdata\generated_csv")
+
+    def create_csv_execute_sql_query(self, sql_generation_id, max_rows) -> dict:
+        dir_path = os.getenv("GENERATED_CSV_PATH", "app\\data\\dbdata\\generated_csv")
         os.makedirs(dir_path, exist_ok=True)
         file_path = os.path.join(dir_path, f"{sql_generation_id}.csv")
 
-        results = self.execute_sql_query(
-            sql_generation_id, max_rows
-        )[1]
-        result = results.get('result', [{}])
-        
-        pd.DataFrame(result).to_csv(file_path, index=False) 
-        
+        results = self.execute_sql_query(sql_generation_id, max_rows)[1]
+        result = results.get("result", [{}])
+
+        pd.DataFrame(result).to_csv(file_path, index=False)
+
         return_dict = {
             "id": sql_generation_id,
             "file_path": file_path,
-            "sql": results.get('sql'),
-            "result": result
+            "sql": results.get("sql"),
+            "result": result,
         }
-        return return_dict        
+        return return_dict
 
     # ================= HELPERS ================= #
 
@@ -372,3 +396,107 @@ class SQLGenerationService:
         )
 
         return similar_prompts
+
+    def find_aliases_in_prompt(self, prompt_text: str, db_connection_id: str) -> list:
+        """
+        Find aliases referenced in the prompt text using a robust approach.
+
+        This method identifies potential alias references in the user's query
+        using multiple matching strategies to handle multi-word aliases and
+        partial matches effectively.
+
+        Args:
+            prompt_text: The user's prompt text
+            db_connection_id: The database connection ID
+
+        Returns:
+            A list of relevant aliases with their details
+        """
+        if not prompt_text or not db_connection_id:
+            return []
+
+        # Normalize the prompt text for better matching
+        normalized_prompt = prompt_text.lower()
+
+        # Get all aliases for this database connection
+        try:
+            all_aliases = self.alias_service.get_aliases(db_connection_id)
+            if not all_aliases:
+                return []
+
+            # Find aliases that might be referenced in the prompt
+            relevant_aliases = []
+
+            for alias in all_aliases:
+                # Try different matching strategies
+                alias_name = alias.name.lower()
+
+                # Strategy 1: Direct match - the alias name appears exactly in the prompt
+                if alias_name in normalized_prompt:
+                    relevant_aliases.append(self._format_alias_for_context(alias))
+                    continue
+
+                # Strategy 2: Fuzzy matching for longer aliases (3+ characters)
+                # This handles typos and slight variations in alias names
+                if len(alias_name) >= 3:
+                    # Optimize sliding window approach to reduce time complexity
+                    # Pre-compute n-grams from the prompt for faster matching
+                    words = normalized_prompt.split()
+                    max_phrase_length = min(
+                        len(words), 5
+                    )  # Consider phrases up to 5 words
+
+                    # Create a set of potential phrases to check (reduces duplicates)
+                    phrases_to_check = set()
+                    for phrase_length in range(1, max_phrase_length + 1):
+                        for i in range(len(words) - phrase_length + 1):
+                            phrases_to_check.add(" ".join(words[i : i + phrase_length]))
+
+                    # Check similarity against each unique phrase
+                    found_match = False
+                    for phrase in phrases_to_check:
+                        # Early optimization: if phrase is much shorter/longer than alias_name, skip
+                        if abs(len(phrase) - len(alias_name)) > len(alias_name) * 0.5:
+                            continue
+
+                        similarity = self._calculate_similarity(alias_name, phrase)
+                        if similarity >= 0.8:  # 80% similarity threshold
+                            relevant_aliases.append(
+                                self._format_alias_for_context(alias)
+                            )
+                            found_match = True
+                            break
+
+                    # If we found a match, continue to the next alias
+                    if found_match:
+                        continue
+            return relevant_aliases
+        except Exception as e:
+            logger.warning(f"Error finding aliases in prompt: {str(e)}")
+            return []
+
+    def _format_alias_for_context(self, alias: Alias) -> dict:
+        """
+        Format an alias object for inclusion in the context.
+
+        Only includes the essential information needed for the LLM prompt:
+        - alias name
+        - real name (target_name)
+        - target type
+        """
+        return {
+            "name": alias.name,
+            "target_name": alias.target_name,
+            "target_type": alias.target_type,
+        }
+
+    def _calculate_similarity(self, str1: str, str2: str) -> float:
+        """
+        Calculate the similarity between two strings using Levenshtein distance.
+        Returns a value between 0 (completely different) and 1 (identical).
+        """
+        if not str1 or not str2:
+            return 0.0
+
+        # Use Levenshtein distance for string similarity
+        return SequenceMatcher(None, str1, str2).ratio()

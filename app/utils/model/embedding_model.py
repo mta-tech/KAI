@@ -36,6 +36,7 @@ class EmbeddingModel(LLMModel):
                 model=model_name,
                 api_key=self.settings.require("GOOGLE_API_KEY"),
                 dimensions=dimensions,
+                task_type='RETRIEVAL_QUERY',
                 **kwargs,
             )
         if model_family == "ollama":

@@ -97,3 +97,5 @@ notes.rst
 experimentation/
 experimentations.ipynb
 orbit_setup.ipynb
+development
+*.ipynb
