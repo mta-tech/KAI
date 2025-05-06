@@ -1,6 +1,7 @@
 from typing import List, Optional, TypedDict
 from langchain.chat_models.base import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_community.callbacks import get_openai_callback
 from langgraph.graph import START, END, Graph
 from langgraph.graph import MessagesState
 from langgraph.graph.graph import CompiledGraph
@@ -181,7 +182,7 @@ class QuestionGenerationAgent:
         # Build and return the graph
         return builder.compile()
 
-    async def initial_context_node(self, state: AgentState) -> AgentState:
+    def initial_context_node(self, state: AgentState) -> AgentState:
         """
         Analyze the provided context (tables and context stores).
 
@@ -229,16 +230,18 @@ class QuestionGenerationAgent:
 
         return state
 
-    async def agent_intents_generator(self, state: AgentState) -> AgentState:
+    def agent_intents_generator(self, state: AgentState) -> AgentState:
         """
         Generate intents based on given context using LLM.
 
         This method uses the LLM to generate n number of intents based on the given context.
         The intents are then stored in the state. to be used by the question generation agent.
         """
+        table_descriptions = format_table_descriptions_for_prompt(state["table_descriptions"])
         prompt = f"""Generate {state["num_questions_to_generate"]} number of relevant intents based on the following context:
-        Context: {state["context_stores"]}
-        Table Descriptions: {state["table_descriptions"]}
+        Table Descriptions:
+        {table_descriptions}
+
         Format each intents as a single line, with level of details needed
 
         Example Answer:
@@ -247,11 +250,15 @@ class QuestionGenerationAgent:
         - "I want to know revenue at certain months"
         - "I want to know number of employees grouped by department"
         """
+        print("Agent Intents Generator Prompt:")
+        print(str(prompt))
+        print("="*50)
 
         llm = state["llm"]
 
-        response = await llm.agenerate([prompt])
-        intents = response.generations[0][0].text
+        response = llm.invoke(prompt)
+        
+        intents = response.content
         intents = intents.split("\n")
         intents = [intent.strip() for intent in intents if intent.strip()]
         state["intents"] = intents
@@ -265,18 +272,24 @@ class QuestionGenerationAgent:
         state["messages"] = messages
         return state
 
-    async def generate_questions_sql(self, state: AgentState) -> AgentState:
+    def generate_questions_sql(self, state: AgentState) -> AgentState:
         """Generate a natural language question and SQL query based on schema and context.
         LLM capable of using tools to get further context if needed.
 
         The result will be Question-SQL pair
         """
+
+        table_descriptions = format_table_descriptions_for_prompt(state["table_descriptions"])
         # Create a system prompt that instructs the LLM on how to generate questions and SQL
         prompt = f"""Based on the following table descriptions and context, generate natural language questions and corresponding SQL queries:
-        Table Descriptions: {state["table_descriptions"]}
-        Context Stores: {state["context_stores"]}
-        Relevant Tables: {state["relevant_tables"]}
-        Intents: {state["intents"]}
+        Table Descriptions:
+        {table_descriptions}
+        
+        Relevant Tables:
+        {state["relevant_tables"]}
+        
+        Intents:
+        {state["intents"]}
         
         For each intent, generate a clear and specific question that can be answered using SQL.
         Then, create a corresponding SQL query that would answer the question.
@@ -288,6 +301,10 @@ class QuestionGenerationAgent:
         SQL: [The SQL query that answers the question]
         """
 
+        print("Generating questions SQL prompts:")
+        print(prompt)
+        print("="*50)
+
         # Bind the tools to the LLM
         llm_with_tools = self.llm.bind_tools(
             [tool for tool in self.tools.tools], tool_choice="auto"
@@ -298,10 +315,10 @@ class QuestionGenerationAgent:
 
         # Generate a response using the LLM with tools
         messages = [sys_message] + state["messages"]
-        response = await llm_with_tools.ainvoke([messages])
+        response = llm_with_tools.invoke([messages])
 
         # Extract the generated content
-        generated_content = response.generations[0][0].text
+        generated_content = response.content
 
         # Parse the generated content to extract question-SQL pairs
         # This is a simple implementation - in a real system, you'd want more robust parsing
@@ -335,16 +352,21 @@ class QuestionGenerationAgent:
 
         return state
 
-    async def generate_without_tools(self, state: AgentState) -> AgentState:
+    def generate_without_tools(self, state: AgentState) -> AgentState:
         """Generate a natural language question and SQL query based on schema and context.
         LLM not capable of using tools. Zero-shot approach.
         """
+        table_descriptions = format_table_descriptions_for_prompt(state["table_descriptions"])
         # Create a system prompt that instructs the LLM on how to generate questions and SQL
         sys_prompt = f"""Generate natural language questions and corresponding SQL queries based on the following context:
-        Table Descriptions: {state["table_descriptions"]}
-        Context Stores: {state["context_stores"]}
-        Relevant Tables: {state["relevant_tables"]}
-        Intents: {state["intents"]}
+        Table Descriptions:
+        {table_descriptions}
+        
+        Relevant Tables:
+        {state["relevant_tables"]}
+        
+        Intents:
+        {state["intents"]}
         
         For each intent, generate a clear and specific question that can be answered using SQL.
         Then, create a corresponding SQL query that would answer the question.
@@ -359,10 +381,15 @@ class QuestionGenerationAgent:
         llm = state["llm"]
         # Generate a response using the LLM without tools
         messages = [sys_message] + state["messages"]
-        response = await llm.agenerate([messages])
+
+        # print("Generating questions SQL prompts without tools:")
+        # print(sys_prompt)
+        # print("="*50)
+
+        response = llm.invoke(messages)
 
         # Extract the generated content
-        generated_content = response.generations[0][0].text
+        generated_content = response.content
 
         # Parse the generated content to extract question-SQL pairs
         # This is a simple implementation - in a real system, you'd want more robust parsing
@@ -396,7 +423,7 @@ class QuestionGenerationAgent:
 
         return state
 
-    async def run(
+    def run(
         self,
         question_generation_config: QuestionGenerationConfig,
         table_descriptions: List[TableDescription],
@@ -441,7 +468,10 @@ class QuestionGenerationAgent:
         # Create and run the graph
         print("Starting question generation with LLM Agent")
         graph = self.create_graph()
-        final_state = await graph.ainvoke(state)
+        with get_openai_callback() as cb:
+            final_state = graph.invoke(state)
+        
+        print(cb)
 
         # Convert the generated question-SQL pairs to QuestionSQLPair objects
         question_sql_pairs = []

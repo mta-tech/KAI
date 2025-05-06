@@ -17,7 +17,7 @@ class SyntheticQuestionService:
         self.storage = storage
         self.agent = QuestionGenerationAgent()
 
-    async def generate_questions(
+    def generate_questions(
         self,
         db_connection_id: str,
         questions_per_batch: int = 5,
@@ -107,7 +107,8 @@ class SyntheticQuestionService:
         import asyncio
 
         print(f"Starting {num_batches} question generation agents in parallel")
-        results = await asyncio.gather(*tasks)
+        # results = await asyncio.gather(*tasks)
+        results = tasks
 
         # Combine all questions from all batches
         all_questions = []
