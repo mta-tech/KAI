@@ -10,6 +10,7 @@ from langchain.callbacks.base import BaseCallbackManager
 from langchain.chains.llm import LLMChain
 from langchain_community.callbacks import get_openai_callback
 from overrides import override
+from concurrent.futures import ThreadPoolExecutor
 
 from app.data.db.storage import Storage
 from app.modules.business_glossary.services import BusinessGlossaryService
@@ -50,6 +51,7 @@ from app.utils.sql_generator.sql_generator import SQLGenerator
 from app.utils.sql_generator.sql_history import SQLHistory
 from app.utils.sql_tools import replace_unprocessable_characters
 from app.utils.model.embedding_model import EmbeddingModel
+from app.utils.sql_generator.custom_output_parser import CustomMRKLOutputParser
 
 logger = logging.getLogger(__name__)
 
@@ -61,12 +63,13 @@ class FullContextSQLAgent(SQLGenerator):
     llm: Any = None
     settings = Settings()
 
-    def remove_duplicate_examples(self, fewshot_exmaples: List[dict]) -> List[dict]:
+    def remove_duplicate_examples(self, fewshot_examples: List[dict]) -> List[dict]:
         returned_result = []
-        seen_list = []
-        for example in fewshot_exmaples:
-            if example["prompt_text"] not in seen_list:
-                seen_list.append(example["prompt_text"])
+        seen_list = set()
+        for example in fewshot_examples:
+            prompt_text = example["prompt_text"]
+            if prompt_text not in seen_list:
+                seen_list.add(prompt_text)
                 returned_result.append(example)
         return returned_result
 
@@ -83,6 +86,7 @@ class FullContextSQLAgent(SQLGenerator):
         # number_of_instructions: int = 1,
         instructions: List[dict] | None = None,
         fewshot_examples: List[dict] | None = None,
+        aliases: List[dict] | None = None,
         max_iterations: int | None = int(os.getenv("AGENT_MAX_ITERATIONS", "15")),  # noqa: B008
         max_execution_time: float | None = None,
         early_stopping_method: str = "generate",
@@ -96,6 +100,7 @@ class FullContextSQLAgent(SQLGenerator):
         fewshot_prompt = ""
         instruction_prompt = ""
         additional_prompt = ""
+        alias_prompt = ""
 
         suffix = SUFFIX_WITHOUT_CONTEXT
         if fewshot_examples:
@@ -113,11 +118,19 @@ class FullContextSQLAgent(SQLGenerator):
             instruction_prompt = INSTRUCTION_PROMPT.format(
                 admin_instructions=instruction_string
             )
+            
+        # Format alias information if provided
+        if aliases and len(aliases) > 0:
+            alias_prompt = "**) The user's query contains aliases. Here are the mappings between alias names and their actual database objects:\n"
+            for alias in aliases:
+                alias_prompt += f"- Alias: '{alias['name']}' refers to {alias['target_type']} '{alias['target_name']}'\n"
+            alias_prompt += "When generating SQL, use the actual database object names (target_name), not the alias names."
 
         agent_plan = PLAN_WITH_ALL_CONTEXT.format(
             fewshot_prompt=fewshot_prompt,
             instruction_prompt=instruction_prompt,
             additional_prompt=additional_prompt,
+            alias_prompt=alias_prompt,
             dialect=toolkit.dialect,
         )
 
@@ -139,7 +152,7 @@ class FullContextSQLAgent(SQLGenerator):
             verbose=False,
         )
         tool_names = [tool.name for tool in tools]
-        agent = ZeroShotAgent(llm_chain=llm_chain, allowed_tools=tool_names, **kwargs)
+        agent = ZeroShotAgent(llm_chain=llm_chain, allowed_tools=tool_names, output_parser=CustomMRKLOutputParser(), **kwargs)
         return AgentExecutor.from_agent_and_tools(
             agent=agent,
             tools=tools,
@@ -177,23 +190,33 @@ class FullContextSQLAgent(SQLGenerator):
             api_base=self.llm_config.api_base,
         )
         repository = TableDescriptionRepository(storage)
-        db_scan = repository.get_all_tables_by_db(
-            {
-                "db_connection_id": str(database_connection.id),
-                "sync_status": TableDescriptionStatus.SCANNED.value,
-            }
-        )
+        
+        # Use ThreadPoolExecutor to fetch context in parallel
+        with ThreadPoolExecutor() as executor:
+            # Get table descriptions (db_scan)
+            future_db_scan = executor.submit(
+                repository.get_all_tables_by_db,
+                {
+                    "db_connection_id": str(database_connection.id),
+                    "sync_status": TableDescriptionStatus.SCANNED.value,
+                }
+            )
+            # Get few-shot examples
+            future_few_shots_examples = executor.submit(context_store_service.retrieve_context_for_question, user_prompt)
+            # Get instructions
+            future_instructions = executor.submit(instruction_service.retrieve_instruction_for_question, user_prompt)
+            # Get business metrics
+            future_metrics = executor.submit(business_metrics_service.retrieve_business_metrics_for_question, user_prompt)
+
+            db_scan = future_db_scan.result()
+            few_shot_examples = future_few_shots_examples.result()
+            instructions = future_instructions.result()
+            business_metrics = future_metrics.result()
+            
         if not db_scan:
             raise ValueError("No scanned tables found for database")
         db_scan = SQLGenerator.filter_tables_by_schema(
             db_scan=db_scan, prompt=user_prompt
-        )
-        few_shot_examples = context_store_service.retrieve_context_for_question(
-            user_prompt
-        )
-
-        instructions = instruction_service.retrieve_instruction_for_question(
-            user_prompt
         )
 
         if few_shot_examples is not None:
@@ -205,9 +228,9 @@ class FullContextSQLAgent(SQLGenerator):
 
         # Get business metrics
         # number_of_metrics = 0
-        business_metrics = (
-            business_metrics_service.retrieve_business_metrics_for_question(user_prompt)
-        )
+        # business_metrics = (
+            # business_metrics_service.retrieve_business_metrics_for_question(user_prompt)
+        # )
         # if business_metrics is not None:
         #     number_of_metrics = len(business_metrics)
 
@@ -239,6 +262,7 @@ class FullContextSQLAgent(SQLGenerator):
             # number_of_instructions=len(instructions) if instructions is not None else 0,
             instructions=instructions,
             fewshot_examples=new_fewshot_examples,
+            aliases=metadata.get("aliases") if metadata and "aliases" in metadata else None,
             max_execution_time=int(os.environ.get("DH_ENGINE_TIMEOUT", 150)),
         )
         agent_executor.return_intermediate_steps = True

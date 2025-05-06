@@ -8,7 +8,7 @@ class Alias(BaseModel):
     db_connection_id: str
     name: str
     target_name: str
-    target_type: str  # e.g., "table", "column", "query", etc.
+    target_type: str  # e.g., "table", "column", "entity", etc.
     description: str | None = None
     metadata: dict | None = None
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
