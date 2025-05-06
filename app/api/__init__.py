@@ -1002,10 +1002,10 @@ class API:
     def delete_alias(self, alias_id: str) -> AliasResponse:
         return self.alias_service.delete_alias(alias_id)
 
-    def generate_synthetic_questions(
+    async def generate_synthetic_questions(
         self, request: SyntheticQuestionRequest
     ) -> SyntheticQuestionResponse:
-        questions = self.synthetic_question_service.generate_questions(
+        questions = await self.synthetic_question_service.generate_questions(
             db_connection_id=request.db_connection_id,
             questions_per_batch=request.questions_per_batch,
             num_batches=request.num_batches,
@@ -1013,4 +1013,4 @@ class API:
             evaluate=request.evaluate,
             llm_config=request.llm_config,
         )
-        return SyntheticQuestionResponse(questions=questions, metadata=request.metadata)
+        return SyntheticQuestionResponse(**questions.model_dump())

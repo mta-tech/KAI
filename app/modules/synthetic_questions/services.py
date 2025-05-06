@@ -1,8 +1,9 @@
-from typing import List
+from langchain_community.callbacks import get_openai_callback
+
 from app.data.db.storage import Storage
 from app.modules.synthetic_questions.models import (
     QuestionGenerationConfig,
-    QuestionSQLPair,
+    SyntheticQuestions,
 )
 from app.utils.question_generator.question_agent import QuestionGenerationAgent
 from app.modules.table_description.models import TableDescription
@@ -17,7 +18,7 @@ class SyntheticQuestionService:
         self.storage = storage
         self.agent = QuestionGenerationAgent()
 
-    def generate_questions(
+    async def generate_questions(
         self,
         db_connection_id: str,
         questions_per_batch: int = 5,
@@ -25,7 +26,7 @@ class SyntheticQuestionService:
         peeking_context_stores: bool = False,
         evaluate: bool = False,
         llm_config=None,
-    ) -> List[QuestionSQLPair]:
+    ) -> SyntheticQuestions:
         """
         Generate synthetic questions based on database schema and optionally context stores.
 
@@ -79,41 +80,52 @@ class SyntheticQuestionService:
 
         # Create tasks to run agents in parallel
         tasks = []
-        for batch_index in range(num_batches):
-            # Create a question generation configuration for this batch
-            # Each batch will have a single iteration (num_batches=1)
-            question_generation_config = QuestionGenerationConfig(
-                db_connection_id=db_connection_id,
-                llm_config=llm_config,
-                questions_per_batch=questions_per_batch,
-                num_batches=1,  # Each agent handles just one batch
-                peeking_context_stores=peeking_context_stores,
-                evaluate=evaluate,
-            )
-
-            # Create a new agent for each batch to ensure parallel processing
-            agent = QuestionGenerationAgent()
-
-            # Add the task to the list
-            tasks.append(
-                agent.run(
-                    question_generation_config=question_generation_config,
-                    table_descriptions=table_descriptions,
-                    context_stores=context_stores,
+        with get_openai_callback() as cb:
+            for batch_index in range(num_batches):
+                # Create a question generation configuration for this batch
+                # Each batch will have a single iteration (num_batches=1)
+                question_generation_config = QuestionGenerationConfig(
+                    db_connection_id=db_connection_id,
+                    llm_config=llm_config,
+                    questions_per_batch=questions_per_batch,
+                    num_batches=1,  # Each agent handles just one batch
+                    peeking_context_stores=peeking_context_stores,
+                    evaluate=evaluate,
                 )
-            )
 
-        # Run all tasks in parallel and wait for all to complete
-        import asyncio
+                # Create a new agent for each batch to ensure parallel processing
+                agent = QuestionGenerationAgent()
 
-        print(f"Starting {num_batches} question generation agents in parallel")
-        # results = await asyncio.gather(*tasks)
-        results = tasks
+                # Add the task to the list
+                tasks.append(
+                    agent.run(
+                        question_generation_config=question_generation_config,
+                        table_descriptions=table_descriptions,
+                        context_stores=context_stores,
+                    )
+                )
+
+
+            # Run all tasks in parallel and wait for all to complete
+            import asyncio
+
+            print(f"Starting {num_batches} question generation agents in parallel")
+            results = await asyncio.gather(*tasks)
+
 
         # Combine all questions from all batches
         all_questions = []
         for question_sql_pairs in results:
-            all_questions.extend([pair.question for pair in question_sql_pairs])
+            all_questions.extend(
+                [pair.model_dump() for pair in question_sql_pairs]
+            )
 
         print(f"Generated a total of {len(all_questions)} questions")
-        return all_questions
+        
+        synthetic_questions = SyntheticQuestions(
+            questions=all_questions,
+            input_tokens_used=cb.prompt_tokens,
+            output_tokens_used=cb.completion_tokens,
+        )
+
+        return synthetic_questions

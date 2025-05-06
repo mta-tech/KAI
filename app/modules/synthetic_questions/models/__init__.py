@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
@@ -15,7 +15,12 @@ class QuestionSQLPair(BaseModel):
 
     question: str
     sql: str | None = None
-    metadata: dict | None = None
+
+class SyntheticQuestions(BaseModel):
+    questions: List
+    input_tokens_used: Optional[int] = None
+    output_tokens_used: Optional[int] = None
+    metadata: Optional[Dict] = None
 
 
 class QuestionGenerationConfig(BaseModel):
@@ -36,4 +41,4 @@ class QuestionGenerationConfig(BaseModel):
     metadata: dict | None = None
 
 
-__all__ = ["QuestionGenerationConfig", "QuestionSQLPair", "LLMConfig"]
+__all__ = ["QuestionGenerationConfig", "QuestionSQLPair", "LLMConfig", "SyntheticQuestions"]

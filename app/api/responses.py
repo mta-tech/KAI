@@ -72,7 +72,9 @@ class DocumentResponse(BaseResponse):
     text_content: str | None = None
 
 class SyntheticQuestionResponse(BaseModel):
-    questions: list[str]
+    questions: list[dict]
+    input_tokens_used: int | None
+    output_tokens_used: int | None
     metadata: dict | None = None
 
 class AliasResponse(BaseResponse):

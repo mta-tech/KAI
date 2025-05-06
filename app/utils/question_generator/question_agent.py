@@ -1,14 +1,14 @@
-from typing import List, Optional, TypedDict
+from typing import List, Optional
 from langchain.chat_models.base import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_community.callbacks import get_openai_callback
+from langchain_core.output_parsers import JsonOutputParser
 from langgraph.graph import START, END, Graph
 from langgraph.graph import MessagesState
 from langgraph.graph.graph import CompiledGraph
 from langgraph.prebuilt import ToolNode
-from app.utils.model.chat_model import ChatModel
-import asyncio
+import re
 
+from app.utils.model.chat_model import ChatModel
 from app.modules.context_store.models import ContextStore
 from app.modules.synthetic_questions.models import (
     QuestionGenerationConfig,
@@ -182,7 +182,7 @@ class QuestionGenerationAgent:
         # Build and return the graph
         return builder.compile()
 
-    def initial_context_node(self, state: AgentState) -> AgentState:
+    async def initial_context_node(self, state: AgentState) -> AgentState:
         """
         Analyze the provided context (tables and context stores).
 
@@ -230,7 +230,7 @@ class QuestionGenerationAgent:
 
         return state
 
-    def agent_intents_generator(self, state: AgentState) -> AgentState:
+    async def agent_intents_generator(self, state: AgentState) -> AgentState:
         """
         Generate intents based on given context using LLM.
 
@@ -250,13 +250,13 @@ class QuestionGenerationAgent:
         - "I want to know revenue at certain months"
         - "I want to know number of employees grouped by department"
         """
-        print("Agent Intents Generator Prompt:")
-        print(str(prompt))
-        print("="*50)
+        # print("Agent Intents Generator Prompt:")
+        # print(str(prompt))
+        # print("="*50)
 
         llm = state["llm"]
 
-        response = llm.invoke(prompt)
+        response = await llm.ainvoke(prompt)
         
         intents = response.content
         intents = intents.split("\n")
@@ -272,7 +272,7 @@ class QuestionGenerationAgent:
         state["messages"] = messages
         return state
 
-    def generate_questions_sql(self, state: AgentState) -> AgentState:
+    async def generate_questions_sql(self, state: AgentState) -> AgentState:
         """Generate a natural language question and SQL query based on schema and context.
         LLM capable of using tools to get further context if needed.
 
@@ -301,9 +301,9 @@ class QuestionGenerationAgent:
         SQL: [The SQL query that answers the question]
         """
 
-        print("Generating questions SQL prompts:")
-        print(prompt)
-        print("="*50)
+        # print("Generating questions SQL prompts:")
+        # print(prompt)
+        # print("="*50)
 
         # Bind the tools to the LLM
         llm_with_tools = self.llm.bind_tools(
@@ -315,7 +315,7 @@ class QuestionGenerationAgent:
 
         # Generate a response using the LLM with tools
         messages = [sys_message] + state["messages"]
-        response = llm_with_tools.invoke([messages])
+        response = await llm_with_tools.ainvoke([messages])
 
         # Extract the generated content
         generated_content = response.content
@@ -352,7 +352,7 @@ class QuestionGenerationAgent:
 
         return state
 
-    def generate_without_tools(self, state: AgentState) -> AgentState:
+    async def generate_without_tools(self, state: AgentState) -> AgentState:
         """Generate a natural language question and SQL query based on schema and context.
         LLM not capable of using tools. Zero-shot approach.
         """
@@ -371,9 +371,9 @@ class QuestionGenerationAgent:
         For each intent, generate a clear and specific question that can be answered using SQL.
         Then, create a corresponding SQL query that would answer the question.
         
-        Format your response as:
-        Question: [Your natural language question]
-        SQL: [The SQL query that answers the question]
+        Format your response as list of dictionary objects (JSON) with keys as follows:
+        - question: Your natural language question without mentioning the table name.
+        - sql: The SQL query that answers the question.
         """
 
         # Create a system message with the prompt
@@ -383,37 +383,25 @@ class QuestionGenerationAgent:
         messages = [sys_message] + state["messages"]
 
         # print("Generating questions SQL prompts without tools:")
-        # print(sys_prompt)
+        # print(state['intents'])
         # print("="*50)
 
-        response = llm.invoke(messages)
+        response = await llm.ainvoke(messages)
 
         # Extract the generated content
         generated_content = response.content
 
         # Parse the generated content to extract question-SQL pairs
-        # This is a simple implementation - in a real system, you'd want more robust parsing
-        pairs = []
-        lines = generated_content.split("\n")
-        current_question = None
-        current_sql = None
-
-        for line in lines:
-            line = line.strip()
-            if line.startswith("Question:"):
-                # If we already have a question and SQL, add them to pairs
-                if current_question and current_sql:
-                    pairs.append((current_question, current_sql))
-
-                # Start a new pair
-                current_question = line[len("Question:") :].strip()
-                current_sql = None
-            elif line.startswith("SQL:"):
-                current_sql = line[len("SQL:") :].strip()
-
-        # Add the last pair if it exists
-        if current_question and current_sql:
-            pairs.append((current_question, current_sql))
+        match = re.search(r"```json(.*?)```", generated_content, re.DOTALL)
+        if match:
+            pairs = JsonOutputParser().parse(match.group(1))
+        else:
+            pairs = [
+                {
+                    "question": '',
+                    'sql': '',
+                }
+            ]
 
         # Add the generated pairs to the state
         state["generated_questions_sql_pairs"].extend(pairs)
@@ -423,7 +411,7 @@ class QuestionGenerationAgent:
 
         return state
 
-    def run(
+    async def run(
         self,
         question_generation_config: QuestionGenerationConfig,
         table_descriptions: List[TableDescription],
@@ -468,14 +456,13 @@ class QuestionGenerationAgent:
         # Create and run the graph
         print("Starting question generation with LLM Agent")
         graph = self.create_graph()
-        with get_openai_callback() as cb:
-            final_state = graph.invoke(state)
-        
-        print(cb)
+        final_state = await graph.ainvoke(state)
 
         # Convert the generated question-SQL pairs to QuestionSQLPair objects
         question_sql_pairs = []
-        for question, sql in final_state.get("generated_questions_sql_pairs", []):
+        for row in final_state.get("generated_questions_sql_pairs", []):
+            question = row.get("question", "").replace("\\", " ").strip()
+            sql = row.get("sql", "").replace("\\", " ").strip()
             question_sql_pairs.append(QuestionSQLPair(question=question, sql=sql))
 
         return question_sql_pairs
