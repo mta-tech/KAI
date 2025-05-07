@@ -183,6 +183,14 @@ This instruction is top priority. You must follow this instruction:
 {instruction}
 """
 
+DATABASE_DESCRIPTION_PROMPT = """
+You are an assistant that generates clear and concise description of database. I have a database and it contains tables and their descriptions as follows:
+
+{table_details}
+
+Provide a one-sentence description that explains the overall purpose and context of this database. Focus on what the database represents as a whole, without detailing and mentioning each table. Do not mention the table name or phrase like "This database" as intro in the description.
+"""
+
 NER_PROMPTS = """
     You are an SQL agent that can convert text to sql. I give you information as follows:
     1. Existing prompt. Existing prompt is natural language query that can be converted into SQL query

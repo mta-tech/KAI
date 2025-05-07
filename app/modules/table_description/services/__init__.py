@@ -90,12 +90,12 @@ class TableDescriptionService:
                     )
                     if schema not in data.keys():
                         data[schema] = []
-                    data[schema] = sql_database.get_tables_and_views()
+                    data[schema] = sql_database.get_tables_and_views(schema)
             else:
                 sql_database = database_connection_service.get_sql_database(
                     db_connection
                 )
-                data[None] = sql_database.get_tables_and_views()
+                data[None] = sql_database.get_tables_and_views(schema)
 
             scanner_repository = TableDescriptionRepository(self.storage)
 
