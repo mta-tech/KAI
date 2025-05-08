@@ -32,7 +32,10 @@ class QuestionGenerationConfig(BaseModel):
 
     id: UUID = Field(default_factory=uuid4)
     db_connection_id: str
+    sql_dialect: str
+    db_intent: str
     llm_config: LLMConfig | None = None
+    instruction: str | None = None
     questions_per_batch: int = 5
     num_batches: int = 1
     peeking_context_stores: bool = False

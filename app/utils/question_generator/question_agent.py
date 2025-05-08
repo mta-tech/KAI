@@ -14,92 +14,23 @@ from app.modules.synthetic_questions.models import (
     QuestionGenerationConfig,
     QuestionSQLPair,
 )
+from app.utils.question_generator.question_utils import(
+    format_table_descriptions_for_prompt,
+    build_base_prompt,
+    add_user_instruction,
+    get_default_instruction_block,
+    get_context_store_block,
+)
+
 from app.modules.table_description.models import TableDescription
-
-
-def simplify_table_description(table_desc: TableDescription) -> dict:
-    """
-    Simplify a TableDescription object for LLM prompts by removing unnecessary information.
-
-    Args:
-        table_desc: The TableDescription object to simplify
-
-    Returns:
-        A simplified dictionary with only the essential information
-    """
-    # Extract only the essential column information
-    simplified_columns = []
-    for col in table_desc.columns:
-        simplified_col = {
-            "name": col.name,
-            "description": col.description,
-            "data_type": col.data_type,
-        }
-        # Only include categories if they exist and the column has low cardinality
-        if col.low_cardinality and col.categories:
-            # Limit the number of categories to display
-            if len(col.categories) > 5:
-                simplified_col["categories"] = col.categories[:5] + ["..."]
-            else:
-                simplified_col["categories"] = col.categories
-        simplified_columns.append(simplified_col)
-
-    # Create a simplified table description
-    simplified_table = {
-        "name": table_desc.table_name,
-        "description": table_desc.table_description,
-        "columns": simplified_columns,
-        # Include a small number of examples if available
-        "examples": table_desc.examples[:2] if table_desc.examples else [],
-    }
-
-    return simplified_table
-
-
-def format_table_descriptions_for_prompt(
-    table_descriptions: List[TableDescription],
-) -> str:
-    """
-    Format a list of TableDescription objects into a string suitable for LLM prompts.
-
-    Args:
-        table_descriptions: List of TableDescription objects
-
-    Returns:
-        A formatted string representation of the table descriptions
-    """
-    formatted_str = ""
-
-    for table_desc in table_descriptions:
-        simplified = simplify_table_description(table_desc)
-
-        formatted_str += f"Table: {simplified['name']}\n"
-        if simplified["description"]:
-            formatted_str += f"Description: {simplified['description']}\n"
-
-        formatted_str += "Columns:\n"
-        for col in simplified["columns"]:
-            col_str = f"  - {col['name']} ({col['data_type']})"
-            if col["description"]:
-                col_str += f": {col['description']}"
-            if "categories" in col:
-                col_str += f" [Values: {', '.join(str(c) for c in col['categories'])}]"
-            formatted_str += col_str + "\n"
-
-        if simplified["examples"]:
-            formatted_str += "Examples:\n"
-            for example in simplified["examples"]:
-                formatted_str += f"  {example}\n"
-
-        formatted_str += "\n"
-
-    return formatted_str
-
 
 class AgentState(MessagesState):
     """State tracked across agent execution"""
 
     num_questions_to_generate: int
+    sql_dialect: str
+    instruction: str | None
+    db_intent: str
     table_descriptions: List[TableDescription]
     context_stores: List[ContextStore]
     generated_questions_sql_pairs: List[QuestionSQLPair]
@@ -214,14 +145,21 @@ class QuestionGenerationAgent:
 
                         # Add columns from this table
                         for column in table.columns:
-                            if column.column_name.lower() in sql:
+                            if column.name.lower() in sql:
                                 state["relevant_columns"].append(
-                                    f"{table.table_name}.{column.column_name}"
+                                    f"{table.table_name}.{column.name}"
                                 )
 
         # Remove duplicates
         state["relevant_tables"] = list(set(state["relevant_tables"]))
         state["relevant_columns"] = list(set(state["relevant_columns"]))
+
+        if state['relevant_tables']:
+            print("="*50)
+            print("Relevant Tables and Columns")
+            print(state["relevant_columns"])
+            print(state["relevant_tables"])
+            print("="*50)
 
         print(
             f"Identified {len(state['relevant_tables'])} relevant tables, "
@@ -237,23 +175,25 @@ class QuestionGenerationAgent:
         This method uses the LLM to generate n number of intents based on the given context.
         The intents are then stored in the state. to be used by the question generation agent.
         """
-        table_descriptions = format_table_descriptions_for_prompt(state["table_descriptions"])
-        prompt = f"""Generate {state["num_questions_to_generate"]} number of relevant intents based on the following context:
-        Table Descriptions:
-        {table_descriptions}
-
-        Format each intents as a single line, with level of details needed
-
-        Example Answer:
-        - "I want to know top 5 products with the highest revenue",
-        - "I want to know certain employees salaries"
-        - "I want to know revenue at certain months"
-        - "I want to know number of employees grouped by department"
-        """
-        # print("Agent Intents Generator Prompt:")
-        # print(str(prompt))
+    
+        table_descriptions = format_table_descriptions_for_prompt(
+            state["table_descriptions"], state['relevant_tables'], state['relevant_columns'],
+        )
+        prompt = build_base_prompt(table_descriptions, state["num_questions_to_generate"])
+        prompt = add_user_instruction(prompt, state.get("instruction", ""))
+        
+        if state.get("context_stores"):
+            prompt += get_context_store_block(state["context_stores"])
+        else:
+            prompt += get_default_instruction_block(state["db_intent"])
+        
         # print("="*50)
-
+        # print("Prompt to generate Intents:")
+        # if state.get("context_stores"):
+        #     print(prompt.replace(table_descriptions, "\n"))
+        # else:
+        #     print(prompt)
+        # print("="*50)
         llm = state["llm"]
 
         response = await llm.ainvoke(prompt)
@@ -262,6 +202,14 @@ class QuestionGenerationAgent:
         intents = intents.split("\n")
         intents = [intent.strip() for intent in intents if intent.strip()]
         state["intents"] = intents
+
+        # print("="*50)
+        # print("Intents Instructions:")
+        # print(get_context_store_block(state["context_stores"]))
+        # print("="*50)
+        # print("Generated Intents:")
+        # print(response.content)
+        # print("="*50)
 
         messages = [
             HumanMessage(
@@ -272,108 +220,119 @@ class QuestionGenerationAgent:
         state["messages"] = messages
         return state
 
-    async def generate_questions_sql(self, state: AgentState) -> AgentState:
-        """Generate a natural language question and SQL query based on schema and context.
-        LLM capable of using tools to get further context if needed.
+    # async def generate_questions_sql(self, state: AgentState) -> AgentState:
+    #     """Generate a natural language question and SQL query based on schema and context.
+    #     LLM capable of using tools to get further context if needed.
 
-        The result will be Question-SQL pair
-        """
+    #     The result will be Question-SQL pair
+    #     """
 
-        table_descriptions = format_table_descriptions_for_prompt(state["table_descriptions"])
-        # Create a system prompt that instructs the LLM on how to generate questions and SQL
-        prompt = f"""Based on the following table descriptions and context, generate natural language questions and corresponding SQL queries:
-        Table Descriptions:
-        {table_descriptions}
+    #     table_descriptions = format_table_descriptions_for_prompt(state["table_descriptions"])
+    #     # Create a system prompt that instructs the LLM on how to generate questions and SQL
+    #     prompt = f"""Based on the following table descriptions and context, generate natural language questions and corresponding SQL queries:
+    #     Table Descriptions:
+    #     {table_descriptions}
         
-        Relevant Tables:
-        {state["relevant_tables"]}
+    #     Relevant Tables:
+    #     {state["relevant_tables"]}
         
-        Intents:
-        {state["intents"]}
+    #     Intents:
+    #     {state["intents"]}
         
-        For each intent, generate a clear and specific question that can be answered using SQL.
-        Then, create a corresponding SQL query that would answer the question.
+    #     For each intent, generate a clear and specific question that can be answered using SQL.
+    #     Then, create a corresponding SQL query that would answer the question.
         
-        You can use the available tools to help you understand the database schema and find relevant tables and columns.
+    #     You can use the available tools to help you understand the database schema and find relevant tables and columns.
         
-        Format your response as:
-        Question: [Your natural language question]
-        SQL: [The SQL query that answers the question]
-        """
+    #     Format your response as:
+    #     Question: [Your natural language question]
+    #     SQL: [The SQL query that answers the question]
+    #     """
 
-        # print("Generating questions SQL prompts:")
-        # print(prompt)
-        # print("="*50)
+    #     print("Generating questions SQL prompts:")
+    #     # print(prompt)
+    #     print("="*50)
+    #     print(state["relevant_columns"])
+    #     print(state["relevant_tables"])
+    #     print("="*50)
 
-        # Bind the tools to the LLM
-        llm_with_tools = self.llm.bind_tools(
-            [tool for tool in self.tools.tools], tool_choice="auto"
-        )
+    #     # Bind the tools to the LLM
+    #     llm_with_tools = self.llm.bind_tools(
+    #         [tool for tool in self.tools.tools], tool_choice="auto"
+    #     )
 
-        # Create a system message with the prompt
-        sys_message = SystemMessage(content=prompt)
+    #     # Create a system message with the prompt
+    #     sys_message = SystemMessage(content=prompt)
 
-        # Generate a response using the LLM with tools
-        messages = [sys_message] + state["messages"]
-        response = await llm_with_tools.ainvoke([messages])
+    #     # Generate a response using the LLM with tools
+    #     messages = [sys_message] + state["messages"]
+    #     response = await llm_with_tools.ainvoke([messages])
 
-        # Extract the generated content
-        generated_content = response.content
+    #     # Extract the generated content
+    #     generated_content = response.content
 
-        # Parse the generated content to extract question-SQL pairs
-        # This is a simple implementation - in a real system, you'd want more robust parsing
-        pairs = []
-        lines = generated_content.split("\n")
-        current_question = None
-        current_sql = None
+    #     # Parse the generated content to extract question-SQL pairs
+    #     # This is a simple implementation - in a real system, you'd want more robust parsing
+    #     pairs = []
+    #     lines = generated_content.split("\n")
+    #     current_question = None
+    #     current_sql = None
 
-        for line in lines:
-            line = line.strip()
-            if line.startswith("Question:"):
-                # If we already have a question and SQL, add them to pairs
-                if current_question and current_sql:
-                    pairs.append((current_question, current_sql))
+    #     for line in lines:
+    #         line = line.strip()
+    #         if line.startswith("Question:"):
+    #             # If we already have a question and SQL, add them to pairs
+    #             if current_question and current_sql:
+    #                 pairs.append((current_question, current_sql))
 
-                # Start a new pair
-                current_question = line[len("Question:") :].strip()
-                current_sql = None
-            elif line.startswith("SQL:"):
-                current_sql = line[len("SQL:") :].strip()
+    #             # Start a new pair
+    #             current_question = line[len("Question:") :].strip()
+    #             current_sql = None
+    #         elif line.startswith("SQL:"):
+    #             current_sql = line[len("SQL:") :].strip()
 
-        # Add the last pair if it exists
-        if current_question and current_sql:
-            pairs.append((current_question, current_sql))
+    #     # Add the last pair if it exists
+    #     if current_question and current_sql:
+    #         pairs.append((current_question, current_sql))
 
-        # Add the generated pairs to the state
-        state["generated_questions_sql_pairs"].extend(pairs)
+    #     # Add the generated pairs to the state
+    #     state["generated_questions_sql_pairs"].extend(pairs)
 
-        # For debugging
-        print(f"Generated {len(pairs)} question-SQL pairs")
+    #     # For debugging
+    #     print(f"Generated {len(pairs)} question-SQL pairs")
 
-        return state
+    #     return state
 
     async def generate_without_tools(self, state: AgentState) -> AgentState:
         """Generate a natural language question and SQL query based on schema and context.
         LLM not capable of using tools. Zero-shot approach.
         """
+
         table_descriptions = format_table_descriptions_for_prompt(state["table_descriptions"])
         # Create a system prompt that instructs the LLM on how to generate questions and SQL
         sys_prompt = f"""Generate natural language questions and corresponding SQL queries based on the following context:
-        Table Descriptions:
+        ## Table Descriptions:
         {table_descriptions}
         
-        Relevant Tables:
+        ## Relevant Tables:
         {state["relevant_tables"]}
         
-        Intents:
+        ## Intents:
         {state["intents"]}
         
-        For each intent, generate a clear and specific question that can be answered using SQL.
-        Then, create a corresponding SQL query that would answer the question.
+        ## Instructions:
+        1. For each intent, generate only one clear and specific question that can be answered using SQL.
+        2. Then, create a corresponding SQL query that would answer the question.
+        3. The SQL query is using {state['sql_dialect']} backend.
         
+        ## Output Format
         Format your response as list of dictionary objects (JSON) with keys as follows:
         - question: Your natural language question without mentioning the table name.
         - sql: The SQL query that answers the question.
+
+        ## Additional Instructions to Generate SQL Syntax
+        1. If the column name contains space, then add quotation mark on it.
+        2. If the column name is only one word and start with capital letter, then add quotation mark on it. 
         """
 
         # Create a system message with the prompt
@@ -383,7 +342,7 @@ class QuestionGenerationAgent:
         messages = [sys_message] + state["messages"]
 
         # print("Generating questions SQL prompts without tools:")
-        # print(state['intents'])
+        # print(sys_prompt)
         # print("="*50)
 
         response = await llm.ainvoke(messages)
@@ -443,7 +402,10 @@ class QuestionGenerationAgent:
             max_retries=2,
         )
         state: AgentState = {
+            "sql_dialect": question_generation_config.sql_dialect,
             "num_questions_to_generate": question_generation_config.questions_per_batch,
+            "db_intent": question_generation_config.db_intent,
+            "instruction": question_generation_config.instruction,
             "table_descriptions": table_descriptions,
             "context_stores": context_stores or [],
             "generated_questions_sql_pairs": [],
@@ -461,8 +423,8 @@ class QuestionGenerationAgent:
         # Convert the generated question-SQL pairs to QuestionSQLPair objects
         question_sql_pairs = []
         for row in final_state.get("generated_questions_sql_pairs", []):
-            question = row.get("question", "").replace("\\", " ").strip()
-            sql = row.get("sql", "").replace("\\", " ").strip()
+            question = row.get("question", "").strip()
+            sql = row.get("sql", "").strip()
             question_sql_pairs.append(QuestionSQLPair(question=question, sql=sql))
 
         return question_sql_pairs

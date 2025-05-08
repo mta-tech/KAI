@@ -221,3 +221,25 @@ Return the output as a JSON list of dictionaries where each dictionary contains:
 Text: {text}
 Labels: {labels}
 """
+
+DATABASE_DESCRIPTION_INTENTS_PROMPT = """
+You are a data analyst assistant. Given a description of a database, your task is to generate 5 plausible analytical themes or business questions that a user might want to explore using the data in the database.
+
+## Database Description
+{database_description}
+
+## Instructions
+- Each theme should be concise (one sentence), focused on a business or analytical goal.
+- Do not refer to table names or columns explicitly.
+- Themes should reflect common real-world use cases related to the described database.
+- Avoid generic themes like "analyze the data" or "get information from the database".
+
+## Examples
+If the database is about sales and customer transactions:
+- Analyze customer purchasing trends across different regions.
+- Monitor revenue performance by product category.
+- Identify the best-performing sales representatives over time.
+
+## Your Turn:
+Generate 3 themes based on the above database description.
+"""
