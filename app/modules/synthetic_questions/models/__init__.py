@@ -14,7 +14,9 @@ class QuestionSQLPair(BaseModel):
     """
 
     question: str
-    sql: str | None = None
+    sql: str
+    status: str
+    error: str
 
 class SyntheticQuestions(BaseModel):
     questions: List

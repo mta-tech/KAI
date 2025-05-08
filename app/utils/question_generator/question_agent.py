@@ -7,7 +7,11 @@ from langgraph.graph import MessagesState
 from langgraph.graph.graph import CompiledGraph
 from langgraph.prebuilt import ToolNode
 import re
+import asyncio
 
+from app.data.db.storage import Storage
+from app.server.config import Settings
+from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.utils.model.chat_model import ChatModel
 from app.modules.context_store.models import ContextStore
 from app.modules.synthetic_questions.models import (
@@ -23,6 +27,7 @@ from app.utils.question_generator.question_utils import(
 )
 
 from app.modules.table_description.models import TableDescription
+from app.utils.sql_database.sql_database import SQLDatabase
 
 class AgentState(MessagesState):
     """State tracked across agent execution"""
@@ -95,6 +100,7 @@ class QuestionGenerationAgent:
         builder.add_node("initial_context_node", self.initial_context_node)
         builder.add_node("agent_intents_generator", self.agent_intents_generator)
         builder.add_node("generate_without_tools", self.generate_without_tools)
+        builder.add_node("validate_sql_query", self.validate_sql_query)
         # builder.add_node("generate_questions_sql", self.generate_questions_sql)
         # builder.add_node("tools", self.tools)
 
@@ -105,7 +111,8 @@ class QuestionGenerationAgent:
         # Conditional routing based on configuration or other factors
         # For now, we'll use both paths
         builder.add_edge("agent_intents_generator", "generate_without_tools")
-        builder.add_edge("generate_without_tools", END)
+        builder.add_edge("generate_without_tools", "validate_sql_query")
+        builder.add_edge("validate_sql_query", END)
         # builder.add_edge("agent_intents_generator", "generate_questions_sql")
         # builder.add_conditional_edges("generate_questions_sql", tools_condition)
         # builder.add_edge("tools", "generate_questions_sql")
@@ -220,95 +227,38 @@ class QuestionGenerationAgent:
         state["messages"] = messages
         return state
 
-    # async def generate_questions_sql(self, state: AgentState) -> AgentState:
-    #     """Generate a natural language question and SQL query based on schema and context.
-    #     LLM capable of using tools to get further context if needed.
 
-    #     The result will be Question-SQL pair
-    #     """
+    async def validate_sql_query(self, state: AgentState):
+        storage = Storage(Settings())
+        db_connection_repository = DatabaseConnectionRepository(storage)
 
-    #     table_descriptions = format_table_descriptions_for_prompt(state["table_descriptions"])
-    #     # Create a system prompt that instructs the LLM on how to generate questions and SQL
-    #     prompt = f"""Based on the following table descriptions and context, generate natural language questions and corresponding SQL queries:
-    #     Table Descriptions:
-    #     {table_descriptions}
-        
-    #     Relevant Tables:
-    #     {state["relevant_tables"]}
-        
-    #     Intents:
-    #     {state["intents"]}
-        
-    #     For each intent, generate a clear and specific question that can be answered using SQL.
-    #     Then, create a corresponding SQL query that would answer the question.
-        
-    #     You can use the available tools to help you understand the database schema and find relevant tables and columns.
-        
-    #     Format your response as:
-    #     Question: [Your natural language question]
-    #     SQL: [The SQL query that answers the question]
-    #     """
+        db_connection = db_connection_repository.find_by_id(state['db_connection_id'])
+        database = SQLDatabase.get_sql_engine(db_connection, True)
 
-    #     print("Generating questions SQL prompts:")
-    #     # print(prompt)
-    #     print("="*50)
-    #     print(state["relevant_columns"])
-    #     print(state["relevant_tables"])
-    #     print("="*50)
+        async def validate_single_query(sql_query):
+            try:
+                await asyncio.to_thread(database.run_sql, sql_query['sql'], 1)
+                sql_query['status'] = 'VALID'
+                sql_query['error'] = ''
+            except Exception as e:
+                sql_query['status'] = 'INVALID'
+                sql_query['error'] = str(e)
+            return sql_query
 
-    #     # Bind the tools to the LLM
-    #     llm_with_tools = self.llm.bind_tools(
-    #         [tool for tool in self.tools.tools], tool_choice="auto"
-    #     )
+        tasks = [validate_single_query(q) for q in state["generated_questions_sql_pairs"]]
+        final_sql_query = await asyncio.gather(*tasks)
 
-    #     # Create a system message with the prompt
-    #     sys_message = SystemMessage(content=prompt)
-
-    #     # Generate a response using the LLM with tools
-    #     messages = [sys_message] + state["messages"]
-    #     response = await llm_with_tools.ainvoke([messages])
-
-    #     # Extract the generated content
-    #     generated_content = response.content
-
-    #     # Parse the generated content to extract question-SQL pairs
-    #     # This is a simple implementation - in a real system, you'd want more robust parsing
-    #     pairs = []
-    #     lines = generated_content.split("\n")
-    #     current_question = None
-    #     current_sql = None
-
-    #     for line in lines:
-    #         line = line.strip()
-    #         if line.startswith("Question:"):
-    #             # If we already have a question and SQL, add them to pairs
-    #             if current_question and current_sql:
-    #                 pairs.append((current_question, current_sql))
-
-    #             # Start a new pair
-    #             current_question = line[len("Question:") :].strip()
-    #             current_sql = None
-    #         elif line.startswith("SQL:"):
-    #             current_sql = line[len("SQL:") :].strip()
-
-    #     # Add the last pair if it exists
-    #     if current_question and current_sql:
-    #         pairs.append((current_question, current_sql))
-
-    #     # Add the generated pairs to the state
-    #     state["generated_questions_sql_pairs"].extend(pairs)
-
-    #     # For debugging
-    #     print(f"Generated {len(pairs)} question-SQL pairs")
-
-    #     return state
+        state["generated_questions_sql_pairs"] = final_sql_query
+        return state
 
     async def generate_without_tools(self, state: AgentState) -> AgentState:
         """Generate a natural language question and SQL query based on schema and context.
         LLM not capable of using tools. Zero-shot approach.
         """
 
-        table_descriptions = format_table_descriptions_for_prompt(state["table_descriptions"])
+        table_descriptions = format_table_descriptions_for_prompt(
+            state["table_descriptions"], state['relevant_tables'], state['relevant_columns'],
+        )
         # Create a system prompt that instructs the LLM on how to generate questions and SQL
         sys_prompt = f"""Generate natural language questions and corresponding SQL queries based on the following context:
         ## Table Descriptions:
@@ -323,16 +273,17 @@ class QuestionGenerationAgent:
         ## Instructions:
         1. For each intent, generate only one clear and specific question that can be answered using SQL.
         2. Then, create a corresponding SQL query that would answer the question.
-        3. The SQL query is using {state['sql_dialect']} backend.
+        3. The SQL query targets the {state['sql_dialect']} SQL dialect.
         
         ## Output Format
         Format your response as list of dictionary objects (JSON) with keys as follows:
         - question: Your natural language question without mentioning the table name.
         - sql: The SQL query that answers the question.
 
-        ## Additional Instructions to Generate SQL Syntax
-        1. If the column name contains space, then add quotation mark on it.
-        2. If the column name is only one word and start with capital letter, then add quotation mark on it. 
+        ## SQL Syntax Rules
+        1. If the column name contains space, enclose it in quotes.
+        2. If the column name is single word and starts with a capital letter, enclose it in quotes.
+        3. Apply CAST(... AS NUMERIC) to the column for all aggregate functions to ensure numeric computation, even if the column is of type TEXT.
         """
 
         # Create a system message with the prompt
@@ -341,6 +292,7 @@ class QuestionGenerationAgent:
         # Generate a response using the LLM without tools
         messages = [sys_message] + state["messages"]
 
+        # print("="*50)
         # print("Generating questions SQL prompts without tools:")
         # print(sys_prompt)
         # print("="*50)
@@ -402,6 +354,7 @@ class QuestionGenerationAgent:
             max_retries=2,
         )
         state: AgentState = {
+            "db_connection_id": question_generation_config.db_connection_id,
             "sql_dialect": question_generation_config.sql_dialect,
             "num_questions_to_generate": question_generation_config.questions_per_batch,
             "db_intent": question_generation_config.db_intent,
@@ -425,6 +378,12 @@ class QuestionGenerationAgent:
         for row in final_state.get("generated_questions_sql_pairs", []):
             question = row.get("question", "").strip()
             sql = row.get("sql", "").strip()
-            question_sql_pairs.append(QuestionSQLPair(question=question, sql=sql))
+            status = row.get("status")
+            error = row.get("error")
+            question_sql_pairs.append(
+                QuestionSQLPair(
+                    question=question, sql=sql, status=status, error=error
+                )
+            )
 
         return question_sql_pairs
