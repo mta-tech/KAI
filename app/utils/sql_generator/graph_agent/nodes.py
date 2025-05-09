@@ -13,7 +13,7 @@ from app.modules.instruction.services import InstructionService
 from app.modules.prompt.models import Prompt
 from app.modules.table_description.models import TableDescriptionStatus
 from app.modules.table_description.repositories import TableDescriptionRepository
-from app.server.config import Settings
+# from app.server.config import Settings
 from app.utils.model.embedding_model import EmbeddingModel
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_generator.sql_generator import SQLGenerator
@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 def collect_context(state: SQLAgentState) -> SQLAgentState:
+    from app.server.config import Settings
+    
     start_time = datetime.now()
     """Collect context from various services.
 
@@ -795,6 +797,7 @@ def validate_query(state: SQLAgentState) -> SQLAgentState:
             return state
 
         # Get database connection repository
+        from app.server.config import Settings
         storage = Storage(Settings())
         db_connection_repository = DatabaseConnectionRepository(storage)
 

@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List
 import json
-from app.server.config import Settings
+# from app.server.config import Settings
 from app.data.db.storage import Storage
 import sqlalchemy
 from sqlalchemy import Column, MetaData, Table, inspect, text
@@ -585,6 +585,7 @@ class SqlAlchemyScanner:
             print(database_description)
 
             # Initialize with Storage instance
+            from app.server.config import Settings
             storage = Storage(Settings())
             database_connection_repository = DatabaseConnectionRepository(storage)
             db_connection = database_connection_repository.find_by_id(db_connection_id)

@@ -9,7 +9,7 @@ from overrides import override
 from app.modules.database_connection.models import DatabaseConnection
 from app.modules.prompt.models import Prompt
 from app.modules.sql_generation.models import SQLGeneration
-from app.server.config import Settings
+# from app.server.config import Settings
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_generator.sql_generator import SQLGenerator
 from app.utils.sql_tools import replace_unprocessable_characters
@@ -23,6 +23,7 @@ class LangGraphSQLAgent(SQLGenerator):
     """SQL agent implemented using LangGraph."""
 
     def __init__(self, llm_config):
+        from app.server.config import Settings
         super().__init__(llm_config)
         self.settings = Settings()
 

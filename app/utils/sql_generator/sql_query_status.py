@@ -1,6 +1,6 @@
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.modules.sql_generation.models import SQLGeneration
-from app.server.config import Settings
+# from app.server.config import Settings
 from app.utils.core.timeout import run_with_timeout
 
 
@@ -23,6 +23,7 @@ def create_sql_query_status(
     query: str,
     sql_generation: SQLGeneration,
 ) -> SQLGeneration:
+    from app.server.config import Settings
     """Find the sql query status and populate the fields sql_query_result, sql_generation_status, and error_message"""
     if query == "":
         sql_generation.status = "INVALID"

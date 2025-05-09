@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from app.modules.database_connection.models import DatabaseConnection
 from app.modules.sql_generation.models import IntermediateStep, LLMConfig
 from app.modules.table_description.models import TableDescription
+from app.modules.synthetic_questions.models import QuestionSQLPair
 
 
 class BaseResponse(BaseModel):
@@ -72,7 +73,7 @@ class DocumentResponse(BaseResponse):
     text_content: str | None = None
 
 class SyntheticQuestionResponse(BaseModel):
-    questions: list[dict]
+    questions: list[QuestionSQLPair]
     input_tokens_used: int | None
     output_tokens_used: int | None
     metadata: dict | None = None

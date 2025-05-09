@@ -1,11 +1,11 @@
 import uuid
 
 from app.data.db import TypeSenseDB
-from app.server.config import Settings
+# from app.server.config import Settings
 
 
 class Storage(TypeSenseDB):
-    def __init__(self, setting: Settings) -> None:
+    def __init__(self, setting) -> None:
         super().__init__(setting)
 
     def find_one(self, collection: str, filter: dict) -> dict:

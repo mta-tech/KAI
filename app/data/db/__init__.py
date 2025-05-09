@@ -3,16 +3,16 @@ import os
 
 import typesense
 
-from app.server.config import Settings
+# from app.server.config import Settings
 
 
 class TypeSenseDB:
-    def __init__(self, setting: Settings):
+    def __init__(self, setting):
         self.client = self._initialize_client(setting)
         self.embedding_dimensions = setting.EMBEDDING_DIMENSIONS
         self.schema_path = "app/data/db/schemas"
 
-    def _initialize_client(self, setting: Settings) -> typesense.Client:
+    def _initialize_client(self, setting) -> typesense.Client:
         """Initialize the Typesense client."""
         return typesense.Client(
             {

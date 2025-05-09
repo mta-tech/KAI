@@ -99,3 +99,6 @@ experimentations.ipynb
 orbit_setup.ipynb
 development
 *.ipynb
+
+# Ignore Cline
+.clineignore

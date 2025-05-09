@@ -21,7 +21,7 @@ from app.modules.prompt.models import Prompt
 from app.modules.sql_generation.models import SQLGeneration
 from app.modules.table_description.models import TableDescriptionStatus
 from app.modules.table_description.repositories import TableDescriptionRepository
-from app.server.config import Settings
+# from app.server.config import Settings
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_evaluator import Evaluation, Evaluator
 
@@ -109,6 +109,7 @@ class SimpleEvaluator(Evaluator):
         sql_generation: SQLGeneration,
         database_connection: DatabaseConnection,
     ) -> Evaluation:
+        from app.server.config import Settings
         max_confidence = 100
         database = SQLDatabase.get_sql_engine(database_connection)
         logger.info(

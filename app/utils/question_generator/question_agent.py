@@ -10,7 +10,7 @@ import re
 import asyncio
 
 from app.data.db.storage import Storage
-from app.server.config import Settings
+# from app.server.config import Settings
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.utils.model.chat_model import ChatModel
 from app.modules.context_store.models import ContextStore
@@ -229,6 +229,7 @@ class QuestionGenerationAgent:
 
 
     async def validate_sql_query(self, state: AgentState):
+        from app.server.config import Settings
         storage = Storage(Settings())
         db_connection_repository = DatabaseConnectionRepository(storage)
 
