@@ -9,6 +9,7 @@ class SQLAgentState(BaseModel):
     question: str
     db_connection_id: str
     prompt_id: str
+    dialect: str
     
     # Context state
     db_scan: List[Dict[str, Any]] = Field(default_factory=list)

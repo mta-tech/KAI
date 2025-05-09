@@ -67,6 +67,7 @@ class LangGraphSQLAgent(SQLGenerator):
             db_connection_id=str(database_connection.id),
             prompt_id=str(user_prompt.id),
             metadata=metadata or {},
+            dialect=database_connection.dialect
         )
 
         repository_retrieval_end_time = datetime.now()

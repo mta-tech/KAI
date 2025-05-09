@@ -718,11 +718,12 @@ def construct_sql_generation_prompt(state: SQLAgentState) -> str:
         prompt += f"### Previous Error and SQL Query\n{state.error}\n\n"
 
     # Add final instruction
-    prompt += "### Task\n"
-    prompt += "Generate a SQL query that answers the question. The query should be syntactically correct and executable.\n"
-    prompt += (
-        "Return ONLY the SQL query without any explanations or markdown formatting.\n"
-    )
+    prompt += f"""### Task
+    1. Generate a SQL query that answers the question. The query should be syntactically correct and executable.
+    2. The SQL query targets the `{state.dialect}` SQL dialect.
+    3. Apply CAST(... AS NUMERIC) to the column for all aggregate functions to ensure numeric computation, even if the column is of type TEXT.
+    4. Return ONLY the SQL query without any explanations or markdown formatting.
+    """
 
     return prompt
 
