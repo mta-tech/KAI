@@ -44,7 +44,7 @@ class DatabaseConnectionService:
                 )
 
                 sql_database = SQLDatabase.get_sql_engine(database_connection, True)
-                schemas_and_tables[schema] = sql_database.get_tables_and_views()
+                schemas_and_tables[schema] = sql_database.get_tables_and_views(schema)
 
         # Connect db
         database_connection_repository = DatabaseConnectionRepository(self.storage)
@@ -108,7 +108,7 @@ class DatabaseConnectionService:
                 )
 
                 sql_database = SQLDatabase.get_sql_engine(database_connection, True)
-                schemas_and_tables[schema] = sql_database.get_tables_and_views()
+                schemas_and_tables[schema] = sql_database.get_tables_and_views(schema)
 
         # Connect db
         database_connection_repository = DatabaseConnectionRepository(self.storage)

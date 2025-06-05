@@ -2,11 +2,12 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from app.modules.database_connection.models import DatabaseConnection
-from app.server.config import Settings
+# from app.server.config import Settings
 
 
 class LLMModel(ABC):
     def __init__(self):
+        from app.server.config import Settings
         self.settings = Settings()
 
     @abstractmethod

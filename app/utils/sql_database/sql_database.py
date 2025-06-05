@@ -232,11 +232,11 @@ class SQLDatabase:
                 return str(serialized_result), {"result": serialized_result}
         return "", {}
 
-    def get_tables_and_views(self) -> List[str]:
+    def get_tables_and_views(self, schema=None) -> List[str]:
         inspector = inspect(self._engine)
         meta = MetaData()
-        meta.reflect(bind=self._engine, views=True)
-        rows = inspector.get_table_names() + inspector.get_view_names()
+        meta.reflect(bind=self._engine, views=True, schema=schema)
+        rows = inspector.get_table_names(schema=schema) + inspector.get_view_names(schema=schema)
         if len(rows) == 0:
             raise Exception("The db is empty it could be a permission issue")
         return [row for row in rows]

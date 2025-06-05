@@ -22,7 +22,7 @@ from app.modules.prompt.repositories import PromptRepository
 from app.modules.prompt.services import PromptService
 from app.modules.sql_generation.models import LLMConfig, SQLGeneration
 from app.modules.sql_generation.repositories import SQLGenerationRepository
-from app.server.config import Settings
+# from app.server.config import Settings
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_evaluator.simple_evaluator import SimpleEvaluator
 from app.utils.sql_generator.sql_agent import SQLAgent
@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 class SQLGenerationService:
     def __init__(self, storage):
+        from app.server.config import Settings
         self.settings = Settings()
         self.storage = storage
         self.sql_generation_repository = SQLGenerationRepository(storage)

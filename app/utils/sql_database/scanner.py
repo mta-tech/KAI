@@ -2,7 +2,8 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List
 import json
-
+# from app.server.config import Settings
+from app.data.db.storage import Storage
 import sqlalchemy
 from sqlalchemy import Column, MetaData, Table, inspect, text
 from sqlalchemy.engine import Engine
@@ -18,12 +19,14 @@ from app.modules.table_description.models import (
     TableDescriptionStatus,
 )
 from app.modules.table_description.repositories import TableDescriptionRepository
+from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.modules.sql_generation.models import LLMConfig
 from app.utils.model.chat_model import ChatModel
 from app.utils.prompts.agent_prompts import (
     COLUMN_DESCRIPTION_PROMPT,
     TABLE_DESCRIPTION_PROMPT,
     TABLE_DESCRIPTION_INSTRUCTION,
+    DATABASE_DESCRIPTION_PROMPT,
 )
 
 MIN_CATEGORY_VALUE = 1
@@ -84,7 +87,7 @@ class TableColumnsDescriptionGenerator:
         self.llm_config = llm_config
         self.model = ChatModel()
 
-    def create_chain(self, prompt_template: str, instruction: str) -> Any:
+    def create_chain(self, prompt_template: str, instruction: str = None) -> Any:
         if instruction and len(instruction) > 10:
             prompt_template = prompt_template + TABLE_DESCRIPTION_INSTRUCTION.format(instruction=instruction)
 
@@ -153,10 +156,10 @@ class TableColumnsDescriptionGenerator:
         rows_number: int = 5,
         instruction: str = '',
     ) -> List[Dict[str, Any]]:
-        print(f"Generate column descriptions table: {table}")
         chain = self.create_chain(COLUMN_DESCRIPTION_PROMPT, instruction)
 
-        columns = [col for col in meta.tables[table].columns if "." not in col.name]
+        meta_table_name = f"{meta.schema}.{table}" if meta.schema else table
+        columns = [col for col in meta.tables[meta_table_name].columns if "." not in col.name]
         examples_query = sqlalchemy.select(*columns).distinct().limit(rows_number)
         with db_engine.connect() as connection:
             examples = connection.execute(examples_query).fetchall()
@@ -178,7 +181,6 @@ class TableColumnsDescriptionGenerator:
         columns_description: dict,
         instruction: str,
     ) -> str:
-        print(f"Generate table description: {table}")
         chain = self.create_chain(
             TABLE_DESCRIPTION_PROMPT, instruction
         )
@@ -210,6 +212,26 @@ class TableColumnsDescriptionGenerator:
                 setattr(table_description, key, default_values[key])
 
         return table_description
+    
+    def get_database_description(
+        self,
+        table_descriptions: List[dict],
+    ) -> str:
+        print(f"Generate database description...")
+        chain = self.create_chain(
+            DATABASE_DESCRIPTION_PROMPT
+        )
+
+        text = ""
+        for table in table_descriptions:
+            text += f"Table: {table['table_name']}\n"
+            text += f"Description: {table['table_description']}\n\n"
+
+        database_description = chain.invoke(
+            {"table_details": text}
+        ).content
+
+        return database_description
 
 class SqlAlchemyScanner:
     def create_tables(
@@ -301,9 +323,8 @@ class SqlAlchemyScanner:
     def get_table_examples(
         self, meta: MetaData, db_engine: Engine, table: str, rows_number: int = 3
     ) -> List[Dict[str, Any]]:
-        print(f"Create examples: {table}")
-
-        columns = [col for col in meta.tables[table].columns if "." not in col.name]
+        meta_table_name = f"{meta.schema}.{table}" if meta.schema else table
+        columns = [col for col in meta.tables[meta_table_name].columns if "." not in col.name]
         examples_query = sqlalchemy.select(*columns).limit(rows_number)
         with db_engine.connect() as connection:
             examples = connection.execute(examples_query).fetchall()
@@ -327,7 +348,8 @@ class SqlAlchemyScanner:
         column: dict,
         scanner_service: PostgreSqlScanner,
     ) -> ColumnDescription:
-        dynamic_meta_table = meta.tables[table_name]
+        meta_table_name = f"{meta.schema}.{table_name}" if meta.schema else table_name
+        dynamic_meta_table = meta.tables[meta_table_name]
 
         column_name = column["name"]
         selected_column = dynamic_meta_table.c.get(column_name)
@@ -368,8 +390,6 @@ class SqlAlchemyScanner:
         return column_description
 
     def get_table_schema(self, meta: MetaData, db_engine: Engine, table: str) -> str:
-        print(f"Create table schema for: {table}")
-
         original_table = next((x for x in meta.sorted_tables if x.name == table), None)
         if original_table is None:
             raise ValueError(f"Table '{table}' not found in metadata.")
@@ -437,14 +457,13 @@ class SqlAlchemyScanner:
         llm_config: LLMConfig = None,
         instruction: str = '',
     ) -> TableDescription:
-        print(f"Scanning table: {table_name}")
+        print(f"Scanning table '{table_name}'...")
         inspector = inspect(db_engine)
         table_columns = []
-        columns = inspector.get_columns(table_name=table_name)
+        columns = inspector.get_columns(table_name=table_name, schema=schema)
         columns = [column for column in columns if column["name"].find(".") < 0]
 
         for column in columns:
-            print(f"Scanning column: {column['name']}")
             table_columns.append(
                 self.get_processed_column(
                     meta=meta,
@@ -478,7 +497,7 @@ class SqlAlchemyScanner:
                 if column.name in columns_description:
                     # Update the description with the value from the dictionary
                     column.description = columns_description[column.name]
-            print(f"Table and columns generation is DONE: {table_name}")
+            print(f"Table and columns generation `{table_name}` is DONE")
         else:
             table_description = columns_description = None
 
@@ -508,12 +527,13 @@ class SqlAlchemyScanner:
         instruction: str = ''
     ) -> None:
         scanner_service = PostgreSqlScanner()
+        db_connection_id = table_descriptions[0].db_connection_id
 
         inspect(db_engine)
-        meta = MetaData()
-        meta.reflect(bind=db_engine, views=True)
-
+        payload_table_descriptions = []
         for table in table_descriptions:
+            meta = MetaData(schema=table.db_schema)
+            meta.reflect(bind=db_engine, views=True, schema=table.db_schema)
             try:
                 self.scan_single_table(
                     meta=meta,
@@ -540,3 +560,34 @@ class SqlAlchemyScanner:
                 )
             except Exception:  # noqa: S112
                 continue
+        print("Scanning tables is DONE")
+
+        payload_table_descriptions = repository.get_all_tables_by_db(
+            {
+                "db_connection_id": str(db_connection_id),
+                "sync_status": TableDescriptionStatus.SCANNED.value,
+            }
+        )
+
+        if payload_table_descriptions and llm_config:
+            payload_table_descriptions = [
+                {
+                    "table_name": table.table_name,
+                    "table_description": table.table_description,
+                }
+                for table in payload_table_descriptions
+            ]
+
+            database_description = TableColumnsDescriptionGenerator(llm_config).get_database_description(
+                table_descriptions=payload_table_descriptions
+            )
+
+            print(database_description)
+
+            # Initialize with Storage instance
+            from app.server.config import Settings
+            storage = Storage(Settings())
+            database_connection_repository = DatabaseConnectionRepository(storage)
+            db_connection = database_connection_repository.find_by_id(db_connection_id)
+            db_connection.description = database_description
+            database_connection_repository.update(db_connection)

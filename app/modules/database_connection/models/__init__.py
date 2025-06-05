@@ -16,6 +16,7 @@ class SupportedDialects(Enum):
 class DatabaseConnection(BaseModel):
     id: Optional[str] = None
     alias: str
+    description: str | None = None
     dialect: str
     connection_uri: str
     schemas: list[str]

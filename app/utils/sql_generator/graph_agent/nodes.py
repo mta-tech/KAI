@@ -13,7 +13,7 @@ from app.modules.instruction.services import InstructionService
 from app.modules.prompt.models import Prompt
 from app.modules.table_description.models import TableDescriptionStatus
 from app.modules.table_description.repositories import TableDescriptionRepository
-from app.server.config import Settings
+# from app.server.config import Settings
 from app.utils.model.embedding_model import EmbeddingModel
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_generator.sql_generator import SQLGenerator
@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 def collect_context(state: SQLAgentState) -> SQLAgentState:
+    from app.server.config import Settings
+    
     start_time = datetime.now()
     """Collect context from various services.
 
@@ -716,11 +718,12 @@ def construct_sql_generation_prompt(state: SQLAgentState) -> str:
         prompt += f"### Previous Error and SQL Query\n{state.error}\n\n"
 
     # Add final instruction
-    prompt += "### Task\n"
-    prompt += "Generate a SQL query that answers the question. The query should be syntactically correct and executable.\n"
-    prompt += (
-        "Return ONLY the SQL query without any explanations or markdown formatting.\n"
-    )
+    prompt += f"""### Task
+    1. Generate a SQL query that answers the question. The query should be syntactically correct and executable.
+    2. The SQL query targets the `{state.dialect}` SQL dialect.
+    3. Apply CAST(... AS NUMERIC) to the column for all aggregate functions to ensure numeric computation, even if the column is of type TEXT.
+    4. Return ONLY the SQL query without any explanations or markdown formatting.
+    """
 
     return prompt
 
@@ -795,6 +798,7 @@ def validate_query(state: SQLAgentState) -> SQLAgentState:
             return state
 
         # Get database connection repository
+        from app.server.config import Settings
         storage = Storage(Settings())
         db_connection_repository = DatabaseConnectionRepository(storage)
 

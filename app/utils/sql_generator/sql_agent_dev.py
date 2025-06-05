@@ -23,7 +23,7 @@ from app.modules.table_description.models import (
     TableDescriptionStatus,
 )
 from app.modules.table_description.repositories import TableDescriptionRepository
-from app.server.config import Settings
+# from app.server.config import Settings
 from app.utils.prompts.agent_prompts import (
     ERROR_PARSING_MESSAGE,
     FORMAT_INSTRUCTIONS,
@@ -58,10 +58,11 @@ logger = logging.getLogger(__name__)
 
 class FullContextSQLAgent(SQLGenerator):
     """SQL agent with all tools registered as Full Context Prompts"""
+    from app.server.config import Settings
 
     max_number_of_examples: int = 5  # maximum number of question/SQL pairs
     llm: Any = None
-    settings = Settings()
+    settings: Settings = Settings()
 
     def remove_duplicate_examples(self, fewshot_examples: List[dict]) -> List[dict]:
         returned_result = []
@@ -173,7 +174,7 @@ class FullContextSQLAgent(SQLGenerator):
         metadata: dict = None,
     ) -> SQLGeneration:  # noqa: PLR0912
         generation_start_time = datetime.now()
-        storage = Storage(Settings())
+        storage = Storage(self.settings)
         context_store_service = ContextStoreService(storage)
         instruction_service = InstructionService(storage)
         business_metrics_service = BusinessGlossaryService(storage)
