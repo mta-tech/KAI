@@ -1,10 +1,11 @@
 from cryptography.fernet import Fernet
 
-from app.server.config import Settings
+# from app.server.config import Settings
 
 
 class FernetEncrypt:
     def __init__(self):
+        from app.server.config import Settings
         settings = Settings()
         self.fernet_key = Fernet(settings.ENCRYPT_KEY)
 

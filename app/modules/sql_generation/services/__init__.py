@@ -22,11 +22,12 @@ from app.modules.prompt.repositories import PromptRepository
 from app.modules.prompt.services import PromptService
 from app.modules.sql_generation.models import LLMConfig, SQLGeneration
 from app.modules.sql_generation.repositories import SQLGenerationRepository
-from app.server.config import Settings
+# from app.server.config import Settings
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_evaluator.simple_evaluator import SimpleEvaluator
 from app.utils.sql_generator.sql_agent import SQLAgent
 from app.utils.sql_generator.sql_agent_dev import FullContextSQLAgent
+from app.utils.sql_generator.graph_agent import LangGraphSQLAgent
 from app.utils.sql_generator.sql_query_status import create_sql_query_status
 from app.utils.model.chat_model import ChatModel
 from app.utils.prompts_ner.prompts_ner import (
@@ -45,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 class SQLGenerationService:
     def __init__(self, storage):
+        from app.server.config import Settings
         self.settings = Settings()
         self.storage = storage
         self.sql_generation_repository = SQLGenerationRepository(storage)
@@ -169,6 +171,14 @@ class SQLGenerationService:
             option = sql_generation_request.metadata.get("option", "")
             if option == "dev":
                 sql_generator = FullContextSQLAgent(
+                    (
+                        sql_generation_request.llm_config
+                        if sql_generation_request.llm_config
+                        else LLMConfig()
+                    ),
+                )
+            elif option == "graph":
+                sql_generator = LangGraphSQLAgent(
                     (
                         sql_generation_request.llm_config
                         if sql_generation_request.llm_config

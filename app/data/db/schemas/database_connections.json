@@ -11,6 +11,11 @@
             "type": "string"
         },
         {
+            "name": "description",
+            "type": "string",
+            "optional": true
+        },
+        {
             "name": "dialect",
             "type": "string"
         },

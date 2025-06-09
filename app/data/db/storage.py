@@ -1,11 +1,11 @@
 import uuid
 
 from app.data.db import TypeSenseDB
-from app.server.config import Settings
+# from app.server.config import Settings
 
 
 class Storage(TypeSenseDB):
-    def __init__(self, setting: Settings) -> None:
+    def __init__(self, setting) -> None:
         super().__init__(setting)
 
     def find_one(self, collection: str, filter: dict) -> dict:
@@ -171,16 +171,26 @@ class Storage(TypeSenseDB):
             search_requests, common_search_params
         )
 
+        retrieved_queries = query_by.split(',')
+        retrieved_queries = [query.strip() for query in retrieved_queries]
+
         if results:
             if results["results"][0]["found"] > 0:
                 hits = results["results"][0]["hits"]
 
-                # Deduplicate by prompt_text
+                # Deduplicate by query_by
                 unique_hits = {}
                 for hit in hits:
-                    prompt_text = hit["document"]["prompt_text"].lower()
-                    if prompt_text not in unique_hits:
-                        unique_hits[prompt_text] = hit  # Keep the first occurrence
+                    document = hit['document']
+                    key_parts = []
+
+                    for query_field in retrieved_queries:
+                        value = document.get(query_field, "")
+                        key_parts.append(str(value).lower())
+
+                    deduplication_key = ", ".join(key_parts)
+                    if deduplication_key not in unique_hits:
+                        unique_hits[deduplication_key] = hit
 
                 # Convert dictionary values back to a list
                 hits = list(unique_hits.values())

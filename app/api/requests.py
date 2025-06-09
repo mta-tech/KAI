@@ -175,6 +175,7 @@ class EmbeddingRequest(BaseModel):
 class SyntheticQuestionRequest(BaseModel):
     db_connection_id: str
     llm_config: LLMConfig | None
+    instruction: str | None
     questions_per_batch: int = 5
     num_batches: int = 1
     peeking_context_stores: bool = False

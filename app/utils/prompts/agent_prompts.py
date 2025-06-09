@@ -183,6 +183,14 @@ This instruction is top priority. You must follow this instruction:
 {instruction}
 """
 
+DATABASE_DESCRIPTION_PROMPT = """
+You are an assistant that generates clear and concise description of database. I have a database and it contains tables and their descriptions as follows:
+
+{table_details}
+
+Provide a one-sentence description that explains the overall purpose and context of this database. Focus on what the database represents as a whole, without detailing and mentioning each table. Do not mention the table name or phrase like "This database" as intro in the description.
+"""
+
 NER_PROMPTS = """
     You are an SQL agent that can convert text to sql. I give you information as follows:
     1. Existing prompt. Existing prompt is natural language query that can be converted into SQL query
@@ -212,4 +220,26 @@ Return the output as a JSON list of dictionaries where each dictionary contains:
 ### Input Format:
 Text: {text}
 Labels: {labels}
+"""
+
+DATABASE_DESCRIPTION_INTENTS_PROMPT = """
+You are a data analyst assistant. Given a description of a database, your task is to generate 5 plausible analytical themes or business questions that a user might want to explore using the data in the database.
+
+## Database Description
+{database_description}
+
+## Instructions
+- Each theme should be concise (one sentence), focused on a business or analytical goal.
+- Do not refer to table names or columns explicitly.
+- Themes should reflect common real-world use cases related to the described database.
+- Avoid generic themes like "analyze the data" or "get information from the database".
+
+## Examples
+If the database is about sales and customer transactions:
+- Analyze customer purchasing trends across different regions.
+- Monitor revenue performance by product category.
+- Identify the best-performing sales representatives over time.
+
+## Your Turn:
+Generate 3 themes based on the above database description.
 """

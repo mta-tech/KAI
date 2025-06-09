@@ -1012,5 +1012,6 @@ class API:
             peeking_context_stores=request.peeking_context_stores,
             evaluate=request.evaluate,
             llm_config=request.llm_config,
+            instruction=request.instruction,
         )
-        return SyntheticQuestionResponse(questions=questions, metadata=request.metadata)
+        return SyntheticQuestionResponse(**questions.model_dump())
