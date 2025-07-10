@@ -67,7 +67,7 @@ class PostgreSqlScanner:
                 )
                 SELECT
                     (SELECT COUNT(DISTINCT {column.name}) FROM {column.table.name}) AS n_distinct,
-                    '[' || string_agg('"' || replace(value::text, '"', '""') || '"', ',') || ']' AS most_common_vals
+                    json_agg(value) AS most_common_vals
                 FROM ValueCounts
                 """
             )
