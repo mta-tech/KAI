@@ -57,11 +57,18 @@ class PostgreSqlScanner:
 
         else:
             query = text(
-                """
-                SELECT n_distinct, most_common_vals::TEXT::TEXT[] 
-                FROM pg_catalog.pg_stats 
-                WHERE tablename = :table_name 
-                AND attname = :column_name
+                f"""
+                WITH ValueCounts AS (
+                    SELECT
+                        {column.name} AS value,
+                        COUNT(*) AS freq
+                    FROM {column.table.name}
+                    GROUP BY {column.name}
+                )
+                SELECT
+                    (SELECT COUNT(DISTINCT {column.name}) FROM {column.table.name}) AS n_distinct,
+                    '[' || string_agg('"' || replace(value::text, '"', '""') || '"', ',') || ']' AS most_common_vals
+                FROM ValueCounts
                 """
             )
 
