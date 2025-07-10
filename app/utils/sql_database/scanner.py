@@ -385,7 +385,7 @@ class SqlAlchemyScanner:
                 name=column["name"],
                 data_type=str(column["type"]),
                 low_cardinality=True,
-                categories=category_values,
+                categories=[str(x) for x in category_values],
             )
         else:
             column_description = ColumnDescription(
