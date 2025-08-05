@@ -22,6 +22,7 @@ from app.modules.prompt.repositories import PromptRepository
 from app.modules.prompt.services import PromptService
 from app.modules.sql_generation.models import LLMConfig, SQLGeneration
 from app.modules.sql_generation.repositories import SQLGenerationRepository
+
 # from app.server.config import Settings
 from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_evaluator.simple_evaluator import SimpleEvaluator
@@ -47,6 +48,7 @@ logger = logging.getLogger(__name__)
 class SQLGenerationService:
     def __init__(self, storage):
         from app.server.config import Settings
+
         self.settings = Settings()
         self.storage = storage
         self.sql_generation_repository = SQLGenerationRepository(storage)
@@ -88,7 +90,7 @@ class SQLGenerationService:
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(prompt.db_connection_id)
 
-        database = SQLDatabase.get_sql_engine(db_connection, True)
+        database = SQLDatabase.get_sql_engine(db_connection, False)
 
         # Perform Smart Cache
         context_store = ContextStoreService(self.storage).retrieve_exact_prompt(
@@ -313,7 +315,7 @@ class SQLGenerationService:
         prompt = prompt_repository.find_by_id(sql_generation.prompt_id)
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(prompt.db_connection_id)
-        database = SQLDatabase.get_sql_engine(db_connection, True)
+        database = SQLDatabase.get_sql_engine(db_connection, False)
 
         return database.run_sql(sql_generation.sql, max_rows)
 
@@ -432,9 +434,7 @@ class SQLGenerationService:
             # Optimize sliding window approach to reduce time complexity
             # Pre-compute n-grams from the prompt for faster matching
             words = normalized_prompt.split()
-            max_phrase_length = min(
-                len(words), 5
-            )  # Consider phrases up to 5 words
+            max_phrase_length = min(len(words), 5)  # Consider phrases up to 5 words
 
             # Create a set of potential phrases to check (reduces duplicates)
             phrases_to_check = set()
