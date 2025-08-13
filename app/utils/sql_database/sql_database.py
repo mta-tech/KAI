@@ -30,6 +30,24 @@ class DBConnections:
     def add(uri, engine):
         DBConnections.db_connections[uri] = engine
 
+    @staticmethod
+    def _dispose_engine_if_exists(db_id: str):
+        if db_id in DBConnections.db_connections:
+            try:
+                sql_database_instance = DBConnections.db_connections[db_id]
+                sql_database_instance.engine.dispose()
+                del DBConnections.db_connections[db_id]
+                logger.info(f"Disposed of engine for DB ID: {db_id}")
+            except Exception as e:
+                logger.error(f"Error disposing of engine for DB ID {db_id}: {e}")
+
+    @staticmethod
+    def dispose_all_engines():
+        for db_id in list(
+            DBConnections.db_connections.keys()
+        ):  # Iterate over a copy of keys
+            DBConnections._dispose_engine_if_exists(db_id)
+
 
 class SQLDatabase:
     def __init__(self, engine: Engine):
@@ -71,27 +89,29 @@ class SQLDatabase:
         if database_uri.lower().startswith("csv"):
             csv_path = database_uri.replace("csv://", "").strip()
             parsed_url = urlparse(csv_path)
-        
-             # Determine table name
-            if parsed_url.scheme in ('http', 'https'):
+
+            # Determine table name
+            if parsed_url.scheme in ("http", "https"):
                 response = requests.get(csv_path)
                 response.raise_for_status()  # Ensure request success
-                csv_data = StringIO(response.text)  # Convert response text to file-like object
+                csv_data = StringIO(
+                    response.text
+                )  # Convert response text to file-like object
                 table_name = os.path.basename(parsed_url.path).split(".")[0]
             else:
                 table_name = os.path.basename(csv_path).split(".")[0]
                 csv_data = csv_path  # Local file path
 
             table_name = re.sub(r"[^\w]", "_", table_name)
-            df = pd.read_csv(csv_data, engine='pyarrow')
+            df = pd.read_csv(csv_data, engine="pyarrow")
 
-            # Create an **in-memory** SQLite database 
+            # Create an **in-memory** SQLite database
             _engine_args.pop("max_overflow", None)
             _engine_args.pop("pool_timeout", None)
             _engine_args.pop("pool_pre_ping", None)
 
             engine = create_engine("sqlite:///:memory:", **_engine_args)
-        
+
             # Store DataFrame into SQLite
             with engine.connect() as conn:
                 df.to_sql(
@@ -100,9 +120,9 @@ class SQLDatabase:
                     index=False,
                     if_exists="replace",
                     method="multi",
-                    chunksize=1000
+                    chunksize=1000,
                 )
-        
+
             return cls(engine)
 
         engine = create_engine(database_uri, **_engine_args)
@@ -113,32 +133,37 @@ class SQLDatabase:
         cls, database_info: DatabaseConnection, refresh_connection=False
     ) -> "SQLDatabase":
         logger.info(f"Connecting db: {database_info.id}")
-        try:
-            existing_connection = DBConnections.db_connections
-            if (
-                database_info.id
-                and database_info.id in existing_connection
-                and not refresh_connection
-            ):
-                sql_database = DBConnections.db_connections[database_info.id]
-                sql_database.engine.connect()
+        existing_connection = DBConnections.db_connections
+
+        # Case 1: Attempt to reuse an existing connection if not refreshing
+        if database_info.id in existing_connection and not refresh_connection:
+            try:
+                sql_database = existing_connection[database_info.id]
+                sql_database.engine.connect()  # Test if the connection is still valid
                 return sql_database
-        except OperationalError:
-            pass
+            except Exception as e:
+                logger.warning(
+                    f"Existing connection for {database_info.id} is stale or invalid: {e}. Disposing and reconnecting."
+                )
+                DBConnections._dispose_engine_if_exists(database_info.id)
+
+        # Case 2: Create a new connection (either no existing, or existing was stale/refresh_connection is True)
+        # Ensure any old engine is disposed of before creating a new one,
+        # especially if refresh_connection was True and the old one wasn't caught by the above try-except.
+        DBConnections._dispose_engine_if_exists(database_info.id)
 
         fernet_encrypt = FernetEncrypt()
         try:
             db_uri = unquote(fernet_encrypt.decrypt(database_info.connection_uri))
-
             engine = cls.from_uri(db_uri)
             engine.engine.connect()
             DBConnections.add(database_info.id, engine)
+            return engine
         except Exception as e:
             raise HTTPException(
-                404,  # noqa: B904
+                404,
                 f"Unable to connect to db: {database_info.alias} {str(e)}",
             )
-        return engine
 
     @classmethod
     def extract_parameters(cls, input_string):
@@ -236,7 +261,9 @@ class SQLDatabase:
         inspector = inspect(self._engine)
         meta = MetaData()
         meta.reflect(bind=self._engine, views=True, schema=schema)
-        rows = inspector.get_table_names(schema=schema) + inspector.get_view_names(schema=schema)
+        rows = inspector.get_table_names(schema=schema) + inspector.get_view_names(
+            schema=schema
+        )
         if len(rows) == 0:
             raise Exception("The db is empty it could be a permission issue")
         return [row for row in rows]

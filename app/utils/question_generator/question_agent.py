@@ -10,6 +10,7 @@ import re
 import asyncio
 
 from app.data.db.storage import Storage
+
 # from app.server.config import Settings
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.utils.model.chat_model import ChatModel
@@ -18,7 +19,7 @@ from app.modules.synthetic_questions.models import (
     QuestionGenerationConfig,
     QuestionSQLPair,
 )
-from app.utils.question_generator.question_utils import(
+from app.utils.question_generator.question_utils import (
     format_table_descriptions_for_prompt,
     build_base_prompt,
     add_user_instruction,
@@ -28,6 +29,7 @@ from app.utils.question_generator.question_utils import(
 
 from app.modules.table_description.models import TableDescription
 from app.utils.sql_database.sql_database import SQLDatabase
+
 
 class AgentState(MessagesState):
     """State tracked across agent execution"""
@@ -161,12 +163,12 @@ class QuestionGenerationAgent:
         state["relevant_tables"] = list(set(state["relevant_tables"]))
         state["relevant_columns"] = list(set(state["relevant_columns"]))
 
-        if state['relevant_tables']:
-            print("="*50)
+        if state["relevant_tables"]:
+            print("=" * 50)
             print("Relevant Tables and Columns")
             print(state["relevant_columns"])
             print(state["relevant_tables"])
-            print("="*50)
+            print("=" * 50)
 
         print(
             f"Identified {len(state['relevant_tables'])} relevant tables, "
@@ -182,18 +184,22 @@ class QuestionGenerationAgent:
         This method uses the LLM to generate n number of intents based on the given context.
         The intents are then stored in the state. to be used by the question generation agent.
         """
-    
+
         table_descriptions = format_table_descriptions_for_prompt(
-            state["table_descriptions"], state['relevant_tables'], state['relevant_columns'],
+            state["table_descriptions"],
+            state["relevant_tables"],
+            state["relevant_columns"],
         )
-        prompt = build_base_prompt(table_descriptions, state["num_questions_to_generate"])
+        prompt = build_base_prompt(
+            table_descriptions, state["num_questions_to_generate"]
+        )
         prompt = add_user_instruction(prompt, state.get("instruction", ""))
-        
+
         if state.get("context_stores"):
             prompt += get_context_store_block(state["context_stores"])
         else:
             prompt += get_default_instruction_block(state["db_intent"])
-        
+
         # print("="*50)
         # print("Prompt to generate Intents:")
         # if state.get("context_stores"):
@@ -204,7 +210,7 @@ class QuestionGenerationAgent:
         llm = state["llm"]
 
         response = await llm.ainvoke(prompt)
-        
+
         intents = response.content
         intents = intents.split("\n")
         intents = [intent.strip() for intent in intents if intent.strip()]
@@ -227,26 +233,28 @@ class QuestionGenerationAgent:
         state["messages"] = messages
         return state
 
-
     async def validate_sql_query(self, state: AgentState):
         from app.server.config import Settings
+
         storage = Storage(Settings())
         db_connection_repository = DatabaseConnectionRepository(storage)
 
-        db_connection = db_connection_repository.find_by_id(state['db_connection_id'])
-        database = SQLDatabase.get_sql_engine(db_connection, True)
+        db_connection = db_connection_repository.find_by_id(state["db_connection_id"])
+        database = SQLDatabase.get_sql_engine(db_connection, False)
 
         async def validate_single_query(sql_query):
             try:
-                await asyncio.to_thread(database.run_sql, sql_query['sql'], 1)
-                sql_query['status'] = 'VALID'
-                sql_query['error'] = ''
+                await asyncio.to_thread(database.run_sql, sql_query["sql"], 1)
+                sql_query["status"] = "VALID"
+                sql_query["error"] = ""
             except Exception as e:
-                sql_query['status'] = 'INVALID'
-                sql_query['error'] = str(e)
+                sql_query["status"] = "INVALID"
+                sql_query["error"] = str(e)
             return sql_query
 
-        tasks = [validate_single_query(q) for q in state["generated_questions_sql_pairs"]]
+        tasks = [
+            validate_single_query(q) for q in state["generated_questions_sql_pairs"]
+        ]
         final_sql_query = await asyncio.gather(*tasks)
 
         state["generated_questions_sql_pairs"] = final_sql_query
@@ -258,7 +266,9 @@ class QuestionGenerationAgent:
         """
 
         table_descriptions = format_table_descriptions_for_prompt(
-            state["table_descriptions"], state['relevant_tables'], state['relevant_columns'],
+            state["table_descriptions"],
+            state["relevant_tables"],
+            state["relevant_columns"],
         )
         # Create a system prompt that instructs the LLM on how to generate questions and SQL
         sys_prompt = f"""Generate natural language questions and corresponding SQL queries based on the following context:
@@ -310,8 +320,8 @@ class QuestionGenerationAgent:
         else:
             pairs = [
                 {
-                    "question": '',
-                    'sql': '',
+                    "question": "",
+                    "sql": "",
                 }
             ]
 
@@ -382,9 +392,7 @@ class QuestionGenerationAgent:
             status = row.get("status")
             error = row.get("error")
             question_sql_pairs.append(
-                QuestionSQLPair(
-                    question=question, sql=sql, status=status, error=error
-                )
+                QuestionSQLPair(question=question, sql=sql, status=status, error=error)
             )
 
         return question_sql_pairs

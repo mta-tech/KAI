@@ -172,4 +172,4 @@ class DatabaseConnectionService:
                     database_connection.dialect,
                 )
             )
-        return SQLDatabase.get_sql_engine(database_connection, True)
+        return SQLDatabase.get_sql_engine(database_connection, False)
