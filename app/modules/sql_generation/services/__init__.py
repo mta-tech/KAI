@@ -8,6 +8,10 @@ from dotenv import load_dotenv
 import logging
 import re
 from difflib import SequenceMatcher
+import mimetypes
+import requests
+import tempfile
+import csv
 
 from app.api.requests import (
     PromptSQLGenerationRequest,
@@ -346,6 +350,143 @@ class SQLGenerationService:
             "result": result,
         }
         return return_dict
+
+    def guess_content_type(self, path: str) -> str:
+        c, _ = mimetypes.guess_type(path)
+        return c or "application/octet-stream"
+
+    def signed_put(self, object_name: str, content_type: str, ttl_seconds: int) -> dict:
+        """Ask your GCS Service for a signed PUT URL."""
+        url = f"{self.settings.GCS_SERVICE_URL.rstrip('/')}/signed/upload"
+        headers = {"content-type": "application/json"}
+        if self.settings.GCS_API_KEY:
+            headers["x-api-key"] = self.settings.GCS_API_KEY
+        payload = {
+            "object_name": object_name,
+            "content_type": content_type,
+            "expires_in_seconds": ttl_seconds,
+        }
+        r = requests.post(url, json=payload, headers=headers, timeout=30)
+        if r.status_code != 200:
+            raise SystemExit(f"[signed_put] {r.status_code}: {r.text}")
+        return r.json()
+
+    def upload_via_put(self, put_url: str, file_path: str, content_type: str) -> dict:
+        """Stream file to GCS using the signed PUT URL. Returns response headers."""
+        with open(file_path, "rb") as f:
+            r = requests.put(
+                put_url,
+                data=f,  # streaming from disk
+                headers={"Content-Type": content_type},
+                timeout=None,  # large files: let it run
+            )
+        if r.status_code not in (200, 201):
+            raise SystemExit(f"[upload_via_put] {r.status_code}: {r.text}")
+        # Useful headers GCS returns:
+        return {
+            "x-goog-generation": r.headers.get("x-goog-generation"),
+            "etag": r.headers.get("ETag"),
+            "x-goog-hash": r.headers.get("x-goog-hash"),
+        }
+
+    def signed_get(
+        self, object_name: str, ttl_seconds: int, generation: str | None
+    ) -> str:
+        """Ask your GCS Service for a signed GET URL."""
+        url = f"{self.settings.GCS_SERVICE_URL.rstrip('/')}/signed/download"
+        params = {
+            "object_name": object_name,
+            "expires_in_seconds": ttl_seconds,
+        }
+        if generation:
+            params["generation"] = generation
+        headers = (
+            {"x-api-key": self.settings.GCS_API_KEY}
+            if self.settings.GCS_API_KEY
+            else {}
+        )
+        r = requests.get(url, params=params, headers=headers, timeout=15)
+        if r.status_code != 200:
+            raise SystemExit(f"[signed_get] {r.status_code}: {r.text}")
+        return r.json()["url"]
+
+    def _write_csv_temp(
+        self, rows: list[dict], columns: list[str] | None = None
+    ) -> str:
+        tf = tempfile.NamedTemporaryFile(prefix="sql_", suffix=".csv", delete=False)
+        path = tf.name
+        tf.close()
+
+        # 1 MB buffer reduces syscalls
+        with open(path, "w", newline="", encoding="utf-8", buffering=1024 * 1024) as f:
+            if not rows:
+                if columns:
+                    w = csv.DictWriter(
+                        f,
+                        fieldnames=columns,
+                        lineterminator="\n",
+                        quoting=csv.QUOTE_MINIMAL,
+                    )
+                    w.writeheader()
+                # else: truly empty file
+                return path
+
+            fieldnames = columns or list(rows[0].keys())
+            w = csv.DictWriter(
+                f, fieldnames=fieldnames, lineterminator="\n", quoting=csv.QUOTE_MINIMAL
+            )
+            w.writeheader()
+            for r in rows:
+                w.writerow(r)
+        return path
+
+    def stream_sql_result_to_gcs(self, sql_generation_id, max_rows) -> dict:
+        PUT_TTL = 20 * 60  # 20 minutes for upload URL
+        GET_TTL = 8 * 60 * 60  # 8 hours for download URL
+
+        # 1) Execute your query (your existing method)
+        results_wrapper = self.execute_sql_query(sql_generation_id, max_rows)[1]
+        result_rows = results_wrapper.get("result", []) or []
+
+        # 2) Write to a temp CSV (portable path)
+        temp_csv = self._write_csv_temp(result_rows)
+
+        # 3) Decide the object name (send RELATIVE name; server will prefix)
+        object_name = f"{sql_generation_id}.csv"  # e.g., "12345.csv"
+
+        # 4) Ask GCS Service for a signed PUT URL
+        content_type = self.guess_content_type(temp_csv) or "text/csv"
+        su = self.signed_put(object_name, content_type, PUT_TTL)
+        put_url = su["url"]
+        # Some servers return a prefixed path too (e.g., "uploads/12345.csv"); keep it
+        object_name_resolved = su.get("object_name", object_name)
+
+        # 5) Upload the file (streamed from disk; Content-Length known)
+        meta = self.upload_via_put(put_url, temp_csv, content_type)
+        generation = meta.get("x-goog-generation")
+
+        # 6) Get a signed GET URL (pin to generation if your server supports it)
+        # If your server's safe_join is idempotent, you can pass object_name_resolved as-is.
+        # If not, and it returns "uploads/...", strip it before calling /signed/download:
+        rel_name: str = object_name_resolved
+        if rel_name.startswith("uploads/"):
+            rel_name = rel_name[len("uploads/") :]
+
+        download_url = self.signed_get(rel_name, GET_TTL, generation)
+
+        # 7) Cleanup
+        try:
+            os.remove(temp_csv)
+        except OSError:
+            pass
+
+        return {
+            "id": sql_generation_id,
+            "sql": results_wrapper.get("sql"),
+            "object_name": object_name,  # server-resolved path
+            "download_url": download_url,
+            "row_count": len(result_rows),
+        }
 
     # ================= HELPERS ================= #
 

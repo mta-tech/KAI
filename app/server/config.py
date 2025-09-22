@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     OLLAMA_API_BASE: str | None
     HUGGINGFACEHUB_API_TOKEN: str | None
 
+    GCS_API_KEY: str | None
+    GCS_SERVICE_URL: str | None
+
     AGENT_MAX_ITERATIONS: int
     DH_ENGINE_TIMEOUT: int
     SQL_EXECUTION_TIMEOUT: int
