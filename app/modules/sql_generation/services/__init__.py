@@ -223,7 +223,7 @@ class SQLGenerationService:
                         ) from e
             except Exception as e:
                 self.update_error(initial_sql_generation, str(e))
-                raise HTTPException(str(e), initial_sql_generation.id) from e
+                raise HTTPException(status_code=500, detail=str(e)) from e
         thread_pool_end_time = datetime.now()
         if sql_generation_request.evaluate:
             evaluator = SimpleEvaluator()
@@ -369,7 +369,8 @@ class SQLGenerationService:
         r = requests.post(url, json=payload, headers=headers, timeout=30)
         if r.status_code != 200:
             raise SystemExit(f"[signed_put] {r.status_code}: {r.text}")
-        return r.json()
+        payload = r.json()
+        return payload.get("data", payload) if isinstance(payload, dict) else payload
 
     def upload_via_put(self, put_url: str, file_path: str, content_type: str) -> dict:
         """Stream file to GCS using the signed PUT URL. Returns response headers."""
@@ -391,7 +392,7 @@ class SQLGenerationService:
 
     def signed_get(
         self, object_name: str, ttl_seconds: int, generation: str | None
-    ) -> str:
+    ) -> dict:
         """Ask your GCS Service for a signed GET URL."""
         url = f"{self.settings.GCS_SERVICE_URL.rstrip('/')}/signed/download"
         params = {
@@ -408,7 +409,8 @@ class SQLGenerationService:
         r = requests.get(url, params=params, headers=headers, timeout=15)
         if r.status_code != 200:
             raise SystemExit(f"[signed_get] {r.status_code}: {r.text}")
-        return r.json()["url"]
+        payload = r.json()
+        return payload.get("data", payload) if isinstance(payload, dict) else payload
 
     def _write_csv_temp(
         self, rows: list[dict], columns: list[str] | None = None
@@ -472,7 +474,7 @@ class SQLGenerationService:
         if rel_name.startswith("uploads/"):
             rel_name = rel_name[len("uploads/") :]
 
-        download_url = self.signed_get(rel_name, GET_TTL, generation)
+        download_url = self.signed_get(rel_name, GET_TTL, generation).get("url")
 
         # 7) Cleanup
         try:
