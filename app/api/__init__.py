@@ -349,6 +349,13 @@ class API:
         )
 
         self.router.add_api_route(
+            "/api/v1/sql-generations/{sql_generation_id}/execute-to-gcs",
+            self.execute_sql_query_to_gcs,
+            methods=["POST"],
+            tags=["SQL Generations"],
+        )
+
+        self.router.add_api_route(
             "/api/v1/sql-generations/{sql_generation_id}/nl-generations",
             self.create_nl_generation,
             methods=["POST"],
@@ -800,6 +807,13 @@ class API:
             sql_generation_id, max_rows
         )
 
+    def execute_sql_query_to_gcs(
+        self, sql_generation_id: str, max_rows: int = 100
+    ) -> dict:
+        return self.sql_generation_service.stream_sql_result_to_gcs(
+            sql_generation_id, max_rows
+        )
+
     def create_nl_generation(
         self, sql_generation_id: str, nl_generation_request: NLGenerationRequest
     ) -> NLGenerationResponse:
@@ -942,7 +956,9 @@ class API:
             created_at=alias.created_at,
         )
 
-    def get_aliases(self, db_connection_id: str, target_type: str = None) -> list[AliasResponse]:
+    def get_aliases(
+        self, db_connection_id: str, target_type: str = None
+    ) -> list[AliasResponse]:
         aliases = self.alias_service.get_aliases(db_connection_id, target_type)
         return [
             AliasResponse(
