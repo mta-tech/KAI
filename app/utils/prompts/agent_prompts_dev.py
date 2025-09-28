@@ -11,6 +11,7 @@ Here is the plan you have to follow:
 Using `current_date()` or `current_datetime()` in SQL queries is banned, use SystemTime tool to get the exact time of the query execution.
 If the question does not seem related to the database, return an empty string.
 If the there is a very similar question among the fewshot examples, directly use the SQL query from the example and execute the query to make sure it is correct.
+You should return the exact query from your execution without any changes.
 """  # noqa: E501
 
 PLAN_WITH_ALL_CONTEXT = """{alias_prompt}
