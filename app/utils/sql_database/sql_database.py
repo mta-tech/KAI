@@ -247,15 +247,19 @@ class SQLDatabase:
         with self._engine.connect() as connection:
             command = self.parser_to_filter_commands(command)
             cursor = connection.execute(text(command))
-            if cursor.returns_rows and top_k:
-                result = cursor.fetchmany(top_k)
-                serialized_result = serialize_row(result)
-                return str(serialized_result), {"result": serialized_result}
             if cursor.returns_rows:
-                result = cursor.fetchall()
-                serialized_result = serialize_row(result)
-                return str(serialized_result), {"result": serialized_result}
-        return "", {}
+                if top_k:
+                    result = cursor.fetchmany(top_k)
+                else:
+                    result = cursor.fetchall()
+                if not result:
+                    return "[]", {"result": []}
+                try:
+                    serialized_result = serialize_row(result)
+                    return str(serialized_result), {"result": serialized_result}
+                except Exception:
+                    return "[]", {"result": []}
+        return "[]", {"result": []}
 
     def get_tables_and_views(self, schema=None) -> List[str]:
         inspector = inspect(self._engine)
