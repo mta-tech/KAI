@@ -136,17 +136,17 @@ class ContextStoreService:
             db_connection_id=db_connection_id,
             prompt_text=prompt,
             prompt_embedding=prompt_embedding,
-            limit=top_k + 1,
+            limit=top_k,
             alpha=1.0,
         )
 
         # Exclude the exact match
-        semantic_contexts = [
-            context
-            for context in semantic_contexts
-            if context["prompt_text"].lower() != prompt.lower()
-            and context["score"] < 0.99
-        ][:top_k]
+        # semantic_contexts = [
+        #     context
+        #     for context in semantic_contexts
+        #     if context["prompt_text"].lower() != prompt.lower()
+        #     and context["score"] < 0.99
+        # ][:top_k]
 
         return semantic_contexts
 
