@@ -10,6 +10,8 @@ import re
 from difflib import SequenceMatcher
 import mimetypes
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import tempfile
 import csv
 
@@ -374,8 +376,18 @@ class SQLGenerationService:
 
     def upload_via_put(self, put_url: str, file_path: str, content_type: str) -> dict:
         """Stream file to GCS using the signed PUT URL. Returns response headers."""
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["PUT"],
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session = requests.Session()
+        session.mount("https://", adapter)
+
         with open(file_path, "rb") as f:
-            r = requests.put(
+            r = session.put(
                 put_url,
                 data=f,  # streaming from disk
                 headers={"Content-Type": content_type},
