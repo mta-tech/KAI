@@ -23,7 +23,10 @@ from app.modules.autonomous_agent import (
 
 from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.analysis.services import AnalysisService
-from langchain_google_genai import ChatGoogleGenerativeAI
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FastAPI:
@@ -60,11 +63,8 @@ class FastAPI:
         sql_generation_service = SQLGenerationService(self._storage)
         analysis_service = AnalysisService(self._storage)
 
-        # Get LLM for summarization (using Gemini)
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
-            google_api_key=self._settings.GOOGLE_API_KEY
-        )
+        # Get LLM for summarization with fallback support
+        llm = self._get_session_llm()
 
         # Build graph
         graph = build_session_graph(
@@ -80,6 +80,52 @@ class FastAPI:
 
         # Include session router
         self._app.include_router(session_router, prefix="/api/v1", tags=["Sessions"])
+
+    def _get_session_llm(self):
+        """Get LLM for session summarization with fallback support.
+
+        Priority:
+        1. Google Gemini (if GOOGLE_API_KEY is set)
+        2. Configured CHAT_FAMILY/CHAT_MODEL from settings
+        3. OpenAI gpt-4o-mini (if OPENAI_API_KEY is set)
+
+        Raises ValueError if no LLM can be configured.
+        """
+        # Try Google Gemini first
+        if self._settings.GOOGLE_API_KEY:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            logger.info("Session LLM: Using Google Gemini for summarization")
+            return ChatGoogleGenerativeAI(
+                model="gemini-2.0-flash",
+                google_api_key=self._settings.GOOGLE_API_KEY
+            )
+
+        # Fall back to configured chat model
+        chat_family = self._settings.CHAT_FAMILY
+        chat_model = self._settings.CHAT_MODEL
+
+        if chat_family and chat_model:
+            logger.info(f"Session LLM: Using configured {chat_family}/{chat_model} for summarization")
+            from app.utils.model.chat_model import ChatModel
+            return ChatModel().get_model(
+                database_connection=None,
+                model_family=chat_family,
+                model_name=chat_model,
+            )
+
+        # Fall back to OpenAI
+        if self._settings.OPENAI_API_KEY:
+            from langchain_openai import ChatOpenAI
+            logger.info("Session LLM: Using OpenAI gpt-4o-mini for summarization")
+            return ChatOpenAI(
+                model_name="gpt-4o-mini",
+                openai_api_key=self._settings.OPENAI_API_KEY,
+            )
+
+        raise ValueError(
+            "No LLM configured for session summarization. "
+            "Please set one of: GOOGLE_API_KEY, CHAT_FAMILY+CHAT_MODEL, or OPENAI_API_KEY"
+        )
 
     def _setup_agent_session_module(self):
         """Configure and register the autonomous agent session module."""
