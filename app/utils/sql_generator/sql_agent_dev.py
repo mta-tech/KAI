@@ -143,10 +143,10 @@ Question: {{input}}
 Thought:{{agent_scratchpad}}"""
 
         prompt = PromptTemplate.from_template(react_template)
-        
+
         # Use create_react_agent instead of deprecated ZeroShotAgent
         agent = create_react_agent(self.llm, tools, prompt)
-        
+
         return AgentExecutor(
             agent=agent,
             tools=tools,
