@@ -1,104 +1,241 @@
-# Byte-compiled files
-*.pyc
-*.pyo
-*.pyd
-__pycache__/
+# =========================
+# Environment & Secrets
+# =========================
+.env
+.env.local
+.env.*.local
+!.env.example
+*.pem
+*.key
+service-account*.json
 
-# Distribution / packaging
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
 .Python
 build/
 develop-eggs/
 dist/
+downloads/
 eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
+.installed.cfg
 *.egg
+MANIFEST
 
-# Virtual environment
+# Virtual environments
+.venv/
 venv/
 ENV/
 env/
-.venv/
-.ENV/
-.venv/
-venv.bak/
+.virtualenv/
 
-# IDEs and editors
-.idea/
-.vscode/
-.gitbook/
-.ruff_cache/
-*.sublime-workspace
-*.sublime-project
+# PyInstaller
+*.manifest
+*.spec
 
-# Jupyter Notebook
-.ipynb_checkpoints/
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Test and coverage
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
 .coverage
 .coverage.*
+.cache
 nosetests.xml
 coverage.xml
 *.cover
 *.py,cover
-
-# Pytest
-.cache/
-pytest_cache/
+.hypothesis/
 .pytest_cache/
+pytest_cache/
 
-# Logs
-*.log
+# Translations
+*.mo
+*.pot
 
-# Environment variables
-.env
-.envrc
-
-# Pyenv
-.python-version
-
-# MyPy
+# Mypy
 .mypy_cache/
 .dmypy.json
-.dmypy.json~
+dmypy.json
 
-# Miscellaneous
-*.DS_Store
+# Ruff
+.ruff_cache/
+
+# Poetry
+poetry.toml
+
+# =========================
+# Node.js / JavaScript
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Next.js
+.next/
+out/
+.swc/
+
+# Turbo
+.turbo/
+
+# Vercel
+.vercel/
+
+# Bundle analyzer
+.next-bundle-analyzer/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# =========================
+# Java / Maven
+# =========================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# Package files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# =========================
+# IDE & Editors
+# =========================
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 *.swp
+*.swo
 *~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
 
-# Sphinx documentation
-docs/_build/
+# JetBrains
+.idea/
+*.iml
 
-# Ignore all files in the following directories
-*.git/
-*.github/
-*.gitignore
+# =========================
+# OS Generated
+# =========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
 
-# Cython debug symbols
-cython_debug/
+# =========================
+# Docker
+# =========================
+docker-compose.override.yml
+.docker/
 
-# Ignore typesense data
-app/data/dbdata
-
-# Ignore sample data
-data_*/
+# =========================
+# Logs & Temp Files
+# =========================
+logs/
+*.log
+tmp/
 temp/
-app/data/dbdata/generated_csv/*
+*.tmp
+*.temp
+*.bak
+*.backup
 
-app/automation
+# =========================
+# Database
+# =========================
+*.db
+*.sqlite
+*.sqlite3
 
-# Ignore testing files
-testing.ipynb
-temp.ipynb
-llama-test.ipynb
-setup_connection.ipynb
-orbit_setup.ipynb
-notes.rst
-experimentation/
-experimentations.ipynb
-orbit_setup.ipynb
-development
-*.ipynb
+# =========================
+# Misc
+# =========================
+.code/
+.claude/
 
-# Ignore Cline
-.clineignore
+# Test artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Coverage reports
+coverage/
+*.lcov
+
+# Storybook
+storybook-static/
+
+# KAI specific
+container.env
+agent_results/
+.langgraph_api/

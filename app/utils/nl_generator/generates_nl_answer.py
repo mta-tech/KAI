@@ -2,11 +2,8 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from fastapi import HTTPException
-from langchain.chains.llm import LLMChain
-from langchain.prompts.chat import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-)
+from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 from sqlalchemy import text
 
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
@@ -54,7 +51,7 @@ class GeneratesNlAnswer:
             model_name=self.llm_config.model_name,
             api_base=self.llm_config.api_base,
         )
-        database = SQLDatabase.get_sql_engine(database_connection, True)
+        database = SQLDatabase.get_sql_engine(database_connection, False)
 
         if sql_generation.status == "INVALID":
             return NLGeneration(
@@ -91,7 +88,9 @@ class GeneratesNlAnswer:
         nl_history = NLHistory.get_nl_history(prompt)
         human_message_prompt = HumanMessagePromptTemplate.from_template(HUMAN_TEMPLATE)
         chat_prompt = ChatPromptTemplate.from_messages([human_message_prompt])
-        chain = LLMChain(llm=self.llm, prompt=chat_prompt)
+        
+        # Use LCEL pattern instead of deprecated LLMChain
+        chain = chat_prompt | self.llm | StrOutputParser()
         nl_resp = chain.invoke(
             {
                 "prompt": prompt.text,
@@ -104,7 +103,7 @@ class GeneratesNlAnswer:
         nl_generation = NLGeneration(
             sql_generation_id=sql_generation.id,
             llm_config=self.llm_config,
-            text=nl_resp["text"],
+            text=nl_resp,
             created_at=str(datetime.now()),
         )
         return nl_generation

@@ -1,0 +1,577 @@
+"""Adapter that selects between legacy SQL generators and the Deep Agent runtime."""
+
+from __future__ import annotations
+
+import logging
+import os
+from typing import Any, Dict
+
+from fastapi import HTTPException
+
+from app.agents import create_kai_sql_agent
+from app.agents.deep_agent_factory import DeepAgentRuntimeUnavailable
+from app.modules.database_connection.models import DatabaseConnection
+from app.modules.sql_generation.models import LLMConfig, SQLGeneration
+from app.modules.sql_generation.repositories import SQLGenerationRepository
+from app.modules.table_description.models import TableDescriptionStatus
+from app.modules.table_description.repositories import TableDescriptionRepository
+from app.modules.context_store.services import ContextStoreService
+from app.modules.instruction.services import InstructionService
+from app.modules.business_glossary.services import BusinessGlossaryService
+from app.utils.sql_database.sql_database import SQLDatabase
+from app.utils.sql_generator.graph_agent import LangGraphSQLAgent
+from app.utils.sql_generator.sql_agent import SQLAgent
+from app.utils.sql_generator.sql_agent_dev import FullContextSQLAgent
+from app.utils.sql_generator.sql_agent_graph import LangGraphReActSQLAgent
+from app.utils.sql_generator.sql_agent_dev_graph import LangGraphFullContextSQLAgent
+from app.utils.sql_generator.sql_generator import SQLGenerator
+from app.utils.model.embedding_model import EmbeddingModel
+from app.data.db.storage import Storage
+from app.utils.deep_agent.tools import KaiToolContext
+from app.utils.deep_agent.stream_bridge import bridge_event_to_queue
+from app.server.config import Settings
+
+logger = logging.getLogger(__name__)
+
+# Feature flag for gradual rollout of LangGraph ReAct agents
+USE_LANGGRAPH_AGENTS = os.getenv("USE_LANGGRAPH_AGENTS", "false").lower() == "true"
+
+
+class DeepAgentSQLGeneratorProxy(SQLGenerator):
+    """SQLGenerator-compatible wrapper around the Deep Agent runtime."""
+
+    def __init__(
+        self,
+        llm_config: LLMConfig,
+        *,
+        tenant_id: str | None,
+        sql_generation_id: str,
+        db_connection: DatabaseConnection,
+        database: SQLDatabase,
+        tool_context: KaiToolContext | None = None,
+        extra_instructions: list[str] | None = None,
+    ):
+        super().__init__(llm_config)
+        self.tenant_id = tenant_id or "tenant-default"
+        self.sql_generation_id = sql_generation_id
+        self.db_connection = db_connection
+        self.database = database
+        self.tool_context = tool_context
+        self.extra_instructions = extra_instructions or []
+
+    def _prepare_tool_context(
+        self,
+        user_prompt,
+        context: list[dict] | None,
+    ) -> tuple[KaiToolContext, list[str]]:
+        settings = Settings()
+        storage = Storage(settings)
+        table_repo = TableDescriptionRepository(storage)
+        db_scan = table_repo.get_all_tables_by_db(
+            {
+                "db_connection_id": str(self.db_connection.id),
+                "sync_status": TableDescriptionStatus.SCANNED.value,
+            }
+        )
+        db_scan = self.filter_tables_by_schema(db_scan=db_scan, prompt=user_prompt)
+
+        context_store_service = ContextStoreService(storage)
+        few_shot_examples = context_store_service.retrieve_context_for_question(
+            user_prompt
+        )
+        instruction_service = InstructionService(storage)
+        instructions = instruction_service.retrieve_instruction_for_question(user_prompt)
+        business_metrics_service = BusinessGlossaryService(storage)
+        business_metrics = business_metrics_service.retrieve_business_metrics_for_question(
+            user_prompt
+        )
+
+        extra_instructions: list[str] = []
+        if instructions:
+            for instruction in instructions:
+                rules = instruction.get("rules")
+                if rules:
+                    extra_instructions.append(rules)
+
+        embedding_model = EmbeddingModel().get_model()
+
+        tool_context = KaiToolContext(
+            database=self.database,
+            db_scan=db_scan,
+            embedding=embedding_model,
+            context=context,
+            few_shot_examples=few_shot_examples or [],
+            business_metrics=business_metrics or [],
+            aliases=[],  # Aliases handled separately
+            is_multiple_schema=len(user_prompt.schemas or []) > 1,
+            top_k=self.get_upper_bound_limit(),
+            tenant_id=self.tenant_id,
+            sql_generation_id=self.sql_generation_id,
+        )
+
+        return tool_context, extra_instructions
+
+    def _invoke_agent(
+        self,
+        user_prompt,
+        metadata: Dict[str, Any] | None,
+        context: list[dict] | None,
+    ) -> dict:
+        msg = f"[DEEPAGENT] _invoke_agent called for prompt: {user_prompt.text[:100]}..."
+        logger.info(msg)
+        print(msg)
+
+        if self.tool_context:
+            tool_context = self.tool_context
+            extra_instr = self.extra_instructions
+            logger.info(f"[DEEPAGENT] Using pre-built tool context")
+        else:
+            logger.info(f"[DEEPAGENT] Preparing tool context from prompt")
+            tool_context, extra_instr = self._prepare_tool_context(user_prompt, context)
+
+        logger.info(f"[DEEPAGENT] Creating agent via create_kai_sql_agent")
+        agent = create_kai_sql_agent(
+            tenant_id=self.tenant_id,
+            sql_generation_id=self.sql_generation_id,
+            db_connection=self.db_connection,
+            database=self.database,
+            context=context,
+            tool_context=tool_context,
+            metadata=metadata,
+            extra_instructions=extra_instr,
+            llm_config=self.llm_config,
+        )
+
+        # Build initial state for native deepagents library
+        # Native deepagents only needs "messages" key
+        from langchain_core.messages import HumanMessage
+        initial_state = {
+            "messages": [HumanMessage(content=user_prompt.text)],
+        }
+
+        msg = f"[DEEPAGENT] Invoking agent with prompt: {user_prompt.text}"
+        logger.info(msg)
+        print(msg)
+
+        result = agent.invoke(initial_state)
+
+        msg = f"[DEEPAGENT] Agent invocation complete. Result keys: {list(result.keys())}"
+        logger.info(msg)
+        print(msg)
+
+        messages = result.get('messages', [])
+        msg = f"[DEEPAGENT] Number of messages in result: {len(messages)}"
+        logger.info(msg)
+        print(msg)
+
+        # Log all messages with details
+        from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+        print("\n" + "="*80)
+        print("[DEEPAGENT] MESSAGE TRACE - All Messages from Agent Execution")
+        print("="*80)
+        for i, message in enumerate(messages):
+            msg_type = type(message).__name__
+            content = message.content if hasattr(message, 'content') else str(message)
+
+            print(f"\n[DEEPAGENT] Message {i} | Type: {msg_type}")
+
+            # Log additional message attributes
+            if hasattr(message, 'additional_kwargs') and message.additional_kwargs:
+                print(f"[DEEPAGENT]   Additional kwargs: {list(message.additional_kwargs.keys())}")
+
+            if isinstance(message, ToolMessage):
+                tool_name = getattr(message, 'name', 'unknown')
+                print(f"[DEEPAGENT]   Tool: {tool_name}")
+                print(f"[DEEPAGENT]   Content: {str(content)[:200]}...")
+            elif isinstance(message, AIMessage):
+                # Check for tool calls
+                if hasattr(message, 'tool_calls') and message.tool_calls:
+                    print(f"[DEEPAGENT]   Tool Calls: {len(message.tool_calls)}")
+                    for tc in message.tool_calls:
+                        tool_name = tc.get('name', 'unknown')
+                        tool_args = tc.get('args', {})
+
+                        # Detect subagent delegation
+                        if tool_name == 'task':
+                            # Check multiple possible keys for subagent name
+                            subagent_name = (tool_args.get('agent') or
+                                           tool_args.get('subagent') or
+                                           tool_args.get('name') or
+                                           'unknown')
+                            subagent_prompt = tool_args.get('prompt', '')
+                            print(f"[DEEPAGENT]     ⚡ SUBAGENT DELEGATION: {subagent_name}")
+                            print(f"[DEEPAGENT]        Prompt: {str(subagent_prompt)[:150]}...")
+                            print(f"[DEEPAGENT]        Full args: {str(tool_args)[:200]}...")
+                        else:
+                            print(f"[DEEPAGENT]     - {tool_name}: {str(tool_args)[:100]}...")
+                if content:
+                    print(f"[DEEPAGENT]   Content: {str(content)[:300]}...")
+            elif isinstance(message, HumanMessage):
+                print(f"[DEEPAGENT]   Content: {str(content)[:200]}...")
+            else:
+                print(f"[DEEPAGENT]   Content: {str(content)[:200]}...")
+
+        print("="*80 + "\n")
+
+        return result
+
+    def _stream_agent(
+        self,
+        user_prompt,
+        metadata: Dict[str, Any] | None,
+        context: list[dict] | None,
+        queue,
+    ) -> dict:
+        logger.info(f"[DEEPAGENT] _stream_agent called for prompt: {user_prompt.text[:100]}...")
+
+        if self.tool_context:
+            tool_context = self.tool_context
+            extra_instr = self.extra_instructions
+            logger.info(f"[DEEPAGENT] Using pre-built tool context")
+        else:
+            logger.info(f"[DEEPAGENT] Preparing tool context from prompt")
+            tool_context, extra_instr = self._prepare_tool_context(user_prompt, context)
+
+        logger.info(f"[DEEPAGENT] Creating agent via create_kai_sql_agent")
+        agent = create_kai_sql_agent(
+            tenant_id=self.tenant_id,
+            sql_generation_id=self.sql_generation_id,
+            db_connection=self.db_connection,
+            database=self.database,
+            context=context,
+            tool_context=tool_context,
+            metadata=metadata,
+            extra_instructions=extra_instr,
+            llm_config=self.llm_config,
+        )
+
+        # Build initial state for native deepagents library
+        from langchain_core.messages import HumanMessage
+        initial_state = {
+            "messages": [HumanMessage(content=user_prompt.text)],
+        }
+
+        final_event = {}
+        stream = getattr(agent, "stream", None)
+        if stream is None:
+            raise AttributeError("Deep Agent runtime does not support streaming")
+
+        logger.info(f"[DEEPAGENT] Starting stream with prompt: {user_prompt.text}")
+        artifact_log: list = []
+        event_count = 0
+
+        for event in stream(initial_state):
+            event_count += 1
+            logger.info(f"[DEEPAGENT] Stream event {event_count}: {list(event.keys()) if event else 'None'}")
+
+            # Log detailed event information
+            if event:
+                print(f"\n[DEEPAGENT STREAM] Event {event_count}")
+                print(f"[DEEPAGENT STREAM]   Keys: {list(event.keys())}")
+
+                # Log messages in this event
+                if 'messages' in event and event['messages']:
+                    from langchain_core.messages import AIMessage, ToolMessage, HumanMessage
+                    for msg in event['messages']:
+                        msg_type = type(msg).__name__
+                        content = msg.content if hasattr(msg, 'content') else ''
+
+                        if isinstance(msg, AIMessage):
+                            if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                                tool_names = [tc.get('name') for tc in msg.tool_calls]
+                                print(f"[DEEPAGENT STREAM]   AI -> Tool Calls: {tool_names}")
+
+                                # Check for subagent delegations
+                                for tc in msg.tool_calls:
+                                    if tc.get('name') == 'task':
+                                        subagent_name = tc.get('args', {}).get('agent', 'unknown')
+                                        subagent_prompt = tc.get('args', {}).get('prompt', '')
+                                        print(f"[DEEPAGENT STREAM]   ⚡ SUBAGENT DELEGATION: {subagent_name}")
+                                        print(f"[DEEPAGENT STREAM]      Prompt: {str(subagent_prompt)[:100]}...")
+                            if content:
+                                print(f"[DEEPAGENT STREAM]   AI -> {str(content)[:150]}...")
+                        elif isinstance(msg, ToolMessage):
+                            tool_name = getattr(msg, 'name', 'unknown')
+                            # Highlight subagent results
+                            if tool_name == 'task':
+                                print(f"[DEEPAGENT STREAM]   ⚡ SUBAGENT RESULT: {str(content)[:150]}...")
+                            else:
+                                print(f"[DEEPAGENT STREAM]   Tool Result ({tool_name}): {str(content)[:150]}...")
+
+                # Log todos
+                if 'todos' in event and event['todos']:
+                    print(f"[DEEPAGENT STREAM]   Todos: {len(event['todos'])} items")
+                    for todo in event['todos']:
+                        status = todo.get('status', 'unknown')
+                        text = todo.get('text', '')
+                        print(f"[DEEPAGENT STREAM]     [{status}] {text}")
+
+                # Log files
+                if 'files' in event and event['files']:
+                    print(f"[DEEPAGENT STREAM]   Files: {event['files']}")
+
+            bridge_event_to_queue(
+                event=event,
+                queue=queue,
+                format_fn=self.format_sql_query_intermediate_steps,
+                include_tool_name=False,
+                artifact_log=artifact_log,
+            )
+            final_event = event or final_event
+
+        logger.info(f"[DEEPAGENT] Stream complete. Total events: {event_count}")
+        logger.info(f"[DEEPAGENT] Final event keys: {list(final_event.keys()) if final_event else 'None'}")
+        logger.info(f"[DEEPAGENT] Artifact log entries: {len(artifact_log)}")
+
+        return final_event, artifact_log
+
+    def generate_response(
+        self,
+        user_prompt,
+        database_connection,
+        context: list[dict] | None = None,
+        metadata: dict | None = None,
+    ) -> SQLGeneration:
+        try:
+            result = self._invoke_agent(user_prompt, metadata, context)
+        except DeepAgentRuntimeUnavailable as exc:  # pragma: no cover - env guard
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except Exception as exc:  # pragma: no cover - future logging
+            logger.exception("Deep Agent invocation failed")
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        # Extract SQL from the final message
+        sql_text = self._extract_sql_from_result(result)
+
+        response = SQLGeneration(
+            prompt_id=user_prompt.id,
+            llm_config=self.llm_config,
+            sql=sql_text,
+            metadata={
+                "runtime": "native_deep_agent",
+                "runtime_details": {
+                    "message_count": len(result.get("messages", [])),
+                },
+            },
+        )
+        response = self.create_sql_query_status(
+            db=self.database,
+            query=response.sql or "",
+            sql_generation=response,
+        )
+        return response
+
+    def _extract_sql_from_result(self, result: dict) -> str:
+        """Extract SQL from the Deep Agent result."""
+        from langchain_core.messages import AIMessage, HumanMessage
+        import re
+
+        logger.info(f"[DEEPAGENT] _extract_sql_from_result called")
+        logger.info(f"[DEEPAGENT] Result keys: {list(result.keys())}")
+
+        # Check for final_sql in state
+        if result.get("final_sql"):
+            logger.info(f"[DEEPAGENT] Found final_sql in state: {result['final_sql'][:100]}...")
+            return result["final_sql"]
+
+        # Extract from messages - check all messages, not just AI messages
+        messages = result.get("messages", [])
+        logger.info(f"[DEEPAGENT] Extracting from {len(messages)} messages")
+
+        # First pass: Look for SQL code blocks in any message
+        for i, msg in enumerate(reversed(messages)):
+            msg_idx = len(messages) - 1 - i
+            # Skip human messages
+            if isinstance(msg, HumanMessage):
+                logger.info(f"[DEEPAGENT] Message {msg_idx}: HumanMessage (skipped)")
+                continue
+
+            content = msg.content if hasattr(msg, 'content') else str(msg)
+            msg_type = type(msg).__name__
+            logger.info(f"[DEEPAGENT] Message {msg_idx} ({msg_type}): {content[:200] if content else 'None'}...")
+
+            if not content:
+                continue
+
+            # Look for SQL in code blocks (most reliable)
+            # Match ```sql\n...\n``` or ```sql ... ``` patterns
+            sql_block_pattern = r'```sql\s*\n(.*?)```'
+            matches = re.findall(sql_block_pattern, content, re.DOTALL | re.IGNORECASE)
+            if matches:
+                # Return the last SQL block found (most recent)
+                sql = matches[-1].strip()
+                if sql:
+                    logger.info(f"[DEEPAGENT] Found SQL in code block (multiline): {sql[:100]}...")
+                    return sql
+
+            # Also try without newline after ```sql
+            sql_block_pattern_inline = r'```sql\s+(.*?)```'
+            matches = re.findall(sql_block_pattern_inline, content, re.DOTALL | re.IGNORECASE)
+            if matches:
+                sql = matches[-1].strip()
+                if sql:
+                    logger.info(f"[DEEPAGENT] Found SQL in code block (inline): {sql[:100]}...")
+                    return sql
+
+        # Second pass: Look for SELECT/WITH/INSERT/UPDATE/DELETE statements
+        # (fallback for cases where code blocks aren't used)
+        logger.info(f"[DEEPAGENT] First pass (code blocks) found no SQL, trying second pass (SQL keywords)")
+
+        for i, msg in enumerate(reversed(messages)):
+            msg_idx = len(messages) - 1 - i
+            if isinstance(msg, HumanMessage):
+                continue
+
+            content = msg.content if hasattr(msg, 'content') else str(msg)
+            if not content:
+                continue
+
+            content_upper = content.upper()
+
+            # Check for common SQL statement starters
+            sql_starters = ['SELECT', 'WITH', 'INSERT', 'UPDATE', 'DELETE']
+            for starter in sql_starters:
+                if starter in content_upper:
+                    logger.info(f"[DEEPAGENT] Found '{starter}' keyword in message {msg_idx}")
+                    # Try to extract SQL-like content
+                    # Find the line with the SQL starter
+                    lines = content.split("\n")
+                    sql_lines = []
+                    in_sql = False
+
+                    for line in lines:
+                        line_stripped = line.strip()
+                        if not in_sql and starter in line_stripped.upper():
+                            in_sql = True
+
+                        if in_sql:
+                            sql_lines.append(line)
+                            # Stop at semicolon or empty line after SQL started
+                            if ";" in line:
+                                break
+
+                    if sql_lines:
+                        sql = "\n".join(sql_lines).strip()
+                        # Clean up if it ends with semicolon
+                        if sql.endswith(";"):
+                            sql = sql[:-1].strip() + ";"
+                        logger.info(f"[DEEPAGENT] Extracted SQL from keyword match: {sql[:100]}...")
+                        return sql
+
+        logger.warning(f"[DEEPAGENT] No SQL found in any messages!")
+        return ""
+
+    def stream_response(
+        self,
+        user_prompt,
+        database_connection,
+        response,
+        queue,
+        metadata: dict | None = None,
+    ):
+        artifact_log: list = []
+        try:
+            final_event, artifact_log = self._stream_agent(
+                user_prompt=user_prompt,
+                metadata=metadata,
+                context=None,
+                queue=queue,
+            )
+            # Extract SQL from final event
+            response.sql = self._extract_sql_from_result(final_event)
+        except AttributeError:
+            queue.put("Deep Agent runtime missing streaming support; falling back to sync execution.\n")
+            final_response = self.generate_response(
+                user_prompt=user_prompt,
+                database_connection=database_connection,
+                metadata=metadata,
+            )
+            response.sql = final_response.sql
+        finally:
+            queue.put(None)
+        response.metadata = response.metadata or {}
+        response.metadata["runtime"] = "native_deep_agent"
+        runtime_details = response.metadata.setdefault("runtime_details", {})
+        runtime_details["artifacts"] = artifact_log
+        response = self.create_sql_query_status(
+            db=self.database,
+            query=response.sql or "",
+            sql_generation=response,
+        )
+        return response
+
+
+class KaiSqlGeneratorAdapter:
+    """Factory that returns the appropriate SQLGenerator implementation."""
+
+    def __init__(self, repository: SQLGenerationRepository):
+        self.repository = repository
+
+    def _legacy_generator(
+        self,
+        option: str,
+        llm_config: LLMConfig,
+    ) -> SQLGenerator:
+        # Use LangGraph ReAct agents when feature flag is enabled
+        if USE_LANGGRAPH_AGENTS:
+            if option == "dev":
+                logger.info("Using LangGraph Full Context SQL Agent")
+                return LangGraphFullContextSQLAgent(llm_config)
+            if option == "graph":
+                return LangGraphSQLAgent(llm_config)
+            logger.info("Using LangGraph ReAct SQL Agent")
+            return LangGraphReActSQLAgent(llm_config)
+
+        # Legacy agents (deprecated patterns)
+        if option == "dev":
+            return FullContextSQLAgent(llm_config)
+        if option == "graph":
+            return LangGraphSQLAgent(llm_config)
+        return SQLAgent(llm_config)
+
+    def _is_deep_agent_enabled(
+        self,
+        option: str,
+        tenant_id: str | None,
+        metadata: dict | None,
+    ) -> bool:
+        if option == "deep_agent":
+            return True
+        feature_flag = (metadata or {}).get("use_deep_agent")
+        if isinstance(feature_flag, bool):
+            return feature_flag
+        # Placeholder: future per-tenant toggle hook
+        return False
+
+    def is_deep_agent_enabled(
+        self,
+        option: str,
+        tenant_id: str | None,
+        metadata: dict | None,
+    ) -> bool:
+        return self._is_deep_agent_enabled(option, tenant_id, metadata)
+
+    def select_generator(
+        self,
+        *,
+        option: str,
+        llm_config: LLMConfig,
+        tenant_id: str | None,
+        sql_generation_id: str,
+        db_connection: DatabaseConnection,
+        database: SQLDatabase,
+        metadata: dict | None,
+        tool_context: KaiToolContext | None = None,
+        extra_instructions: list[str] | None = None,
+    ) -> SQLGenerator:
+        if self._is_deep_agent_enabled(option, tenant_id, metadata):
+            return DeepAgentSQLGeneratorProxy(
+                llm_config,
+                tenant_id=tenant_id,
+                sql_generation_id=sql_generation_id,
+                db_connection=db_connection,
+                database=database,
+                tool_context=tool_context,
+                extra_instructions=extra_instructions,
+            )
+        return self._legacy_generator(option, llm_config)

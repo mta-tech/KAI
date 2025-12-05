@@ -1,0 +1,13 @@
+{
+  "$schema": "https://langchain-ai.github.io/langgraph/schemas/langgraph.config.json",
+  "python_version": "3.11",
+  "dependencies": ["."],
+  "graphs": {
+    "session": "./app/langgraph_server/graphs.py:session_graph",
+    "sql_agent": "./app/langgraph_server/graphs.py:sql_agent_graph"
+  },
+  "env": ".env",
+  "dockerfile_lines": [
+    "RUN apt-get update && apt-get install -y build-essential libpq-dev && rm -rf /var/lib/apt/lists/*"
+  ]
+}

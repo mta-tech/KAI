@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List
 import json
+
 # from app.server.config import Settings
 from app.data.db.storage import Storage
 import sqlalchemy
@@ -37,19 +38,60 @@ logger = logging.getLogger(__name__)
 
 
 class PostgreSqlScanner:
+    # PostgreSQL types that don't support DISTINCT/ordering operations
+    UNSUPPORTED_TYPES = {
+        'aclitem', 'pg_node_tree', 'pg_ndistinct', 'pg_dependencies',
+        'pg_mcv_list', 'gtsvector', 'xid8', 'anyarray', 'record',
+    }
+
+    # Numeric types that typically have high cardinality (skip for category extraction)
+    NUMERIC_TYPES = {
+        'integer', 'int', 'int2', 'int4', 'int8', 'smallint', 'bigint',
+        'decimal', 'numeric', 'real', 'float', 'float4', 'float8',
+        'double', 'double precision', 'money', 'serial', 'bigserial',
+        'smallserial', 'number', 'tinyint', 'mediumint',
+    }
+
+    # Types good for categorical values (prioritize these)
+    CATEGORICAL_TYPES = {
+        'varchar', 'character varying', 'char', 'character', 'text',
+        'enum', 'boolean', 'bool', 'uuid', 'status', 'type', 'category',
+    }
+
     def cardinality_values(self, column: Column, db_engine: Engine) -> list | None:
+        # Skip columns with types that don't support DISTINCT operations
+        column_type = str(column.type).lower()
+        if any(unsupported in column_type for unsupported in self.UNSUPPORTED_TYPES):
+            logger.debug(f"Skipping cardinality for column '{column.name}' with unsupported type '{column.type}'")
+            return None
+
+        # Skip pure numeric types (they rarely have useful categorical values)
+        # Exception: columns with names suggesting categorical data (e.g., 'status_id', 'type_id')
+        is_likely_categorical_name = any(hint in column.name.lower() for hint in [
+            'status', 'type', 'category', 'state', 'level', 'tier', 'grade',
+            'priority', 'severity', 'role', 'gender', 'country', 'region',
+            'currency', 'language', 'source', 'channel', 'method', 'mode',
+        ])
+
+        if not is_likely_categorical_name:
+            # Check if it's a numeric type without categorical hints
+            base_type = column_type.split('(')[0].strip()
+            if base_type in self.NUMERIC_TYPES:
+                logger.debug(f"Skipping cardinality for numeric column '{column.name}' with type '{column.type}'")
+                return None
+
         if str(db_engine.__dict__.get("url")).startswith("sqlite"):
             query = text(
                 f"""
                 WITH ValueCounts AS (
-                    SELECT 
-                        {column.name} AS value, 
-                        COUNT(*) AS freq 
+                    SELECT
+                        "{column.name}" AS value,
+                        COUNT(*) AS freq
                     FROM {column.table.name}
-                    GROUP BY {column.name}
+                    GROUP BY "{column.name}"
                 )
-                SELECT 
-                    (SELECT COUNT(DISTINCT {column.name}) FROM {column.table.name}) AS n_distinct,
+                SELECT
+                    (SELECT COUNT(DISTINCT "{column.name}") FROM {column.table.name}) AS n_distinct,
                     json_group_array(value) AS most_common_vals
                 FROM ValueCounts
                 """
@@ -57,29 +99,41 @@ class PostgreSqlScanner:
 
         else:
             query = text(
-                """
-                SELECT n_distinct, most_common_vals::TEXT::TEXT[] 
-                FROM pg_catalog.pg_stats 
-                WHERE tablename = :table_name 
-                AND attname = :column_name
+                f"""
+                WITH ValueCounts AS (
+                    SELECT
+                        "{column.name}" AS value,
+                        COUNT(*) AS freq
+                    FROM {column.table.name}
+                    GROUP BY "{column.name}"
+                )
+                SELECT
+                    (SELECT COUNT(DISTINCT "{column.name}") FROM {column.table.name}) AS n_distinct,
+                    json_agg(value) AS most_common_vals
+                FROM ValueCounts
                 """
             )
 
-        with db_engine.connect() as connection:
-            result = connection.execute(
-                query, {"table_name": column.table.name, "column_name": column.name}
-            ).fetchall()
+        try:
+            with db_engine.connect() as connection:
+                result = connection.execute(
+                    query, {"table_name": column.table.name, "column_name": column.name}
+                ).fetchall()
 
-            if len(result) > 0:
-                distinct_count, most_common_vals = result[0]
-                if isinstance(most_common_vals, str):
-                    most_common_vals = json.loads(most_common_vals)
-                    most_common_vals = [
-                        str(val) if val is not None else val for val in most_common_vals
-                    ]
+                if len(result) > 0:
+                    distinct_count, most_common_vals = result[0]
+                    if isinstance(most_common_vals, str):
+                        most_common_vals = json.loads(most_common_vals)
+                        most_common_vals = [
+                            str(val) if val is not None else val for val in most_common_vals
+                        ]
 
-                if MIN_CATEGORY_VALUE <= distinct_count <= MAX_CATEGORY_VALUE:
-                    return most_common_vals
+                    if MIN_CATEGORY_VALUE <= distinct_count <= MAX_CATEGORY_VALUE:
+                        return most_common_vals
+        except Exception as e:
+            # Log and skip columns that cause errors (e.g., types without ordering operators)
+            logger.warning(f"Skipping cardinality for column '{column.name}': {str(e)[:100]}")
+            return None
 
 
 class TableColumnsDescriptionGenerator:
@@ -89,11 +143,11 @@ class TableColumnsDescriptionGenerator:
 
     def create_chain(self, prompt_template: str, instruction: str = None) -> Any:
         if instruction and len(instruction) > 10:
-            prompt_template = prompt_template + TABLE_DESCRIPTION_INSTRUCTION.format(instruction=instruction)
+            prompt_template = prompt_template + TABLE_DESCRIPTION_INSTRUCTION.format(
+                instruction=instruction
+            )
 
-        prompt = ChatPromptTemplate.from_messages(
-            [("user", prompt_template)]
-        )
+        prompt = ChatPromptTemplate.from_messages([("user", prompt_template)])
 
         # Get the appropriate LLM model using ChatModel
         llm_model = self.model.get_model(
@@ -154,12 +208,14 @@ class TableColumnsDescriptionGenerator:
         db_engine: Engine,
         table: str,
         rows_number: int = 5,
-        instruction: str = '',
+        instruction: str = "",
     ) -> List[Dict[str, Any]]:
         chain = self.create_chain(COLUMN_DESCRIPTION_PROMPT, instruction)
 
         meta_table_name = f"{meta.schema}.{table}" if meta.schema else table
-        columns = [col for col in meta.tables[meta_table_name].columns if "." not in col.name]
+        columns = [
+            col for col in meta.tables[meta_table_name].columns if "." not in col.name
+        ]
         examples_query = sqlalchemy.select(*columns).distinct().limit(rows_number)
         with db_engine.connect() as connection:
             examples = connection.execute(examples_query).fetchall()
@@ -181,9 +237,7 @@ class TableColumnsDescriptionGenerator:
         columns_description: dict,
         instruction: str,
     ) -> str:
-        chain = self.create_chain(
-            TABLE_DESCRIPTION_PROMPT, instruction
-        )
+        chain = self.create_chain(TABLE_DESCRIPTION_PROMPT, instruction)
 
         table_details = "\n".join(
             f"{key}: {value}" for key, value in columns_description.items()
@@ -194,11 +248,9 @@ class TableColumnsDescriptionGenerator:
         ).content
 
         return table_description
-    
+
     def reset_table_description(
-            self,
-            table_description: TableDescription,
-            keep_keys: List[str]
+        self, table_description: TableDescription, keep_keys: List[str]
     ) -> TableDescription:
         default_values = TableDescription(
             id=table_description.id,
@@ -212,26 +264,23 @@ class TableColumnsDescriptionGenerator:
                 setattr(table_description, key, default_values[key])
 
         return table_description
-    
+
     def get_database_description(
         self,
         table_descriptions: List[dict],
     ) -> str:
         print(f"Generate database description...")
-        chain = self.create_chain(
-            DATABASE_DESCRIPTION_PROMPT
-        )
+        chain = self.create_chain(DATABASE_DESCRIPTION_PROMPT)
 
         text = ""
         for table in table_descriptions:
             text += f"Table: {table['table_name']}\n"
             text += f"Description: {table['table_description']}\n\n"
 
-        database_description = chain.invoke(
-            {"table_details": text}
-        ).content
+        database_description = chain.invoke({"table_details": text}).content
 
         return database_description
+
 
 class SqlAlchemyScanner:
     def create_tables(
@@ -270,7 +319,7 @@ class SqlAlchemyScanner:
             for table_description in stored_tables:
                 table_description = table_description_repo.reset_table_description(
                     table_description,
-                    keep_keys=["id", "db_connection_id", "db_schema", "table_name"]
+                    keep_keys=["id", "db_connection_id", "db_schema", "table_name"],
                 )
                 # If source table not exist but exist in Typesense
                 if table_description.table_name not in tables:
@@ -284,7 +333,7 @@ class SqlAlchemyScanner:
                         TableDescriptionStatus.NOT_SCANNED.value
                     )
                     rows.append(repository.save_table_info(table_description))
-            
+
             for table in tables:
                 # Add if source table not stored in Typesense
                 if table not in stored_tables_list:
@@ -324,7 +373,9 @@ class SqlAlchemyScanner:
         self, meta: MetaData, db_engine: Engine, table: str, rows_number: int = 3
     ) -> List[Dict[str, Any]]:
         meta_table_name = f"{meta.schema}.{table}" if meta.schema else table
-        columns = [col for col in meta.tables[meta_table_name].columns if "." not in col.name]
+        columns = [
+            col for col in meta.tables[meta_table_name].columns if "." not in col.name
+        ]
         examples_query = sqlalchemy.select(*columns).limit(rows_number)
         with db_engine.connect() as connection:
             examples = connection.execute(examples_query).fetchall()
@@ -378,7 +429,7 @@ class SqlAlchemyScanner:
                 name=column["name"],
                 data_type=str(column["type"]),
                 low_cardinality=True,
-                categories=category_values,
+                categories=[str(x) for x in category_values],
             )
         else:
             column_description = ColumnDescription(
@@ -455,7 +506,7 @@ class SqlAlchemyScanner:
         scanner_service: PostgreSqlScanner,
         schema: str | None = None,
         llm_config: LLMConfig = None,
-        instruction: str = '',
+        instruction: str = "",
     ) -> TableDescription:
         print(f"Scanning table '{table_name}'...")
         inspector = inspect(db_engine)
@@ -486,11 +537,17 @@ class SqlAlchemyScanner:
         if llm_config:
             table_columns_descriptions = TableColumnsDescriptionGenerator(llm_config)
             columns_description = table_columns_descriptions.get_column_description(
-                meta=meta, db_engine=db_engine, table=table_name, rows_number=5, instruction=instruction
+                meta=meta,
+                db_engine=db_engine,
+                table=table_name,
+                rows_number=5,
+                instruction=instruction,
             )
 
             table_description = table_columns_descriptions.get_table_description(
-                table=table_name, columns_description=columns_description, instruction=instruction
+                table=table_name,
+                columns_description=columns_description,
+                instruction=instruction,
             )
 
             for column in table_columns:
@@ -524,7 +581,7 @@ class SqlAlchemyScanner:
         table_descriptions: list[TableDescription],
         repository: TableDescriptionRepository,
         llm_config: LLMConfig = None,
-        instruction: str = ''
+        instruction: str = "",
     ) -> None:
         scanner_service = PostgreSqlScanner()
         db_connection_id = table_descriptions[0].db_connection_id
@@ -578,14 +635,15 @@ class SqlAlchemyScanner:
                 for table in payload_table_descriptions
             ]
 
-            database_description = TableColumnsDescriptionGenerator(llm_config).get_database_description(
-                table_descriptions=payload_table_descriptions
-            )
+            database_description = TableColumnsDescriptionGenerator(
+                llm_config
+            ).get_database_description(table_descriptions=payload_table_descriptions)
 
             print(database_description)
 
             # Initialize with Storage instance
             from app.server.config import Settings
+
             storage = Storage(Settings())
             database_connection_repository = DatabaseConnectionRepository(storage)
             db_connection = database_connection_repository.find_by_id(db_connection_id)

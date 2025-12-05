@@ -1,0 +1,138 @@
+# Docker Compose for KAI LangGraph Server Self-Hosted Deployment
+#
+# This configuration runs:
+# - LangGraph server with KAI graphs (session, sql_agent)
+# - PostgreSQL for state persistence (required by LangGraph Platform)
+# - Redis for pub-sub streaming
+# - Typesense for vector search (optional, KAI-specific)
+#
+# Usage:
+#   # First build the image:
+#   uv run langgraph build -t kai-langgraph:latest
+#
+#   # Then start the stack:
+#   docker compose -f docker-compose.langgraph.yml up -d
+#
+# Access:
+#   - LangGraph API: http://localhost:8123
+#   - Health check: http://localhost:8123/ok
+
+volumes:
+  langgraph-data:
+    driver: local
+  typesense_data:
+  redis_data:
+
+services:
+  # PostgreSQL - Required for LangGraph state persistence
+  langgraph-postgres:
+    image: postgres:16
+    container_name: kai_postgres_langgraph
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - langgraph-data:/var/lib/postgresql/data
+    networks:
+      - kai_langgraph_network
+    restart: unless-stopped
+    healthcheck:
+      test: pg_isready -U postgres
+      start_period: 10s
+      timeout: 1s
+      retries: 5
+      interval: 5s
+
+  # Redis - Required for LangGraph streaming
+  langgraph-redis:
+    image: redis:7-alpine
+    container_name: kai_redis_langgraph
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - kai_langgraph_network
+    restart: unless-stopped
+    healthcheck:
+      test: redis-cli ping
+      interval: 5s
+      timeout: 1s
+      retries: 5
+
+  # LangGraph API Server
+  langgraph-api:
+    image: kai-langgraph:latest
+    container_name: kai_langgraph
+    ports:
+      - "8123:8000"
+    depends_on:
+      langgraph-redis:
+        condition: service_healthy
+      langgraph-postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # LangGraph Platform requirements
+      - REDIS_URI=redis://langgraph-redis:6379
+      - DATABASE_URI=postgres://postgres:postgres@langgraph-postgres:5432/postgres?sslmode=disable
+
+      # LLM Configuration (from .env)
+      - CHAT_FAMILY=${CHAT_FAMILY:-openai}
+      - CHAT_MODEL=${CHAT_MODEL:-gpt-4o-mini}
+      - EMBEDDING_FAMILY=${EMBEDDING_FAMILY:-openai}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-003-small}
+
+      # API Keys (from .env)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - OLLAMA_API_BASE=${OLLAMA_API_BASE:-http://host.docker.internal:11434}
+
+      # Typesense connection (for KAI features)
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY:-kai_typesense}
+      - TYPESENSE_HOST=typesense
+      - TYPESENSE_PORT=8108
+      - TYPESENSE_PROTOCOL=HTTP
+
+      # LangSmith tracing (optional)
+      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-false}
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
+      - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-kai-langgraph}
+    networks:
+      - kai_langgraph_network
+    restart: unless-stopped
+    healthcheck:
+      test: python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ok')"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Typesense - Vector Search (Optional, for KAI-specific features)
+  typesense:
+    image: typesense/typesense:26.0
+    container_name: kai_typesense_langgraph
+    ports:
+      - "8108:8108"
+    environment:
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY:-kai_typesense}
+      - TYPESENSE_DATA_DIR=/data
+    volumes:
+      - typesense_data:/data
+    networks:
+      - kai_langgraph_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8108 && echo -e 'GET /health HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && timeout 2 cat <&3 | grep -q ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+networks:
+  kai_langgraph_network:
+    driver: bridge

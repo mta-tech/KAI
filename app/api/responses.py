@@ -89,3 +89,60 @@ class RetrieveKnowledgeResponse(BaseModel):
     final_answer: str=Field(alias="Final Answer")
     input_tokens_used: int
     output_tokens_used: int
+
+
+class InsightResponse(BaseModel):
+    """A single insight from analysis."""
+
+    title: str
+    description: str
+    significance: str
+    data_points: list[dict] | None = None
+
+
+class ChartRecommendationResponse(BaseModel):
+    """A chart recommendation from analysis."""
+
+    chart_type: str
+    title: str
+    description: str
+    x_axis: str | None = None
+    y_axis: str | None = None
+    columns: list[str] | None = None
+    rationale: str | None = None
+
+
+class AnalysisResponse(BaseResponse):
+    """Response for analysis of SQL results."""
+
+    sql_generation_id: str
+    prompt_id: str | None = None
+    summary: str
+    insights: list[InsightResponse] = Field(default_factory=list)
+    chart_recommendations: list[ChartRecommendationResponse] = Field(default_factory=list)
+    row_count: int = 0
+    column_count: int = 0
+    llm_config: LLMConfig | None = None
+    input_tokens_used: int = 0
+    output_tokens_used: int = 0
+    completed_at: str | None = None
+    error: str | None = None
+
+
+class ComprehensiveAnalysisResponse(BaseModel):
+    """Response for end-to-end comprehensive analysis."""
+
+    prompt_id: str
+    sql_generation_id: str
+    analysis_id: str | None = None
+    sql: str | None = None
+    sql_status: str
+    summary: str
+    insights: list[dict] = Field(default_factory=list)
+    chart_recommendations: list[dict] = Field(default_factory=list)
+    row_count: int = 0
+    column_count: int = 0
+    input_tokens_used: int = 0
+    output_tokens_used: int = 0
+    error: str | None = None
+    execution_time: dict = Field(default_factory=dict)

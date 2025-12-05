@@ -151,13 +151,30 @@ class DatabaseConnectionService:
 
     def remove_schema_in_uri(self, connection_uri: str, dialect: str) -> str:
         if dialect in ["postgresql"]:
-            pattern = r"\?options=-csearch_path" r"=[^&]*"
-            return re.sub(pattern, "", connection_uri)
+            # Remove options parameter whether it starts with ? or &
+            # Pattern matches both ?options=... and &options=...
+            pattern = r"[?&]options=-csearch_path=[^&]*"
+            result = re.sub(pattern, "", connection_uri)
+            # Clean up any resulting double && or trailing ?
+            result = re.sub(r"&&", "&", result)
+            result = re.sub(r"\?&", "?", result)
+            result = re.sub(r"\?$", "", result)
+            return result
         return connection_uri
 
     def add_schema_in_uri(self, connection_uri: str, schema: str, dialect: str) -> str:
         if dialect in ["postgresql"]:
-            return f"{connection_uri}?options=-csearch_path={schema}"
+            # Neon pooled connections don't support search_path in options
+            # See: https://neon.tech/docs/connect/connection-errors#unsupported-startup-parameter
+            if "neon.tech" in connection_uri.lower() and "-pooler" in connection_uri.lower():
+                # Skip adding options for Neon pooler - schema is passed directly to SQLAlchemy methods
+                return connection_uri
+
+            # Check if URI already has query parameters
+            if "?" in connection_uri:
+                return f"{connection_uri}&options=-csearch_path={schema}"
+            else:
+                return f"{connection_uri}?options=-csearch_path={schema}"
         return connection_uri
 
     def get_sql_database(
@@ -172,4 +189,4 @@ class DatabaseConnectionService:
                     database_connection.dialect,
                 )
             )
-        return SQLDatabase.get_sql_engine(database_connection, True)
+        return SQLDatabase.get_sql_engine(database_connection, False)

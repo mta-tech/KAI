@@ -59,8 +59,8 @@ class InstructionRepository:
         return result
 
     def delete_by_id(self, id: str) -> bool:
-        deleted_count = self.storage.delete_by_id(DB_COLLECTION, id)
-        return deleted_count > 0
+        deleted = self.storage.delete_by_id(DB_COLLECTION, id)
+        return deleted is not None and bool(deleted)
 
     def update(self, instruction: Instruction) -> Instruction:
         self.storage.update_or_create(

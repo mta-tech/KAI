@@ -4,17 +4,12 @@ import time
 from difflib import SequenceMatcher
 from typing import Annotated, Any, Dict, List
 
-from langchain.agents import AgentExecutor
-from langchain.agents.agent_toolkits.base import BaseToolkit
-from langchain.agents.mrkl.base import ZeroShotAgent
-from langchain.callbacks.base import BaseCallbackManager
-from langchain.callbacks.manager import (
-    AsyncCallbackManagerForToolRun,
-    CallbackManagerForToolRun,
-)
-from langchain.chains.llm import LLMChain
-from langchain.tools import BaseTool
-from langchain.tools.sql_database.tool import (
+from langchain_classic.agents import AgentExecutor, create_react_agent
+from langchain_classic.agents.agent_toolkits.base import BaseToolkit
+from langchain_core.callbacks import CallbackManagerForToolRun, AsyncCallbackManagerForToolRun
+from langchain_core.prompts import PromptTemplate
+from langchain_core.tools import BaseTool
+from langchain_community.tools.sql_database.tool import (
     BaseSQLDatabaseTool,
     InfoSQLDatabaseTool,
     QuerySQLDataBaseTool,
@@ -46,28 +41,33 @@ Perform all of the below checks by using the tools:
 5) the columns used for joining tables must have matching values in both tables
 6) execute the given SQL query to check its results and compare it to the expectations
 Always predict the score equal to zero if the query returns an empty result.
-"""
-FORMAT_INSTRUCTIONS = """Use the following format:
 
+You have access to the following tools:
+
+{tools}
+
+Use the following format:
+
+Question: the input question you must answer
 Thought: you should always think about what to do
-Action: One of the [{tool_names}]
+Action: the action to take, should be one of [{tool_names}]
 Action Input: the input to the action
 Observation: the result of the action
 ... (this Thought/Action/Action Input/Observation can repeat N times)
 Thought: I now know the final answer
-Final Answer: the score between 0 and 100 indicating the correctness of the SQL query. score should always be after 'Score:'."""
-AGENT_SUFFIX: str = """How accurately the SQL query can answer the question?
-Give me a score between 0 and 100 by performing a step by step evaluation.
-Question: {question}
-SQL: {SQL}
-"""
+Final Answer: the score between 0 and 100 indicating the correctness of the SQL query. score should always be after 'Score:'
+
+Begin!
+
+Question: {input}
+Thought:{agent_scratchpad}"""
 
 
 class EntityFinder(BaseSQLDatabaseTool, BaseTool):
     """Tool finding all syntactically similar entites from a database"""
 
-    name = "entity_finder"
-    description = """
+    name: str = "entity_finder"
+    description: str = """
     Input to this tool is an enitity, a column, and the table containing the column.
     All the rows that have similar values to the given entity are returned.
     If the entity is not found, a not found message will be returned.
@@ -193,43 +193,28 @@ class EvaluationAgent(Evaluator):
         self,
         toolkit: SQLEvaluationToolkit,
         database_connection: DatabaseConnection,
-        prefix: str = AGENT_PREFIX,
-        suffix: str = AGENT_SUFFIX,
-        callback_manager: BaseCallbackManager | None = None,
-        format_instructions: str = FORMAT_INSTRUCTIONS,
-        input_variables: List[str] | None = None,
         max_iterations: int | None = 15,
         max_execution_time: float | None = None,
-        early_stopping_method: str = "force",
         verbose: bool = False,
         agent_executor_kwargs: Dict[str, Any] | None = None,
-        **kwargs: Dict[str, Any],
     ) -> AgentExecutor:
         database = SQLDatabase.get_sql_engine(database_connection)
         tools = toolkit.get_tools()
-        prefix = prefix.format(dialect=database.dialect)
-        prompt = ZeroShotAgent.create_prompt(
-            tools,
-            prefix=prefix,
-            suffix=suffix,
-            format_instructions=format_instructions,
-            input_variables=input_variables,
-        )
-        llm_chain = LLMChain(
-            llm=self.llm,
-            prompt=prompt,
-            callback_manager=callback_manager,
-        )
-        tool_names = [tool.name for tool in tools]
-        agent = ZeroShotAgent(llm_chain=llm_chain, allowed_tools=tool_names, **kwargs)
-        return AgentExecutor.from_agent_and_tools(
+        
+        # Create prompt with dialect filled in
+        prompt_template = AGENT_PREFIX.format(dialect=database.dialect)
+        prompt = PromptTemplate.from_template(prompt_template)
+        
+        # Use create_react_agent instead of deprecated ZeroShotAgent
+        agent = create_react_agent(self.llm, tools, prompt)
+        
+        return AgentExecutor(
             agent=agent,
             tools=tools,
-            callback_manager=callback_manager,
             verbose=verbose,
             max_iterations=max_iterations,
             max_execution_time=max_execution_time,
-            early_stopping_method=early_stopping_method,
+            handle_parsing_errors=True,
             **(agent_executor_kwargs or {}),
         )
 
@@ -260,9 +245,10 @@ class EvaluationAgent(Evaluator):
             toolkit=toolkit,
             database_connection=database_connection,
             verbose=False,
-            input_variables=["question", "SQL"],
         )
-        answer = agent_executor.invoke({"question": user_question, "SQL": sql})[
+        # Format the input with the question and SQL
+        input_text = f"How accurately the SQL query can answer the question?\nGive me a score between 0 and 100 by performing a step by step evaluation.\nQuestion: {user_question}\nSQL: {sql}"
+        answer = agent_executor.invoke({"input": input_text})[
             "output"
         ]
         score = self.answer_parser(answer=answer) / 100

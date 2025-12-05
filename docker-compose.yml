@@ -11,7 +11,7 @@ services:
     env_file:
       - .env
 
-  text2sql-agent:
+  kai:
     build:
       context: .
       dockerfile: Dockerfile
@@ -19,7 +19,7 @@ services:
     container_name: text2sql-agent
     restart: on-failure
     ports:
-      - "8005:8005"
+      - "8015:8005"
     depends_on:
       - typesense
     env_file:

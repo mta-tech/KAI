@@ -8,10 +8,26 @@ class Storage(TypeSenseDB):
     def __init__(self, setting) -> None:
         super().__init__(setting)
 
+    def _escape_filter_value(self, value) -> str:
+        """Escape filter values for Typesense - wrap strings in backticks."""
+        if isinstance(value, bool):
+            # Booleans must be lowercase true/false without quotes
+            return "true" if value else "false"
+        if isinstance(value, str):
+            # Check if it's a string representation of a boolean
+            if value.lower() in ("true", "false"):
+                return value.lower()
+            # Escape backticks within the value and wrap in backticks
+            escaped = value.replace('`', '\\`')
+            return f"`{escaped}`"
+        return str(value)
+
     def find_one(self, collection: str, filter: dict) -> dict:
         self.ensure_collection_exists(collection)
 
-        filter_string = " && ".join(f"{key}:{value}" for key, value in filter.items())
+        filter_string = " && ".join(
+            f"{key}:{self._escape_filter_value(value)}" for key, value in filter.items()
+        )
 
         search_params = {"q": "*", "filter_by": filter_string}
 
@@ -23,7 +39,9 @@ class Storage(TypeSenseDB):
     def find_exactly_one(self, collection: str, filter: dict) -> dict:
         self.ensure_collection_exists(collection)
 
-        filter_string = " && ".join(f"{key}:={value}" for key, value in filter.items())
+        filter_string = " && ".join(
+            f"{key}:={self._escape_filter_value(value)}" for key, value in filter.items()
+        )
 
         search_params = {"q": "*", "filter_by": filter_string}
 
@@ -74,7 +92,9 @@ class Storage(TypeSenseDB):
     ) -> list:
         self.ensure_collection_exists(collection)
 
-        filter_by = " && ".join([f"{k}:={v}" for k, v in filter.items()])
+        filter_by = " && ".join(
+            [f"{k}:={self._escape_filter_value(v)}" for k, v in filter.items()]
+        )
 
         search_params = {
             "q": "*",

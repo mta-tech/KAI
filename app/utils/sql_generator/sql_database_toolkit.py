@@ -1,7 +1,7 @@
 from typing import List
 
-from langchain.agents.agent_toolkits.base import BaseToolkit
-from langchain.tools.base import BaseTool
+from langchain_classic.agents.agent_toolkits.base import BaseToolkit
+from langchain_core.tools import BaseTool
 from langchain_core.embeddings import Embeddings
 from pydantic import Field
 

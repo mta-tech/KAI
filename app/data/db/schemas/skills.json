@@ -1,0 +1,71 @@
+{
+    "name": "skills",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "db_connection_id",
+            "type": "string",
+            "reference": "database_connections.id",
+            "facet": true
+        },
+        {
+            "name": "skill_id",
+            "type": "string"
+        },
+        {
+            "name": "name",
+            "type": "string"
+        },
+        {
+            "name": "description",
+            "type": "string"
+        },
+        {
+            "name": "content",
+            "type": "string"
+        },
+        {
+            "name": "category",
+            "type": "string",
+            "optional": true,
+            "facet": true
+        },
+        {
+            "name": "tags",
+            "type": "string[]",
+            "optional": true,
+            "facet": true
+        },
+        {
+            "name": "file_path",
+            "type": "string"
+        },
+        {
+            "name": "skill_embedding",
+            "type": "float[]",
+            "optional": true
+        },
+        {
+            "name": "is_active",
+            "type": "bool",
+            "facet": true
+        },
+        {
+            "name": "metadata",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        },
+        {
+            "name": "updated_at",
+            "type": "string"
+        }
+    ]
+}

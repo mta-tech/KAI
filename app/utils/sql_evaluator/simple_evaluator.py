@@ -6,11 +6,8 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException
-from langchain.chains import LLMChain
-from langchain.prompts.chat import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-)
+from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 from overrides import override
 from sql_metadata import Parser
 from sqlalchemy import text
@@ -156,7 +153,8 @@ class SimpleEvaluator(Evaluator):
             return Evaluation(
                 question_id=user_prompt.id, answer_id=sql_generation.id, score=0
             )
-        chain = LLMChain(llm=self.llm, prompt=chat_prompt)
+        # Use LCEL pattern instead of deprecated LLMChain
+        chain = chat_prompt | self.llm | StrOutputParser()
         try:
             query = database.parser_to_filter_commands(sql_generation.sql)
             with database._engine.connect() as connection:
@@ -180,7 +178,7 @@ class SimpleEvaluator(Evaluator):
                 "MAX_CONFIDENCE": str(max_confidence),
                 "schema": schema,
             }
-        )["text"]
+        )
         logger.info(f"(Simple evaluator) answer of the evaluator: {answer}")
         score = self.answer_parser(answer=answer) / 100
         logger.info(f"(Simple evaluator) score of the evaluator: {str(score)}")

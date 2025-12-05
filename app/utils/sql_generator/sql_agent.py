@@ -4,10 +4,8 @@ import os
 from queue import Queue
 from typing import Any, Dict, List
 from datetime import datetime
-from langchain.agents.agent import AgentExecutor
-from langchain.agents.mrkl.base import ZeroShotAgent
-from langchain.callbacks.base import BaseCallbackManager
-from langchain.chains.llm import LLMChain
+from langchain_classic.agents import AgentExecutor, create_react_agent
+from langchain_core.prompts import PromptTemplate
 from langchain_community.callbacks import get_openai_callback
 from overrides import override
 
@@ -64,23 +62,22 @@ class SQLAgent(SQLGenerator):
     def create_sql_agent(
         self,
         toolkit: SQLDatabaseToolkit,
-        callback_manager: BaseCallbackManager | None = None,
         sql_history: str | None = None,
         prefix: str = AGENT_PREFIX,
         suffix: str | None = None,
         format_instructions: str = FORMAT_INSTRUCTIONS,
-        input_variables: List[str] | None = None,
         max_examples: int = 3,
         number_of_instructions: int = 1,
         max_iterations: int | None = int(os.getenv("AGENT_MAX_ITERATIONS", "15")),  # noqa: B008
         max_execution_time: float | None = None,
-        early_stopping_method: str = "generate",
         verbose: bool = False,
         agent_executor_kwargs: Dict[str, Any] | None = None,
         **kwargs: Dict[str, Any],
     ) -> AgentExecutor:
         """Construct an SQL agent from an LLM and tools."""
         tools = toolkit.get_tools()
+        tool_names = [tool.name for tool in tools]
+        
         if max_examples > 0 and number_of_instructions > 0:
             plan = PLAN_WITH_FEWSHOT_EXAMPLES_AND_INSTRUCTIONS
             suffix = SUFFIX_WITH_FEW_SHOT_SAMPLES
@@ -105,29 +102,35 @@ class SQLAgent(SQLGenerator):
             agent_plan=plan,
         )
 
-        prompt = ZeroShotAgent.create_prompt(
-            tools,
-            prefix=prefix,
-            suffix=suffix,
-            format_instructions=format_instructions,
-            input_variables=input_variables,
-        )
-        llm_chain = LLMChain(
-            llm=self.llm,
-            prompt=prompt,
-            callback_manager=callback_manager,
-            verbose=False,
-        )
-        tool_names = [tool.name for tool in tools]
-        agent = ZeroShotAgent(llm_chain=llm_chain, allowed_tools=tool_names, **kwargs)
-        return AgentExecutor.from_agent_and_tools(
+        # Build tool descriptions for the prompt
+        tools_desc = "\n".join([f"{tool.name}: {tool.description}" for tool in tools])
+        
+        # Create ReAct-style prompt template
+        react_template = f"""{prefix}
+
+You have access to the following tools:
+
+{{tools}}
+
+{format_instructions}
+
+{suffix}
+
+Question: {{input}}
+Thought:{{agent_scratchpad}}"""
+
+        prompt = PromptTemplate.from_template(react_template)
+        
+        # Use create_react_agent instead of deprecated ZeroShotAgent
+        agent = create_react_agent(self.llm, tools, prompt)
+        
+        return AgentExecutor(
             agent=agent,
             tools=tools,
-            callback_manager=callback_manager,
             verbose=verbose,
             max_iterations=max_iterations,
             max_execution_time=max_execution_time,
-            early_stopping_method=early_stopping_method,
+            handle_parsing_errors=ERROR_PARSING_MESSAGE,
             **(agent_executor_kwargs or {}),
         )
 
@@ -204,7 +207,7 @@ class SQLAgent(SQLGenerator):
             few_shot_examples=new_fewshot_examples,
             business_metrics=business_metrics,
             instructions=instructions,
-            is_multiple_schema=True if (len(user_prompt.schemas) > 1) else False,
+            is_multiple_schema=len(user_prompt.schemas) > 1 if user_prompt.schemas else False,
             db_scan=db_scan,
             embedding=EmbeddingModel().get_model(),
         )
@@ -220,7 +223,6 @@ class SQLAgent(SQLGenerator):
             max_execution_time=int(os.environ.get("DH_ENGINE_TIMEOUT", 150)),
         )
         agent_executor.return_intermediate_steps = True
-        agent_executor.handle_parsing_errors = ERROR_PARSING_MESSAGE
         with get_openai_callback() as cb:
             try:
                 result = agent_executor.invoke(

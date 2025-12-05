@@ -181,3 +181,21 @@ class SyntheticQuestionRequest(BaseModel):
     peeking_context_stores: bool = False
     evaluate: bool = False
     metadata: dict | None = None
+
+
+class AnalysisRequest(BaseModel):
+    """Request for generating analysis from an existing SQL generation."""
+
+    llm_config: LLMConfig | None = None
+    max_rows: int = 100
+    metadata: dict | None = None
+
+
+class ComprehensiveAnalysisRequest(BaseModel):
+    """Request for end-to-end analysis: Prompt -> SQL Gen -> Execution -> Analysis."""
+
+    prompt: PromptRequest
+    llm_config: LLMConfig | None = None
+    max_rows: int = 100
+    use_deep_agent: bool = False
+    metadata: dict | None = None

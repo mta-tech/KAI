@@ -1,0 +1,53 @@
+{
+    "name": "sessions",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "db_connection_id",
+            "type": "string",
+            "facet": true
+        },
+        {
+            "name": "status",
+            "type": "string",
+            "facet": true
+        },
+        {
+            "name": "summary",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "messages",
+            "type": "string"
+        },
+        {
+            "name": "checkpoint",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "checkpoint_metadata",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "int64"
+        },
+        {
+            "name": "updated_at",
+            "type": "int64"
+        }
+    ],
+    "default_sorting_field": "updated_at"
+}

@@ -3,10 +3,8 @@ from typing import List
 
 import numpy as np
 import pandas as pd
-from langchain.callbacks.manager import (
-    CallbackManagerForToolRun,
-)
-from langchain.tools.base import BaseTool
+from langchain_core.callbacks import CallbackManagerForToolRun
+from langchain_core.tools import BaseTool
 from langchain_core.embeddings import Embeddings
 from pydantic import Field
 from sql_metadata import Parser
