@@ -1,12 +1,8 @@
-# KAI
+# KAI: AI Agent for Intelligent Query
 
-<p align="center">
-    <b>Knowledge Agent for Intelligence Query</b> <br />
-</p>
 
-**KAI (Knowledge Agent for Intelligence Query)** is an AI-powered agent that lets you query and analyze your database using natural language. Simply ask questions in plain natural language—KAI handles the rest.
+**KAI (Knowledge Agent for Intelligence Query)** is an AI-powered agent that lets you query and analyze your database using natural language.
 
-No SQL expertise required. Just connect your database and start asking.
 
 ## Table of Contents
 
