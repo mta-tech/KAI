@@ -1425,7 +1425,7 @@ wheels = [
 
 [[package]]
 name = "kai"
-version = "0.1.0"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "agentic-learning" },
@@ -1435,6 +1435,7 @@ dependencies = [
     { name = "deepagents" },
     { name = "exceptiongroup" },
     { name = "fastapi" },
+    { name = "jsonschema" },
     { name = "langchain" },
     { name = "langchain-community" },
     { name = "langchain-core" },
@@ -1480,6 +1481,7 @@ requires-dist = [
     { name = "deepagents", specifier = ">=0.2.8" },
     { name = "exceptiongroup", specifier = ">=1.2.2" },
     { name = "fastapi", specifier = ">=0.112.2" },
+    { name = "jsonschema", specifier = ">=4.20.0" },
     { name = "langchain", specifier = ">=1.0.2,<2.0.0" },
     { name = "langchain-community", specifier = ">=0.4.0,<1.0.0" },
     { name = "langchain-core", specifier = ">=1.0.0,<2.0.0" },
