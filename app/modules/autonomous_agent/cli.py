@@ -166,7 +166,8 @@ def cli():
 @click.option("--session", "session_id", help="Resume existing session (use session ID from previous run)")
 @click.option("--output", "-o", type=click.Path(), help="Save result to file")
 @click.option("--stream/--no-stream", default=True, help="Stream output")
-def run(prompt: str, db_connection_id: str, mode: str, session_id: str, output: str, stream: bool):
+@click.option("--verbose", "-v", type=click.Path(), help="Enable verbose mode: write all traces to file (JSONL format)")
+def run(prompt: str, db_connection_id: str, mode: str, session_id: str, output: str, stream: bool, verbose: str | None):
     """Run an autonomous analysis task.
 
     Examples:
@@ -176,8 +177,10 @@ def run(prompt: str, db_connection_id: str, mode: str, session_id: str, output: 
         kai-agent run "Analyze customer churn patterns" --db conn_123 --mode analysis
 
         kai-agent run "Continue the analysis" --db conn_123 --session sess_abc123def456
+
+        kai-agent run "Analyze sales" --db conn_123 --verbose audit.jsonl
     """
-    asyncio.run(_run_task(prompt, db_connection_id, mode, output, stream, session_id))
+    asyncio.run(_run_task(prompt, db_connection_id, mode, output, stream, session_id, verbose))
 
 
 @cli.command()
@@ -192,7 +195,8 @@ def run(prompt: str, db_connection_id: str, mode: str, session_id: str, output: 
 )
 @click.option("--output", "-o", type=click.Path(), help="Save result to file")
 @click.option("--stream/--no-stream", default=True, help="Stream output")
-def resume(session_id: str, prompt: str, db_connection_id: str, mode: str, output: str, stream: bool):
+@click.option("--verbose", "-v", type=click.Path(), help="Enable verbose mode: write all traces to file (JSONL format)")
+def resume(session_id: str, prompt: str, db_connection_id: str, mode: str, output: str, stream: bool, verbose: str | None):
     """Resume an existing session with a new prompt.
 
     SESSION_ID is the session ID from a previous run (e.g., sess_abc123def456).
@@ -203,7 +207,7 @@ def resume(session_id: str, prompt: str, db_connection_id: str, mode: str, outpu
 
         kai-agent resume sess_abc123def456 "What else can you tell me?" --db conn_123
     """
-    asyncio.run(_run_task(prompt, db_connection_id, mode, output, stream, session_id))
+    asyncio.run(_run_task(prompt, db_connection_id, mode, output, stream, session_id, verbose))
 
 
 def _render_todos(todos: list) -> Panel | None:
@@ -237,14 +241,22 @@ def _render_todos(todos: list) -> Panel | None:
     return None
 
 
-async def _render_stream(service, task, console) -> str | None:
+async def _render_stream(service, task, console, audit_logger=None) -> str | None:
     """Helper to stream and render agent events.
+
+    Args:
+        service: AutonomousAgentService instance
+        task: AgentTask to execute
+        console: Rich console for output
+        audit_logger: Optional AuditLogger for verbose output
 
     Returns the final answer text for use in correction context tracking.
     """
     from rich.console import Group
+    import time
 
     output_text = ""
+    reasoning_text = ""  # Track reasoning separately for audit
     agent_stack = ["KAI"] # Track active agent context
 
     # Track todos for pinned display
@@ -252,6 +264,13 @@ async def _render_stream(service, task, console) -> str | None:
 
     # Track if we're currently processing (for spinner)
     is_processing = True
+
+    # Track timing for audit
+    start_time = time.time()
+
+    # Log user prompt to audit
+    if audit_logger:
+        audit_logger.log_user_prompt(task.prompt, task.id)
 
     def build_live_content():
         """Build the live display content with pinned todos and spinner."""
@@ -273,21 +292,28 @@ async def _render_stream(service, task, console) -> str | None:
 
     with Live(console=console, refresh_per_second=10, vertical_overflow="visible", transient=False) as live:
         event_count = 0
+        tool_start_times = {}  # Track tool timing for audit
+
         async for event in service.stream_execute(task):
             event_count += 1
-            
+
             if event["type"] == "token":
                 # Content is always normalized to string by _process_event
-                output_text += str(event["content"])
+                token_content = str(event["content"])
+                output_text += token_content
                 live.update(build_live_content())
 
             elif event["type"] == "memory_loaded":
                 # Memory loaded silently - no panel display
-                pass
+                # Log to audit if enabled
+                if audit_logger:
+                    audit_logger.log_memory_loaded(event.get("stats", {}))
 
             elif event["type"] == "skill_loaded":
                 # Skills loaded silently - no panel display
-                pass
+                # Log to audit if enabled
+                if audit_logger:
+                    audit_logger.log_skill_loaded(event.get("skills", []))
 
             elif event["type"] == "todo_update":
                 # Update our local list of todos - they stay pinned at top
@@ -295,30 +321,49 @@ async def _render_stream(service, task, console) -> str | None:
                 if new_todos:
                     current_todos = new_todos
                     live.update(build_live_content())
+                    # Log to audit if enabled
+                    if audit_logger:
+                        audit_logger.log_todo_update(new_todos)
 
             elif event["type"] == "tool_start":
                 tool_name = event['tool']
                 tool_input = event.get('input')
-                
+                tool_call_id = event.get('tool_call_id')
+
+                # Track timing for audit
+                tool_start_times[tool_name] = time.time()
+
                 # Don't clear output for write_todos - it's just progress tracking
                 if tool_name != "write_todos":
+                    # Capture reasoning before clearing for audit
+                    if output_text.strip() and audit_logger:
+                        audit_logger.log_reasoning(output_text.strip())
                     # Discard reasoning/thought block - we don't display it
                     if output_text.strip():
+                        reasoning_text = output_text  # Keep for audit
                         output_text = ""
                         live.update(build_live_content())
-                
+
+                # Log tool start to audit
+                if audit_logger:
+                    audit_logger.log_tool_start(tool_name, tool_input, tool_call_id)
+
                 if tool_name == "task":
                     # This is a subagent call
                     agent_name = tool_input.get("agent") or tool_input.get("name") or "subagent"
                     agent_stack.append(agent_name)
-                    
+
                     prompt = tool_input.get("prompt", "")
                     live.console.print(f"\n[bold blue]➤ Delegating to {agent_name}[/bold blue]")
                     # Use a Panel for the prompt - use Text to avoid markup parsing errors
                     live.console.print(Panel(Text(prompt), title=f"{agent_name} Task", border_style="blue", title_align="left"))
+
+                    # Log subagent start
+                    if audit_logger:
+                        audit_logger.log_subagent_start(agent_name, prompt)
                 elif tool_name == "write_todos":
                     # We handle todo updates via the dedicated event type, but we can acknowledge the tool call briefly
-                    pass 
+                    pass
                 else:
                     # Normal tool call
                     prefix = "  " * (len(agent_stack) - 1)
@@ -342,16 +387,31 @@ async def _render_stream(service, task, console) -> str | None:
                                 input_str = input_str[:200] + "..."
                             # Escape Rich markup in tool input
                             live.console.print(f"{prefix}[dim]  Input: {escape_markup(input_str)}[/dim]")
-            
+
             elif event["type"] == "tool_end":
                 tool_name = event['tool']
                 output = event.get('output', '')
-                
+                tool_call_id = event.get('tool_call_id')
+
+                # Calculate duration for audit
+                duration_ms = None
+                if tool_name in tool_start_times:
+                    duration_ms = int((time.time() - tool_start_times[tool_name]) * 1000)
+                    del tool_start_times[tool_name]
+
+                # Log tool end to audit
+                if audit_logger:
+                    audit_logger.log_tool_end(tool_name, output, tool_call_id, duration_ms)
+
                 if tool_name == "task":
                     finished_agent = agent_stack.pop() if len(agent_stack) > 1 else "subagent"
                     live.console.print(f"[bold green]✔ {finished_agent} completed[/bold green]")
                     # Show subagent result - use Text to avoid markup parsing errors
                     live.console.print(Panel(Text(output), title=f"{finished_agent} Result", border_style="blue", title_align="left"))
+
+                    # Log subagent end
+                    if audit_logger:
+                        audit_logger.log_subagent_end(finished_agent, output)
                 elif tool_name == "write_todos":
                     # Skip printing result for write_todos to reduce noise, as we render the list
                     pass
@@ -363,13 +423,21 @@ async def _render_stream(service, task, console) -> str | None:
                     # Escape Rich markup in tool output to prevent parsing errors
                     live.console.print(f"{prefix}[dim]{escape_markup(display_output)}[/dim]")
 
+            elif event["type"] == "error":
+                # Log error to audit
+                if audit_logger:
+                    audit_logger.log_error(event.get("error", "Unknown error"))
+
         # End of stream - Final Result
         is_processing = False
-        
+
+        # Calculate total duration for audit
+        total_duration_ms = int((time.time() - start_time) * 1000)
+
         # Debug: show event count if no output
         if not output_text.strip():
             live.console.print(f"[dim]Debug: {event_count} events received, no final output[/dim]")
-        
+
         if output_text.strip():
             live.update(Text(""))
             try:
@@ -377,6 +445,10 @@ async def _render_stream(service, task, console) -> str | None:
             except Exception:
                 content = Text(output_text)
             live.console.print(Panel(content, title="Analysis / Result", border_style="green", title_align="left"))
+
+            # Log final response to audit
+            if audit_logger:
+                audit_logger.log_response(output_text, total_duration_ms)
 
     # Return the final answer for tracking (used for correction context)
     return output_text.strip() if output_text else None
@@ -389,6 +461,7 @@ async def _run_task(
     output: str,
     stream: bool,
     session_id: str | None = None,
+    verbose: str | None = None,
 ):
     """Execute agent task."""
     from app.data.db.storage import Storage
@@ -457,6 +530,19 @@ async def _run_task(
         mode=mode,
     )
 
+    # Initialize audit logger if verbose mode is enabled
+    audit_logger = None
+    if verbose:
+        from app.modules.autonomous_agent.audit_logger import AuditLogger, create_audit_log_path
+        log_path = create_audit_log_path(session_id, custom_path=verbose)
+        audit_logger = AuditLogger(
+            output_path=log_path,
+            session_id=session_id,
+            db_connection_id=db_connection_id,
+            mode=mode,
+        )
+        console.print(f"[dim]Audit log: {log_path}[/dim]")
+
     # Display session info
     if is_resume:
         console.print(f"[cyan]Resuming session:[/cyan] [bold]{session_id}[/bold]")
@@ -466,31 +552,45 @@ async def _run_task(
 
     console.print(Panel(f"[bold]{escape_markup(prompt)}[/bold]", title=f"KAI Agent [{mode}]"))
 
-    if stream:
-        # Streaming execution using new renderer
-        await _render_stream(service, task, console)
-    else:
-        # Non-streaming execution
-        with console.status("[bold]Thinking...[/bold]"):
-            result = await service.execute(task)
-
-        if result.status == "completed":
-            console.print(Panel(Text(result.final_answer), title="Result", border_style="green"))
-            console.print(f"[green]Completed in {result.execution_time_ms}ms[/green]")
+    try:
+        if stream:
+            # Streaming execution using new renderer
+            await _render_stream(service, task, console, audit_logger)
         else:
-            console.print(f"[red]Error: {result.error}[/red]")
+            # Non-streaming execution
+            if audit_logger:
+                audit_logger.log_user_prompt(prompt, task.id)
 
-        if output and result.final_answer:
-            with open(output, "w") as f:
-                f.write(result.final_answer)
-            console.print(f"[dim]Saved to {output}[/dim]")
+            with console.status("[bold]Thinking...[/bold]"):
+                result = await service.execute(task)
+
+            if result.status == "completed":
+                console.print(Panel(Text(result.final_answer), title="Result", border_style="green"))
+                console.print(f"[green]Completed in {result.execution_time_ms}ms[/green]")
+                if audit_logger:
+                    audit_logger.log_response(result.final_answer, result.execution_time_ms)
+            else:
+                console.print(f"[red]Error: {result.error}[/red]")
+                if audit_logger:
+                    audit_logger.log_error(result.error or "Unknown error")
+
+            if output and result.final_answer:
+                with open(output, "w") as f:
+                    f.write(result.final_answer)
+                console.print(f"[dim]Saved to {output}[/dim]")
+    finally:
+        # End audit session
+        if audit_logger:
+            audit_logger.log_session_end(total_prompts=1)
+            console.print(f"[dim]Audit log saved to: {audit_logger.get_log_path()}[/dim]")
 
 
 @cli.command()
 @click.option("--db", "db_connection_id", required=True, help="Database connection ID")
 @click.option("--session", "session_id", help="Resume existing session (use session ID from previous run)")
 @click.option("--lang", "language", type=click.Choice(["id", "en"]), default=None, help="Response language: 'id' (Indonesian) or 'en' (English). Defaults to AGENT_LANGUAGE in .env")
-def interactive(db_connection_id: str, session_id: str | None, language: str | None):
+@click.option("--verbose", "-v", type=click.Path(), help="Enable verbose mode: write all traces to file (JSONL format)")
+def interactive(db_connection_id: str, session_id: str | None, language: str | None, verbose: str | None):
     """Start an interactive agent session.
 
     Examples:
@@ -499,17 +599,83 @@ def interactive(db_connection_id: str, session_id: str | None, language: str | N
         kai-agent interactive --db conn_123 --session calm-river-472
 
         kai-agent interactive --db conn_123 --lang id  # Indonesian responses
+
+        kai-agent interactive --db conn_123 --verbose audit.jsonl
     """
-    asyncio.run(_interactive_session(db_connection_id, session_id, language))
+    asyncio.run(_interactive_session(db_connection_id, session_id, language, verbose))
 
 
-async def _interactive_session(db_connection_id: str, session_id: str | None = None, language: str | None = None):
+async def _show_analysis_suggestions(
+    db_connection_id: str,
+    storage,
+    console: Console,
+) -> list:
+    """Display analysis suggestions panel for new sessions.
+
+    Args:
+        db_connection_id: Database connection ID
+        storage: Storage instance
+        console: Rich console for output
+
+    Returns:
+        List of AnalysisSuggestion objects for input handling
+    """
+    from rich.table import Table
+    from app.modules.analysis_suggestions.services import AnalysisSuggestionService
+
+    try:
+        with console.status("[dim]Generating analysis suggestions...[/dim]"):
+            service = AnalysisSuggestionService(storage)
+            response = await service.generate_suggestions(
+                db_connection_id=db_connection_id,
+                max_suggestions=6,
+            )
+
+        if not response.suggestions:
+            return []
+
+        # Display Rich table in panel
+        table = Table(show_header=False, box=None, padding=(0, 1))
+        table.add_column("Num", style="cyan", width=3)
+        table.add_column("Question", style="white")
+        table.add_column("Type", style="dim", width=14)
+
+        category_icons = {
+            "trend": "📈",
+            "aggregation": "📊",
+            "comparison": "⚖️",
+            "relationship": "🔗",
+        }
+
+        for i, s in enumerate(response.suggestions, 1):
+            icon = category_icons.get(s.category.value, "")
+            table.add_row(f"{i}", s.question, f"{icon} {s.category.value}")
+
+        panel = Panel(
+            table,
+            title="[bold]Suggested Questions[/bold]",
+            subtitle="[dim]Type a number to select, or ask your own question[/dim]",
+            border_style="blue",
+        )
+        console.print(panel)
+
+        return response.suggestions
+
+    except Exception as e:
+        # Silently fail - suggestions are optional enhancement
+        import logging
+        logging.debug(f"Failed to generate suggestions: {e}")
+        return []
+
+
+async def _interactive_session(db_connection_id: str, session_id: str | None = None, language: str | None = None, verbose: str | None = None):
     """Interactive REPL session.
 
     Args:
         db_connection_id: Database connection ID
         session_id: Optional session ID for resuming
         language: Response language ('id' or 'en'), defaults to AGENT_LANGUAGE setting
+        verbose: Optional path to write audit logs (JSONL format)
     """
     from app.data.db.storage import Storage
     from app.server.config import Settings
@@ -583,14 +749,33 @@ async def _interactive_session(db_connection_id: str, session_id: str | None = N
     if not session_id:
         session_id = generate_session_id()
 
+    # Initialize audit logger if verbose mode is enabled
+    audit_logger = None
+    if verbose:
+        from app.modules.autonomous_agent.audit_logger import AuditLogger, create_audit_log_path
+        log_path = create_audit_log_path(session_id, custom_path=verbose)
+        audit_logger = AuditLogger(
+            output_path=log_path,
+            session_id=session_id,
+            db_connection_id=db_connection_id,
+            mode="interactive",
+        )
+        console.print(f"[dim]Audit log: {log_path}[/dim]")
+
     if is_resume:
         console.print(f"[cyan]Resuming session:[/cyan] [bold]{session_id}[/bold]\n")
     else:
         console.print(f"[cyan]Session:[/cyan] [bold]{session_id}[/bold]")
         console.print(f"[dim]Resume later with: kai-agent interactive --db {db_connection_id} --session {session_id}[/dim]\n")
 
+    # Show analysis suggestions for new sessions only
+    suggestions_list = []
+    if not is_resume:
+        suggestions_list = await _show_analysis_suggestions(db_connection_id, storage, console)
+
     # Track previous answer for correction context
     previous_answer: str | None = None
+    prompt_count = 0
 
     while True:
         try:
@@ -598,6 +783,14 @@ async def _interactive_session(db_connection_id: str, session_id: str | None = N
 
             if not prompt:
                 continue
+
+            # Handle numeric input for suggestion selection
+            if prompt.isdigit() and suggestions_list:
+                idx = int(prompt) - 1
+                if 0 <= idx < len(suggestions_list):
+                    prompt = suggestions_list[idx].question
+                    console.print(f"[dim]→ {prompt}[/dim]\n")
+
             if prompt.lower() == "exit":
                 # Save session before exiting
                 with console.status("[dim]Saving session...[/dim]"):
@@ -744,13 +937,16 @@ async def _interactive_session(db_connection_id: str, session_id: str | None = N
 
             # Capture the answer for next iteration's context
             try:
-                answer = await _render_stream(service, task, console)
+                prompt_count += 1
+                answer = await _render_stream(service, task, console, audit_logger)
                 if answer:
                     previous_answer = answer
             except Exception as stream_error:
                 console.print(f"[red]Stream error: {stream_error}[/red]")
                 import traceback
                 console.print(f"[dim]{traceback.format_exc()}[/dim]")
+                if audit_logger:
+                    audit_logger.log_error(str(stream_error), "stream_render")
 
         except KeyboardInterrupt:
             console.print("\n[yellow]Interrupted. Press Ctrl+C again to exit or continue chatting.[/yellow]")
@@ -774,6 +970,11 @@ async def _interactive_session(db_connection_id: str, session_id: str | None = N
             with console.status("[dim]Saving session...[/dim]"):
                 await service.save_session(session_id)
             break
+
+    # End audit session
+    if audit_logger:
+        audit_logger.log_session_end(total_prompts=prompt_count)
+        console.print(f"[dim]Audit log saved to: {audit_logger.get_log_path()}[/dim]")
 
     console.print(f"\n[dim]Session ended. Resume with: --session {session_id}[/dim]")
 

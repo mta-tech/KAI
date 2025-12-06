@@ -21,6 +21,15 @@ from app.modules.autonomous_agent import (
     set_agent_session_storage,
 )
 
+# Visualization module imports
+from app.modules.visualization import visualization_router
+
+# Analytics module imports
+from app.modules.analytics import analytics_router
+
+# API v2 imports
+from app.api.v2 import batch_router, streaming_router
+
 from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.analysis.services import AnalysisService
 
@@ -48,6 +57,9 @@ class FastAPI:
 
         # Configure and register autonomous agent session module
         self._setup_agent_session_module()
+
+        # Configure and register analysis suggestions module
+        self._setup_suggestions_module()
 
         @self._app.on_event("shutdown")
         async def shutdown_event():
@@ -136,6 +148,27 @@ class FastAPI:
         self._app.include_router(
             agent_session_router, prefix="/api/v1", tags=["Agent Sessions"]
         )
+
+        # Include visualization router (v2 API)
+        self._app.include_router(visualization_router)
+
+        # Include analytics router (v2 API)
+        self._app.include_router(analytics_router)
+
+        # Include streaming router (v2 API)
+        self._app.include_router(streaming_router)
+
+        # Include batch router (v2 API)
+        self._app.include_router(batch_router)
+
+    def _setup_suggestions_module(self):
+        """Configure and register the analysis suggestions module."""
+        from app.modules.analysis_suggestions.api import create_suggestions_router
+        from app.modules.analysis_suggestions.services import AnalysisSuggestionService
+
+        service = AnalysisSuggestionService(self._storage)
+        suggestions_router = create_suggestions_router(service)
+        self._app.include_router(suggestions_router)
 
     def app(self) -> fastapi.FastAPI:
         return self._app
