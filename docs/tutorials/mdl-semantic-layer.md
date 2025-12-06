@@ -137,9 +137,30 @@ mdl_service = MDLService(
 
 ## Creating MDL Manifests
 
-### Method 1: Auto-Generate from Database
+### Method 1: Auto-Generate During Database Scan (Recommended)
 
-The easiest way to create an MDL manifest is to generate it from your existing TableDescriptions:
+The easiest way to create an MDL manifest is to generate it automatically when scanning your database:
+
+```bash
+# Scan database and generate MDL in one command
+kai-agent scan-all <connection_id> --generate-mdl
+
+# With custom manifest name
+kai-agent scan-all <connection_id> -m --mdl-name "Sales Analytics"
+
+# Full workflow: scan with AI descriptions + generate MDL
+kai-agent scan-all <connection_id> -d -m --mdl-name "E-Commerce Semantic Layer"
+```
+
+This approach:
+1. Scans all tables to extract schema metadata
+2. Optionally generates AI descriptions for tables/columns
+3. Automatically builds the MDL manifest with inferred relationships
+4. Saves everything to Typesense storage
+
+### Method 2: Auto-Generate from Existing Scans (Programmatic)
+
+If you've already scanned your database, generate MDL from existing TableDescriptions:
 
 ```python
 # Auto-generate MDL from scanned tables
@@ -161,7 +182,7 @@ This will:
 3. Infer relationships from foreign keys and column naming conventions
 4. Save the manifest to Typesense
 
-### Method 2: Manual Creation
+### Method 3: Manual Creation
 
 For more control, create manifests manually:
 
@@ -220,7 +241,7 @@ manifest_id = await mdl_service.create_manifest(
 )
 ```
 
-### Method 3: Using the API
+### Method 4: Using the API
 
 ```bash
 # Create manifest via REST API

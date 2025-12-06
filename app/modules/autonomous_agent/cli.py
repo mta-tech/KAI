@@ -1417,13 +1417,16 @@ def list_tables(db_connection_id: str, schema: str, status: str, verbose: bool, 
 @click.option("--model-name", default="gemini-2.5-flash", help="LLM model name")
 @click.option("--instruction", "-i", type=str, help="Custom instruction for description generation")
 @click.option("--refresh/--no-refresh", default=True, help="Refresh table list from database first")
-def scan_all(db_connection_id: str, with_descriptions: bool, model_family: str, model_name: str, instruction: str, refresh: bool):
+@click.option("--generate-mdl", "-m", is_flag=True, help="Generate MDL semantic layer manifest after scan")
+@click.option("--mdl-name", type=str, help="Name for generated MDL manifest (default: auto-generated)")
+def scan_all(db_connection_id: str, with_descriptions: bool, model_family: str, model_name: str, instruction: str, refresh: bool, generate_mdl: bool, mdl_name: str):
     """Scan ALL tables in a database connection.
 
     This is a convenience command that:
     1. Refreshes the table list from the database (optional)
     2. Scans all tables to extract schema metadata
     3. Optionally generates AI descriptions
+    4. Optionally generates MDL semantic layer manifest
 
     Examples:
 
@@ -1438,6 +1441,15 @@ def scan_all(db_connection_id: str, with_descriptions: bool, model_family: str, 
 
         # Use OpenAI for descriptions
         kai-agent scan-all abc123 -d --model-family openai --model-name gpt-4o
+
+        # Generate MDL semantic layer after scan
+        kai-agent scan-all abc123 --generate-mdl
+
+        # Generate MDL with custom name
+        kai-agent scan-all abc123 -m --mdl-name "Sales Analytics"
+
+        # Full scan with descriptions and MDL generation
+        kai-agent scan-all abc123 -d -m --mdl-name "E-Commerce Semantic Layer"
     """
     from app.data.db.storage import Storage
     from app.server.config import Settings
@@ -1533,6 +1545,49 @@ def scan_all(db_connection_id: str, with_descriptions: bool, model_family: str, 
         console.print(f"  Total tables scanned: {total_scanned}")
         if with_descriptions:
             console.print(f"  AI descriptions: generated")
+
+        # Step 3: Generate MDL semantic layer (if requested)
+        if generate_mdl:
+            console.print(f"\n[cyan]Step 3:[/cyan] Generating MDL semantic layer...")
+            try:
+                import asyncio
+                from app.modules.mdl.repositories import MDLRepository
+                from app.modules.mdl.services import MDLService
+
+                mdl_repo = MDLRepository(storage=storage)
+                mdl_service = MDLService(
+                    repository=mdl_repo,
+                    table_description_repo=storage,
+                )
+
+                # Generate manifest name if not provided
+                manifest_name = mdl_name or f"{db_connection.alias} Semantic Layer"
+
+                # Build MDL from the scanned tables
+                with console.status("[bold cyan]Building MDL manifest...[/bold cyan]"):
+                    manifest_id = asyncio.get_event_loop().run_until_complete(
+                        mdl_service.build_from_database(
+                            db_connection_id=db_connection_id,
+                            name=manifest_name,
+                            catalog=db_connection.alias,
+                            schema=db_connection.schemas[0] if db_connection.schemas else "public",
+                            data_source=db_connection.database_type,
+                            infer_relationships=True,
+                        )
+                    )
+
+                # Get the created manifest for summary
+                manifest = asyncio.get_event_loop().run_until_complete(
+                    mdl_service.get_manifest(manifest_id)
+                )
+
+                console.print(f"  [green]✔[/green] MDL manifest created: {manifest_id}")
+                console.print(f"    Name: {manifest_name}")
+                console.print(f"    Models: {len(manifest.models) if manifest else 0}")
+                console.print(f"    Relationships: {len(manifest.relationships) if manifest else 0}")
+
+            except Exception as e:
+                console.print(f"  [red]✖ MDL generation failed:[/red] {str(e)}")
 
     except Exception as e:
         console.print(f"\n[red]✖ Scanning failed:[/red] {str(e)}")
