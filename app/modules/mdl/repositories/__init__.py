@@ -81,8 +81,9 @@ class MDLRepository:
         )
 
         manifest_data = self._manifest_to_doc(manifest)
-        self.storage.insert_one(self.collection, manifest_data)
-        return manifest_id
+        # Storage.insert_one generates its own ID, so use the returned ID
+        created_id = self.storage.insert_one(self.collection, manifest_data)
+        return created_id
 
     async def get(self, manifest_id: str) -> Optional[MDLManifest]:
         """
@@ -192,7 +193,7 @@ class MDLRepository:
             "db_connection_id": manifest.db_connection_id,
             "name": manifest.name,
             "catalog": manifest.catalog,
-            "schema": manifest.schema,
+            "schema": manifest.schema_name,
             "data_source": manifest.data_source,
             "models": [self._model_to_doc(m) for m in manifest.models],
             "relationships": [self._relationship_to_doc(r) for r in manifest.relationships],
