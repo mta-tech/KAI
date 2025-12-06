@@ -4004,10 +4004,10 @@ def mdl_list(db_connection_id: str):
             table.add_row(
                 m.id or "-",
                 m.name or "-",
-                m.catalog,
-                m.schema,
-                str(len(m.models)),
-                str(len(m.relationships)),
+                m.catalog or "-",
+                m.schema_name or "-",
+                str(len(m.models) if m.models else 0),
+                str(len(m.relationships) if m.relationships else 0),
             )
 
         console.print(table)
@@ -4050,7 +4050,7 @@ def mdl_show(manifest_id: str):
         console.print(f"\n[bold cyan]MDL Manifest:[/bold cyan] {manifest.name or manifest_id}")
         console.print(f"[dim]ID: {manifest.id}[/dim]")
         console.print(f"[dim]Database: {manifest.db_connection_id}[/dim]")
-        console.print(f"Catalog: {manifest.catalog} | Schema: {manifest.schema}")
+        console.print(f"Catalog: {manifest.catalog} | Schema: {manifest.schema_name}")
         if manifest.data_source:
             console.print(f"Data Source: {manifest.data_source}")
         console.print()
