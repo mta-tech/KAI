@@ -58,6 +58,12 @@ class PostgreSqlScanner:
         'enum', 'boolean', 'bool', 'uuid', 'status', 'type', 'category',
     }
 
+    def _quote_identifier(self, identifier: str) -> str:
+        """Quote an identifier to prevent SQL injection."""
+        # Replace any double quotes with escaped double quotes
+        escaped = identifier.replace('"', '""')
+        return f'"{escaped}"'
+
     def cardinality_values(self, column: Column, db_engine: Engine) -> list | None:
         # Skip columns with types that don't support DISTINCT operations
         column_type = str(column.type).lower()
@@ -80,18 +86,22 @@ class PostgreSqlScanner:
                 logger.debug(f"Skipping cardinality for numeric column '{column.name}' with type '{column.type}'")
                 return None
 
+        # Quote identifiers to prevent SQL injection
+        quoted_column = self._quote_identifier(column.name)
+        quoted_table = self._quote_identifier(column.table.name)
+
         if str(db_engine.__dict__.get("url")).startswith("sqlite"):
             query = text(
                 f"""
                 WITH ValueCounts AS (
                     SELECT
-                        "{column.name}" AS value,
+                        {quoted_column} AS value,
                         COUNT(*) AS freq
-                    FROM {column.table.name}
-                    GROUP BY "{column.name}"
+                    FROM {quoted_table}
+                    GROUP BY {quoted_column}
                 )
                 SELECT
-                    (SELECT COUNT(DISTINCT "{column.name}") FROM {column.table.name}) AS n_distinct,
+                    (SELECT COUNT(DISTINCT {quoted_column}) FROM {quoted_table}) AS n_distinct,
                     json_group_array(value) AS most_common_vals
                 FROM ValueCounts
                 """
@@ -102,13 +112,13 @@ class PostgreSqlScanner:
                 f"""
                 WITH ValueCounts AS (
                     SELECT
-                        "{column.name}" AS value,
+                        {quoted_column} AS value,
                         COUNT(*) AS freq
-                    FROM {column.table.name}
-                    GROUP BY "{column.name}"
+                    FROM {quoted_table}
+                    GROUP BY {quoted_column}
                 )
                 SELECT
-                    (SELECT COUNT(DISTINCT "{column.name}") FROM {column.table.name}) AS n_distinct,
+                    (SELECT COUNT(DISTINCT {quoted_column}) FROM {quoted_table}) AS n_distinct,
                     json_agg(value) AS most_common_vals
                 FROM ValueCounts
                 """
@@ -269,7 +279,7 @@ class TableColumnsDescriptionGenerator:
         self,
         table_descriptions: List[dict],
     ) -> str:
-        print(f"Generate database description...")
+        logger.info("Generating database description...")
         chain = self.create_chain(DATABASE_DESCRIPTION_PROMPT)
 
         text = ""
@@ -508,7 +518,7 @@ class SqlAlchemyScanner:
         llm_config: LLMConfig = None,
         instruction: str = "",
     ) -> TableDescription:
-        print(f"Scanning table '{table_name}'...")
+        logger.info(f"Scanning table '{table_name}'...")
         inspector = inspect(db_engine)
         table_columns = []
         columns = inspector.get_columns(table_name=table_name, schema=schema)
@@ -554,7 +564,7 @@ class SqlAlchemyScanner:
                 if column.name in columns_description:
                     # Update the description with the value from the dictionary
                     column.description = columns_description[column.name]
-            print(f"Table and columns generation `{table_name}` is DONE")
+            logger.info(f"Table and columns generation `{table_name}` is DONE")
         else:
             table_description = columns_description = None
 
@@ -617,7 +627,7 @@ class SqlAlchemyScanner:
                 )
             except Exception:  # noqa: S112
                 continue
-        print("Scanning tables is DONE")
+        logger.info("Scanning tables is DONE")
 
         payload_table_descriptions = repository.get_all_tables_by_db(
             {
@@ -639,7 +649,7 @@ class SqlAlchemyScanner:
                 llm_config
             ).get_database_description(table_descriptions=payload_table_descriptions)
 
-            print(database_description)
+            logger.debug(f"Database description: {database_description}")
 
             # Initialize with Storage instance
             from app.server.config import Settings

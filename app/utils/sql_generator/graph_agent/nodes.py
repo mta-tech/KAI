@@ -133,9 +133,7 @@ def collect_context(state: SQLAgentState) -> SQLAgentState:
             f"{len(state.business_metrics) if state.business_metrics else 0} business metrics, "
             f"{len(state.aliases) if state.aliases else 0} aliases."
         )
-        print("="*50)
-        print(f"Time for collecting context: {datetime.now()-start_time}")
-        print("="*50)
+        logger.debug(f"Time for collecting context: {datetime.now()-start_time}")
         return state
     except Exception as e:
         logger.error(f"Error collecting context: {str(e)}")
@@ -293,9 +291,7 @@ def identify_relevant_tables(state: SQLAgentState) -> SQLAgentState:
             f"Identified {len(state.relevant_tables)} relevant tables: {', '.join(table_names)}"
         )
 
-        print("="*50)
-        print(f"Time for identifying table: {datetime.now()-start_time}")
-        print("="*50)
+        logger.debug(f"Time for identifying table: {datetime.now()-start_time}")
 
         return state
     except Exception as e:
@@ -428,9 +424,7 @@ def analyze_schemas(state: SQLAgentState) -> SQLAgentState:
             f"Analyzed schemas for {len(schemas)} tables: {', '.join(schema_summary)}"
         )
 
-        print("="*50)
-        print(f"Time for analyzing schema: {datetime.now()-start_time}")
-        print("="*50)
+        logger.debug(f"Time for analyzing schema: {datetime.now()-start_time}")
 
         return state
     except Exception as e:
@@ -545,9 +539,7 @@ def analyze_columns(state: SQLAgentState) -> SQLAgentState:
             f"Analyzed {len(column_info)} columns, identified {len(relevant_columns)} as potentially relevant"
         )
 
-        print("="*50)
-        print(f"Time for analyzing columns: {datetime.now()-start_time}")
-        print("="*50)
+        logger.debug(f"Time for analyzing columns: {datetime.now()-start_time}")
 
         return state
     except Exception as e:
@@ -612,9 +604,7 @@ def generate_query(state: SQLAgentState, llm: BaseLLM) -> SQLAgentState:
             f"Generated SQL query (iteration {state.iteration_count}): {sql_query[:100]}..."
         )
 
-        print("="*50)
-        print(f"Time for generating Query: {datetime.now()-start_time}")
-        print("="*50)
+        logger.debug(f"Time for generating Query: {datetime.now()-start_time}")
 
         return state
     except Exception as e:
@@ -854,9 +844,7 @@ def validate_query(state: SQLAgentState) -> SQLAgentState:
             # Don't mark as invalid yet, give a chance to refine
             logger.warning(f"Error executing SQL query: {str(e)}")
 
-        print("="*50)
-        print(f"Time for validating query: {datetime.now()-start_time}")
-        print("="*50)
+        logger.debug(f"Time for validating query: {datetime.now()-start_time}")
 
         return state
     except Exception as e:

@@ -123,9 +123,10 @@ class TypeSenseMemoryBackend:
                 include_shared=include_shared,
             )
 
-            # Increment access count for retrieved memories
-            for result in results:
-                self.repository.increment_access(result.memory)
+            # Increment access count for retrieved memories (batch operation)
+            if results:
+                memories_to_update = [result.memory for result in results]
+                self.repository.bulk_increment_access(memories_to_update)
 
             return results
 
@@ -227,13 +228,8 @@ class TypeSenseMemoryBackend:
         return self.repository.delete_by_namespace(db_connection_id, namespace)
 
     def clear_all(self, db_connection_id: str) -> int:
-        """Clear all memories for a database connection."""
-        memories = self.repository.find_all_for_connection(db_connection_id)
-        count = 0
-        for memory in memories:
-            if memory.id:
-                count += self.repository.delete(memory.id)
-        return count
+        """Clear all memories for a database connection using batch delete."""
+        return self.repository.delete_by_connection(db_connection_id)
 
     def format_memories_for_prompt(
         self,

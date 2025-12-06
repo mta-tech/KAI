@@ -1,6 +1,10 @@
+import logging
+from difflib import SequenceMatcher
+
 from app.data.db.storage import Storage
 from app.modules.context_store.models import ContextStore
-from difflib import SequenceMatcher
+
+logger = logging.getLogger(__name__)
 
 DB_COLLECTION = "context_stores"
 
@@ -119,9 +123,9 @@ class ContextStoreRepository:
                     score = SequenceMatcher(
                         None, row["document"]["prompt_text_ner"], prompt_text_ner
                     ).ratio()
-                    print("Score similarity:", score)
+                    logger.debug(f"Score similarity: {score}")
                     if score >= 0.95:
-                        print("Cached HIT!")
+                        logger.debug("Cached HIT!")
                         result.append(
                             {
                                 "prompt_text": row["document"]["prompt_text"],

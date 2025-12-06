@@ -68,9 +68,9 @@ logger = logging.getLogger(__name__)
 
 class SQLGenerationService:
     def __init__(self, storage):
-        from app.server.config import Settings
+        from app.server.config import get_settings
 
-        self.settings = Settings()
+        self.settings = get_settings()
         self.storage = storage
         self.sql_generation_repository = SQLGenerationRepository(storage)
         self.alias_service = AliasService(storage)
@@ -137,7 +137,7 @@ class SQLGenerationService:
         if context_store:
             sql_generation_request.sql = context_store.sql
             sql_generation_request.evaluate = False
-            print("Exact context cache HIT!")
+            logger.info("Exact context cache HIT!")
 
         elif sql_generation_request.using_ner:
             llm_model = ChatModel().get_model(
@@ -155,7 +155,7 @@ class SQLGenerationService:
                         prompt=prompt, llm_model=llm_model
                     )
                     if similar_prompts:
-                        print("Similar prompt context HIT!")
+                        logger.info("Similar prompt context HIT!")
                         similar_prompt = similar_prompts[0]
                         sql_generation_request.sql = generate_ner_llm(
                             llm_model,
@@ -164,7 +164,7 @@ class SQLGenerationService:
                             prompt.text,
                         )
                 except Exception as e:
-                    print(e)
+                    logger.warning(f"Error in similar prompt context: {e}")
 
             input_tokens = cb.prompt_tokens
             output_tokens = cb.completion_tokens

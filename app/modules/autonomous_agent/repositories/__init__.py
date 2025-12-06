@@ -1,9 +1,15 @@
 """Repository for AgentSession persistence."""
+from __future__ import annotations
+
+import asyncio
+import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.modules.autonomous_agent.models import AgentSession
+
+logger = logging.getLogger(__name__)
 
 AGENT_SESSION_COLLECTION = "agent_sessions"
 
@@ -41,7 +47,7 @@ class AgentSessionRepository:
             Created session ID
         """
         session_id = f"sess_{uuid.uuid4().hex[:12]}"
-        now = datetime.now().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         doc = {
             "id": session_id,
@@ -142,21 +148,95 @@ class AgentSessionRepository:
             "recursion_limit": session.recursion_limit,
             "title": session.title,
             "created_at": session.created_at,
-            "updated_at": datetime.now().isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
             "metadata": session.metadata,
         }
         self.storage.upsert(self.collection, doc)
 
-    def delete(self, session_id: str) -> bool:
-        """Delete session.
+    def delete(self, session_id: str, cascade: bool = True) -> bool:
+        """Delete session and optionally cascade to related data.
+
+        When cascade=True (default), this also deletes:
+        - Session-scoped memories associated with this session
 
         Args:
             session_id: Session ID to delete
+            cascade: If True, delete related session-scoped data
 
         Returns:
             True if deleted, False if not found
         """
+        # Get session first to get db_connection_id for cascade
+        session = self.get(session_id)
+        if not session:
+            return False
+
+        # Cascade delete session-scoped memories
+        if cascade:
+            try:
+                self._cascade_delete_memories(session.db_connection_id, session_id)
+            except Exception as e:
+                logger.warning(f"Failed to cascade delete memories for session {session_id}: {e}")
+
         return self.storage.delete(self.collection, session_id)
+
+    def _cascade_delete_memories(self, db_connection_id: str, session_id: str) -> int:
+        """Delete all session-scoped memories for a session.
+
+        Args:
+            db_connection_id: Database connection ID
+            session_id: Session ID
+
+        Returns:
+            Number of memories deleted
+        """
+        try:
+            # Use delete_by_filter if available
+            count = self.storage.delete_by_filter(
+                "kai_memories",
+                {"db_connection_id": db_connection_id, "session_id": session_id}
+            )
+            if count > 0:
+                logger.info(f"Cascade deleted {count} memories for session {session_id}")
+            return count
+        except Exception as e:
+            logger.warning(f"Cascade delete memories failed: {e}")
+            return 0
+
+    # Async variants for non-blocking API endpoints
+    async def acreate(
+        self,
+        db_connection_id: str,
+        mode: str = "full_autonomy",
+        recursion_limit: int = 100,
+        title: str | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """Async version of create - runs sync operation in thread pool."""
+        return await asyncio.to_thread(
+            self.create, db_connection_id, mode, recursion_limit, title, metadata
+        )
+
+    async def aget(self, session_id: str) -> AgentSession | None:
+        """Async version of get - runs sync operation in thread pool."""
+        return await asyncio.to_thread(self.get, session_id)
+
+    async def alist(
+        self,
+        db_connection_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[AgentSession]:
+        """Async version of list - runs sync operation in thread pool."""
+        return await asyncio.to_thread(self.list, db_connection_id, status, limit)
+
+    async def aupdate(self, session: AgentSession) -> None:
+        """Async version of update - runs sync operation in thread pool."""
+        await asyncio.to_thread(self.update, session)
+
+    async def adelete(self, session_id: str, cascade: bool = True) -> bool:
+        """Async version of delete - runs sync operation in thread pool."""
+        return await asyncio.to_thread(self.delete, session_id, cascade)
 
 
 __all__ = ["AgentSessionRepository", "AGENT_SESSION_COLLECTION"]

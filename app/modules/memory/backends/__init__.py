@@ -38,9 +38,9 @@ def create_memory_backend(
         ValueError: If Letta backend requested but API key not configured.
         ImportError: If Letta client not installed when Letta backend requested.
     """
-    from app.server.config import Settings
+    from app.server.config import get_settings
 
-    settings = Settings()
+    settings = get_settings()
     backend = backend_type or settings.MEMORY_BACKEND
 
     # Check for Letta API key

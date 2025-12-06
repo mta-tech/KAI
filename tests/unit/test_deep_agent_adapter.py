@@ -33,10 +33,8 @@ def _dummy_callback():
     yield _Tracker()
 
 
-stub_module("langchain_community.callbacks", get_openai_callback=_dummy_callback)
-stub_module("langchain_core.tracers.langchain_v1", LangChainTracerV1=object)
-stub_module("langchain.callbacks.manager", CallbackManagerForToolRun=object)
-stub_module("langchain.callbacks.base", BaseCallbackManager=object)
+# Note: These stubs are only needed if the real packages aren't installed
+# With modern langchain packages, real imports work
 
 
 def _dummy_agent_factory(*args, **kwargs):
@@ -82,73 +80,13 @@ stub_module(
     build_tool_specs=_build_tool_specs,
 )
 
-lg_graph = stub_module(
-    "langgraph.graph",
-    Graph=object,
-    START=object(),
-    END=object(),
-    MessagesState=object,
-    StateGraph=object,
-)
-stub_module("langgraph.graph.graph", CompiledGraph=object)
-stub_module("langgraph.prebuilt", ToolNode=object)
-stub_module("langgraph.prebuilt.chat_agent_executor", create_react_agent=lambda *_, **__: None)
+# langgraph stubs removed - real packages now work
 
-stub_module("langchain_ollama", ChatOllama=object, OllamaEmbeddings=object)
-langchain_pkg = stub_module("langchain")
-langchain_pkg.__path__ = []
-langchain_agents = stub_module("langchain.agents")
-langchain_agents.__path__ = []
-stub_module("langchain.agents.agent", AgentExecutor=object)
-langchain_chains = stub_module("langchain.chains")
-langchain_chains.__path__ = []
-stub_module("langchain.chains.llm", LLMChain=object)
-stub_module("langchain.chains.base", Chain=object)
-stub_module("langchain.schema", RUN_KEY="run_key", AgentAction=object)
-stub_module("langchain.tools.base", BaseTool=object)
-stub_module("langchain.chat_models.base", BaseChatModel=object)
+# langchain stubs removed - real packages now work with modern versions
 
-class _Extra:
-    forbid = "forbid"
+# langchain_core and langchain_openai stubs removed - real packages now work
 
-
-stub_module(
-    "langchain_core.pydantic_v1",
-    BaseModel=object,
-    Field=lambda *a, **k: None,
-    SecretStr=str,
-    root_validator=lambda *a, **k: (lambda fn: fn),
-    validator=lambda *a, **k: (lambda fn: fn),
-    Extra=_Extra,
-)
-prompts_module = stub_module(
-    "langchain_core.prompts",
-    PipelinePromptTemplate=object,
-    ChatPromptTemplate=object,
-    BasePromptTemplate=object,
-    PromptTemplate=object,
-    format_document=lambda *a, **k: "",
-)
-prompts_module.__path__ = []
-stub_module("langchain_core.prompts.few_shot", FewShotPromptTemplate=object)
-stub_module("langchain_core.prompts.prompt", PromptTemplate=object)
-stub_module("langchain_core.prompts.chat", MessagesPlaceholder=object)
-
-stub_module("langchain_openai", ChatOpenAI=object, OpenAIEmbeddings=object)
-stub_module("langchain_openai.embeddings", AzureOpenAIEmbeddings=object, OpenAIEmbeddings=object)
-stub_module("langchain_openai.embeddings.azure", AzureOpenAIEmbeddings=object)
-stub_module("langchain_openai.embeddings.base", OpenAIEmbeddings=object)
-stub_module("langchain_core.memory", BaseMemory=object)
-
-stub_module(
-    "langchain_google_genai",
-    ChatGoogleGenerativeAI=object,
-    GoogleGenerativeAIEmbeddings=object,
-)
-stub_module(
-    "langchain_google_genai.embeddings",
-    GoogleGenerativeAIEmbeddings=object,
-)
+# langchain_google_genai stub removed - real package now works
 
 stub_module("app.modules.nl_generation.services", NLGenerationService=object)
 stub_module("app.utils.sql_evaluator.simple_evaluator", SimpleEvaluator=object)

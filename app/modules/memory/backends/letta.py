@@ -12,7 +12,7 @@ Maps KAI concepts to Letta:
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.modules.memory.models import Memory, MemorySearchResult
@@ -177,7 +177,7 @@ class LettaMemoryBackend:
                 "key": key,
                 "value": value,
                 "importance": importance,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         )
 
@@ -198,7 +198,7 @@ class LettaMemoryBackend:
 
             try:
                 data = json.loads(line)
-                now = datetime.utcnow().isoformat()
+                now = datetime.now(timezone.utc).isoformat()
                 memory = Memory(
                     id=f"{namespace}:{data.get('key', 'unknown')}",
                     db_connection_id=db_connection_id,
@@ -214,7 +214,7 @@ class LettaMemoryBackend:
                 memories.append(memory)
             except json.JSONDecodeError:
                 # Treat as plain text memory
-                now = datetime.utcnow().isoformat()
+                now = datetime.now(timezone.utc).isoformat()
                 memory = Memory(
                     id=f"{namespace}:text_{hash(line)}",
                     db_connection_id=db_connection_id,
@@ -308,7 +308,7 @@ class LettaMemoryBackend:
                     value=new_content,
                 )
 
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             return Memory(
                 id=f"{effective_namespace}:{key}",
                 db_connection_id=db_connection_id,

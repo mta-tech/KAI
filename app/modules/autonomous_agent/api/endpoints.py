@@ -50,7 +50,7 @@ async def create_agent_session(
 
     Returns the created session ID.
     """
-    session_id = repo.create(
+    session_id = await repo.acreate(
         db_connection_id=body.db_connection_id,
         mode=body.mode,
         recursion_limit=body.recursion_limit,
@@ -71,13 +71,13 @@ async def list_agent_sessions(
     """
     List agent sessions with optional filters.
     """
-    sessions = repo.list(
+    sessions = await repo.alist(
         db_connection_id=db_connection_id,
         status=status,
         limit=limit,
     )
 
-    # Apply offset (repo.list doesn't support offset natively)
+    # Apply offset (repo.alist doesn't support offset natively)
     sessions = sessions[offset:]
 
     return AgentSessionListResponse(
@@ -96,7 +96,7 @@ async def get_agent_session(
     """
     Get agent session details.
     """
-    session = repo.get(session_id)
+    session = await repo.aget(session_id)
 
     if not session:
         raise HTTPException(status_code=404, detail="Agent session not found")
@@ -113,7 +113,7 @@ async def update_agent_session(
     """
     Update an agent session.
     """
-    session = repo.get(session_id)
+    session = await repo.aget(session_id)
 
     if not session:
         raise HTTPException(status_code=404, detail="Agent session not found")
@@ -126,7 +126,7 @@ async def update_agent_session(
     if body.metadata is not None:
         session.metadata = body.metadata
 
-    repo.update(session)
+    await repo.aupdate(session)
     return AgentSessionResponse.from_session(session)
 
 
@@ -138,12 +138,12 @@ async def delete_agent_session(
     """
     Delete an agent session.
     """
-    session = repo.get(session_id)
+    session = await repo.aget(session_id)
 
     if not session:
         raise HTTPException(status_code=404, detail="Agent session not found")
 
-    repo.delete(session_id)
+    await repo.adelete(session_id)
     return {"status": "deleted"}
 
 
@@ -155,7 +155,7 @@ async def pause_agent_session(
     """
     Pause an active agent session.
     """
-    session = repo.get(session_id)
+    session = await repo.aget(session_id)
 
     if not session:
         raise HTTPException(status_code=404, detail="Agent session not found")
@@ -167,7 +167,7 @@ async def pause_agent_session(
         )
 
     session.status = "paused"
-    repo.update(session)
+    await repo.aupdate(session)
     return {"status": "paused"}
 
 
@@ -179,7 +179,7 @@ async def resume_agent_session(
     """
     Resume a paused agent session.
     """
-    session = repo.get(session_id)
+    session = await repo.aget(session_id)
 
     if not session:
         raise HTTPException(status_code=404, detail="Agent session not found")
@@ -191,7 +191,7 @@ async def resume_agent_session(
         )
 
     session.status = "active"
-    repo.update(session)
+    await repo.aupdate(session)
     return {"status": "active"}
 
 

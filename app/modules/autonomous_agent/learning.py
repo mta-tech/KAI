@@ -29,9 +29,9 @@ def get_learning_client():
     Returns:
         AgenticLearning client instance, or None if not configured.
     """
-    from app.server.config import Settings
+    from app.server.config import get_settings
 
-    settings = Settings()
+    settings = get_settings()
 
     if not settings.ENABLE_AUTO_LEARNING:
         return None
@@ -71,9 +71,9 @@ def get_async_learning_client():
     if _async_client_instance is not None:
         return _async_client_instance
 
-    from app.server.config import Settings
+    from app.server.config import get_settings
 
-    settings = Settings()
+    settings = get_settings()
 
     if not settings.ENABLE_AUTO_LEARNING:
         return None
@@ -117,9 +117,9 @@ def get_shared_memory_blocks() -> list[str]:
     Returns:
         List of shared memory block labels.
     """
-    from app.server.config import Settings
+    from app.server.config import get_settings
 
-    settings = Settings()
+    settings = get_settings()
     shared_block = getattr(settings, "AUTO_LEARNING_SHARED_MEMORY_BLOCK", "shared_knowledge")
     return [shared_block]
 
@@ -344,9 +344,9 @@ def get_memory_blocks() -> list[str]:
     Returns:
         List of memory block labels to inject (session-specific).
     """
-    from app.server.config import Settings
+    from app.server.config import get_settings
 
-    settings = Settings()
+    settings = get_settings()
     blocks_str = settings.AUTO_LEARNING_MEMORY_BLOCKS
     return [b.strip() for b in blocks_str.split(",") if b.strip()]
 
@@ -379,8 +379,8 @@ def learning_context(db_connection_id: str, session_id: str | None = None):
         yield
         return
 
-    from app.server.config import Settings
-    settings = Settings()
+    from app.server.config import get_settings
+    settings = get_settings()
 
     try:
         from agentic_learning import learning
@@ -710,82 +710,12 @@ This correction MUST be remembered and applied in ALL future sessions."""
         return None
 
 
-# Patterns that indicate a correction or mistake feedback
-CORRECTION_PATTERNS = [
-    "actually",
-    "that's wrong",
-    "that is wrong",
-    "incorrect",
-    "should be",
-    "should include",
-    "should not include",
-    "you forgot",
-    "you missed",
-    "missing",
-    "wrong column",
-    "wrong table",
-    "not correct",
-    "fix this",
-    "correction:",
-    "remember:",
-    "note:",
-    "important:",
-]
-
-
-def is_correction_message(message: str) -> bool:
-    """Check if a message appears to be a correction or feedback.
-
-    Args:
-        message: The user's message.
-
-    Returns:
-        True if the message appears to be a correction.
-    """
-    message_lower = message.lower().strip()
-    return any(pattern in message_lower for pattern in CORRECTION_PATTERNS)
-
-
-# Category detection patterns
-SQL_PATTERNS = [
-    "column", "table", "sql", "query", "select", "where", "join",
-    "group by", "order by", "aggregate", "sum", "count", "avg",
-]
-GEOGRAPHY_PATTERNS = [
-    "province", "city", "region", "area", "location", "include",
-    "exclude", "java", "yogyakarta", "jakarta", "sumatra", "kalimantan",
-    "sulawesi", "papua", "bali", "district", "kabupaten", "kota",
-]
-DATA_PATTERNS = [
-    "filter", "condition", "status", "active", "inactive", "date",
-    "range", "period", "year", "month", "quarter",
-]
-
-
-def detect_correction_category(message: str) -> str:
-    """Detect the category of a correction message.
-
-    Args:
-        message: The correction message.
-
-    Returns:
-        Category string: 'sql', 'geography', 'data', or 'general'.
-    """
-    message_lower = message.lower()
-
-    # Check for SQL-related patterns
-    if any(pattern in message_lower for pattern in SQL_PATTERNS):
-        return "sql"
-
-    # Check for geography-related patterns
-    if any(pattern in message_lower for pattern in GEOGRAPHY_PATTERNS):
-        return "geography"
-
-    # Check for data filtering patterns
-    if any(pattern in message_lower for pattern in DATA_PATTERNS):
-        return "data"
-
-    return "general"
+# Import correction detection utilities from shared location
+from app.utils.correction_detection import (
+    is_correction_message,
+    detect_correction_category,
+    CORRECTION_PATTERNS,
+)
 
 
 async def capture_shared_knowledge_async(

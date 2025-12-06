@@ -237,3 +237,48 @@ class Storage(TypeSenseDB):
         deleted = self.client.collections[collection].documents[id].delete()
 
         return deleted
+
+    def delete_by_filter(self, collection: str, filter: dict) -> int:
+        """Delete all documents matching a filter.
+
+        Args:
+            collection: Collection name.
+            filter: Filter dict with field:value pairs.
+
+        Returns:
+            Number of deleted documents.
+        """
+        self.ensure_collection_exists(collection)
+
+        filter_by = " && ".join(
+            [f"{k}:={self._escape_filter_value(v)}" for k, v in filter.items()]
+        )
+
+        result = self.client.collections[collection].documents.delete(
+            {"filter_by": filter_by}
+        )
+
+        return result.get("num_deleted", 0)
+
+    def bulk_update(self, collection: str, documents: list[dict]) -> int:
+        """Bulk update documents.
+
+        Args:
+            collection: Collection name.
+            documents: List of document dicts with 'id' field.
+
+        Returns:
+            Number of updated documents.
+        """
+        self.ensure_collection_exists(collection)
+
+        count = 0
+        for doc in documents:
+            if "id" in doc:
+                doc_id = doc["id"]
+                update_data = {k: v for k, v in doc.items() if k != "id"}
+                self.client.collections[collection].documents[doc_id].update(
+                    update_data
+                )
+                count += 1
+        return count

@@ -21,6 +21,22 @@ UNSUPPORTED_SCHEMA_KEYS = {"$schema", "additionalProperties"}
 # Default timeout for HTTP server connections (seconds)
 DEFAULT_HTTP_TIMEOUT = 5.0
 
+# Dangerous tool patterns that require explicit whitelisting
+DANGEROUS_TOOL_PATTERNS = [
+    "shell", "exec", "run_command", "execute_command",
+    "system", "subprocess", "bash", "cmd", "powershell",
+    "delete", "drop", "truncate", "rm", "rmdir",
+    "write_file", "create_file", "modify_file",
+]
+
+# Tools that are always blocked (security critical)
+BLOCKED_TOOLS = {
+    "shell_exec",
+    "run_arbitrary_command",
+    "eval",
+    "exec_code",
+}
+
 
 @contextmanager
 def suppress_stderr():
@@ -95,24 +111,59 @@ def _sanitize_tool_schema(tool: BaseTool) -> BaseTool:
     return tool
 
 
+def _is_dangerous_tool(tool_name: str) -> bool:
+    """Check if a tool name matches dangerous patterns.
+
+    Args:
+        tool_name: The tool name to check.
+
+    Returns:
+        True if the tool matches dangerous patterns.
+    """
+    tool_lower = tool_name.lower()
+
+    # Check blocked list first
+    if tool_lower in BLOCKED_TOOLS:
+        return True
+
+    # Check dangerous patterns
+    return any(pattern in tool_lower for pattern in DANGEROUS_TOOL_PATTERNS)
+
+
 class MCPToolManager:
     """Manages MCP server connections and tool loading.
 
     Provides a high-level interface for loading tools from multiple
     MCP servers and integrating them with the KAI agent.
+
+    Security features:
+    - Tool whitelisting support
+    - Dangerous tool pattern detection
+    - Blocked tool list
     """
 
-    def __init__(self, config_path: str | Path | None = None):
+    def __init__(
+        self,
+        config_path: str | Path | None = None,
+        allowed_tools: set[str] | None = None,
+        block_dangerous: bool = True,
+    ):
         """Initialize MCP tool manager.
 
         Args:
             config_path: Path to MCP servers configuration JSON file.
+            allowed_tools: Optional whitelist of allowed tool names.
+                          If None, all non-dangerous tools are allowed.
+            block_dangerous: If True, block tools matching dangerous patterns.
         """
         self.config_path = Path(config_path) if config_path else None
+        self.allowed_tools = allowed_tools
+        self.block_dangerous = block_dangerous
         self._client = None
         self._tools_cache: list[BaseTool] = []
         self._initialized = False
         self._loop = None
+        self._blocked_tools: list[str] = []  # Track blocked tools for logging
 
     def _load_config(self) -> dict[str, Any]:
         """Load MCP servers configuration from file."""
@@ -206,13 +257,41 @@ class MCPToolManager:
                 self._client = MultiServerMCPClient(reachable_servers)
                 tools = await self._client.get_tools()
 
-            # Sanitize tools to reduce warnings
-            self._tools_cache = [_sanitize_tool_schema(t) for t in tools]
+            # Filter and sanitize tools based on security settings
+            filtered_tools = []
+            self._blocked_tools = []
+
+            for tool in tools:
+                tool_name = tool.name
+
+                # Check if tool is in whitelist (if whitelist is configured)
+                if self.allowed_tools is not None:
+                    if tool_name not in self.allowed_tools:
+                        self._blocked_tools.append(f"{tool_name} (not in whitelist)")
+                        continue
+
+                # Check if tool matches dangerous patterns
+                if self.block_dangerous and _is_dangerous_tool(tool_name):
+                    self._blocked_tools.append(f"{tool_name} (dangerous pattern)")
+                    logger.warning(f"Blocked dangerous MCP tool: {tool_name}")
+                    continue
+
+                filtered_tools.append(_sanitize_tool_schema(tool))
+
+            self._tools_cache = filtered_tools
             self._initialized = True
-            logger.info(
-                f"Loaded {len(self._tools_cache)} tools from "
-                f"{len(reachable_servers)} MCP server(s)"
-            )
+
+            if self._blocked_tools:
+                logger.info(
+                    f"Loaded {len(self._tools_cache)} tools from "
+                    f"{len(reachable_servers)} MCP server(s), "
+                    f"blocked {len(self._blocked_tools)} dangerous tools"
+                )
+            else:
+                logger.info(
+                    f"Loaded {len(self._tools_cache)} tools from "
+                    f"{len(reachable_servers)} MCP server(s)"
+                )
         except Exception as e:
             # Log warning but don't fail - agent can work without MCP tools
             logger.warning(f"MCP initialization failed (agent will continue without MCP tools): {e}")
@@ -318,6 +397,30 @@ class MCPToolManager:
                 "url": server_config.get("url"),
             }
         return info
+
+    def get_blocked_tools(self) -> list[str]:
+        """Get list of tools that were blocked for security reasons.
+
+        Returns:
+            List of blocked tool names with reasons.
+        """
+        return self._blocked_tools.copy()
+
+    def get_security_info(self) -> dict[str, Any]:
+        """Get security configuration info.
+
+        Returns:
+            Dictionary with security settings and blocked tools.
+        """
+        return {
+            "block_dangerous": self.block_dangerous,
+            "whitelist_enabled": self.allowed_tools is not None,
+            "whitelist_size": len(self.allowed_tools) if self.allowed_tools else 0,
+            "blocked_tools_count": len(self._blocked_tools),
+            "blocked_tools": self._blocked_tools,
+            "dangerous_patterns": DANGEROUS_TOOL_PATTERNS,
+            "always_blocked": list(BLOCKED_TOOLS),
+        }
 
     async def __aenter__(self):
         """Async context manager entry."""

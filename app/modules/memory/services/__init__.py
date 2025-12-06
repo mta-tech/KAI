@@ -402,7 +402,7 @@ class MemoryService:
         Returns:
             The stored Memory if a correction was detected, None otherwise.
         """
-        from app.modules.autonomous_agent.learning import (
+        from app.utils.correction_detection import (
             is_correction_message,
             detect_correction_category,
         )

@@ -2,7 +2,7 @@
 
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.data.db.storage import Storage
 from app.modules.memory.models import Memory, MemorySearchResult
@@ -206,7 +206,7 @@ class MemoryRepository:
 
     def update(self, memory: Memory) -> Memory:
         """Update an existing memory."""
-        memory.updated_at = datetime.now().isoformat()
+        memory.updated_at = datetime.now(timezone.utc).isoformat()
         update_data = memory.model_dump(exclude={"id"})
         # Serialize value dict to JSON string for TypeSense
         update_data["value"] = json.dumps(update_data["value"])
@@ -239,7 +239,7 @@ class MemoryRepository:
             session_id: Optional session ID. None for shared memory.
         """
         existing = self.find_by_key(db_connection_id, namespace, key, session_id)
-        now = datetime.now().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         if existing:
             existing.value = value
@@ -266,8 +266,34 @@ class MemoryRepository:
     def increment_access(self, memory: Memory) -> Memory:
         """Increment access count and update last accessed time."""
         memory.access_count += 1
-        memory.last_accessed_at = datetime.now().isoformat()
+        memory.last_accessed_at = datetime.now(timezone.utc).isoformat()
         return self.update(memory)
+
+    def bulk_increment_access(self, memories: list[Memory]) -> None:
+        """Increment access count for multiple memories in a batch.
+
+        This is more efficient than calling increment_access in a loop.
+        """
+        if not memories:
+            return
+
+        now = datetime.now(timezone.utc).isoformat()
+        updates = []
+        for memory in memories:
+            if memory.id:
+                memory.access_count += 1
+                memory.last_accessed_at = now
+                memory.updated_at = now
+                update_data = {
+                    "id": memory.id,
+                    "access_count": memory.access_count,
+                    "last_accessed_at": memory.last_accessed_at,
+                    "updated_at": memory.updated_at,
+                }
+                updates.append(update_data)
+
+        if updates:
+            self.storage.bulk_update(DB_COLLECTION, updates)
 
     def delete(self, id: str) -> int:
         """Delete a memory by ID."""
@@ -294,13 +320,18 @@ class MemoryRepository:
         return False
 
     def delete_by_namespace(self, db_connection_id: str, namespace: str) -> int:
-        """Delete all memories in a namespace."""
-        memories = self.find_by_namespace(db_connection_id, namespace)
-        count = 0
-        for memory in memories:
-            if memory.id:
-                count += self.delete(memory.id)
-        return count
+        """Delete all memories in a namespace using batch delete."""
+        return self.storage.delete_by_filter(
+            DB_COLLECTION,
+            {"db_connection_id": db_connection_id, "namespace": namespace}
+        )
+
+    def delete_by_connection(self, db_connection_id: str) -> int:
+        """Delete all memories for a database connection using batch delete."""
+        return self.storage.delete_by_filter(
+            DB_COLLECTION,
+            {"db_connection_id": db_connection_id}
+        )
 
     def list_namespaces(self, db_connection_id: str) -> list[str]:
         """List all unique namespaces for a database connection."""

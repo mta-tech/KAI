@@ -47,7 +47,6 @@ from app.data.db.storage import Storage
 from app.modules.autonomous_agent.subagents import get_analysis_subagents
 from app.modules.autonomous_agent.prompts import get_system_prompt
 from app.modules.autonomous_agent.learning import (
-    learning_context,
     async_learning_context,
     get_learning_client,
 )
@@ -84,8 +83,8 @@ class AutonomousAgentService:
         self.checkpointer = checkpointer
         # Initialize storage for schema tools
         if storage is None:
-            from app.server.config import Settings
-            storage = Storage(Settings())
+            from app.server.config import get_settings
+            storage = Storage(get_settings())
         self.storage = storage
         # Initialize memory service for corrections and memory operations
         self.memory_service = MemoryService(storage)
@@ -183,8 +182,8 @@ class AutonomousAgentService:
         Returns:
             List of LangChain-compatible tools from MCP servers.
         """
-        from app.server.config import Settings
-        settings = Settings()
+        from app.server.config import get_settings
+        settings = get_settings()
 
         if not getattr(settings, "MCP_ENABLED", False):
             return []
@@ -249,8 +248,8 @@ class AutonomousAgentService:
         if self._language:
             language = self._language
         else:
-            from app.server.config import Settings
-            settings = Settings()
+            from app.server.config import get_settings
+            settings = get_settings()
             language = getattr(settings, "AGENT_LANGUAGE", "id")
 
         base_prompt = get_system_prompt(
@@ -357,10 +356,11 @@ class AutonomousAgentService:
         }
 
         try:
-            # Wrap with learning context for memory injection (retrieval only)
+            # Wrap with async learning context for memory injection (retrieval only)
             # Note: LangChain is not intercepted, so we manually capture after execution
-            with learning_context(self.db_connection.id, session_id=task.session_id):
-                result = agent.invoke(input_state, config=config)
+            async with async_learning_context(self.db_connection.id, session_id=task.session_id):
+                # Use ainvoke for proper async execution (non-blocking)
+                result = await agent.ainvoke(input_state, config=config)
 
             final_message = result["messages"][-1]
             final_answer = (
@@ -574,8 +574,8 @@ class AutonomousAgentService:
             True if save was successful
         """
         try:
-            from app.server.config import Settings
-            settings = Settings()
+            from app.server.config import get_settings
+            settings = get_settings()
             memory_backend = getattr(settings, "MEMORY_BACKEND", "typesense").lower()
             
             # Check if using Letta backend (not Typesense)

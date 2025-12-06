@@ -22,14 +22,14 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import ToolNode
 from typing_extensions import TypedDict, Annotated
 
-from app.server.config import Settings
+from app.server.config import get_settings
 from app.utils.model.chat_model import ChatModel
 
 
 logger = logging.getLogger(__name__)
 
 # Initialize settings
-settings = Settings()
+settings = get_settings()
 
 
 # =============================================================================

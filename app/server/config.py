@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Any
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -76,3 +77,17 @@ class Settings(BaseSettings):
         if val is None:
             raise ValueError(f"Missing required config value '{key}'")
         return val
+
+
+@lru_cache()
+def get_settings() -> Settings:
+    """Get cached Settings instance.
+
+    This function returns a cached singleton Settings instance,
+    avoiding repeated environment variable parsing and validation.
+    Use this instead of Settings() for better performance.
+
+    Returns:
+        Cached Settings instance.
+    """
+    return Settings()
