@@ -19,7 +19,15 @@ from app.utils.sql_tools.tables_sql_database import TablesSQLDatabaseTool
 from app.utils.sql_tools.system_time import SystemTime
 from app.utils.sql_tools.alias_lookup import AliasLookupTool
 from app.utils.deep_agent.result_writer import SqlResultWriterTool
-from app.utils.sql_tools.alias_lookup import AliasLookupTool
+from app.utils.sql_tools.mdl_semantic_lookup import (
+    MDLSemanticLookupTool,
+    create_mdl_semantic_tool,
+)
+
+# Import MDLManifest with TYPE_CHECKING to avoid circular imports
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from app.modules.mdl.models import MDLManifest
 
 
 logger = logging.getLogger(__name__)
@@ -41,6 +49,7 @@ class KaiToolContext:
     tenant_id: str | None = None
     sql_generation_id: str | None = None
     result_dir: str | None = None
+    mdl_manifest: "MDLManifest | None" = None  # Semantic layer manifest
 
 
 def build_tool_specs(ctx: KaiToolContext) -> List[ToolSpec]:
@@ -153,5 +162,20 @@ def build_tool_specs(ctx: KaiToolContext) -> List[ToolSpec]:
         build_result_writer,
         "Persist result rows to tenant-scoped storage for later download.",
     )
+
+    # MDL Semantic Layer tool - provides business term resolution and join paths
+    if ctx.mdl_manifest is not None:
+        def build_mdl_tool() -> MDLSemanticLookupTool:
+            return create_mdl_semantic_tool(ctx.mdl_manifest)
+
+        _register(
+            "mdl_semantic_lookup",
+            build_mdl_tool,
+            "Look up semantic layer definitions: business terms, metrics, relationships, and join paths.",
+        )
+        logger.info(
+            f"MDL semantic tool enabled with {len(ctx.mdl_manifest.models)} models, "
+            f"{len(ctx.mdl_manifest.relationships)} relationships"
+        )
 
     return tool_specs

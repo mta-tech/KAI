@@ -13,6 +13,7 @@ This tutorial covers how to use the MDL (Model Definition Language) module in KA
 7. [Business Metrics](#business-metrics)
 8. [API Reference](#api-reference)
 9. [Best Practices](#best-practices)
+10. [Integration with Autonomous Agent](#integration-with-autonomous-agent)
 
 ---
 
@@ -697,6 +698,198 @@ manifest_id = await mdl_service.create_manifest(
 
 print(f"Created E-Commerce MDL: {manifest_id}")
 ```
+
+---
+
+## Integration with Autonomous Agent
+
+The MDL semantic layer integrates with KAI's autonomous SQL generation agent to improve query accuracy by providing:
+
+- **Business term resolution**: Maps user-friendly terms to actual table/column names
+- **Metric formulas**: Pre-defined calculations (e.g., "revenue" → `SUM(total_amount)`)
+- **Join paths**: Correct relationships between tables
+- **Calculated columns**: Derived column expressions
+
+### How It Works
+
+When an MDL manifest is available, the agent receives an additional tool called `mdl_semantic_lookup` that allows it to search the semantic layer for relevant definitions.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    User Question                              │
+│         "Show me total revenue by customer tier"              │
+└──────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌──────────────────────────────────────────────────────────────┐
+│                   MDL Semantic Tool                           │
+│   • Searches for "revenue" → Finds metric formula             │
+│   • Searches for "customer tier" → Finds column mapping       │
+│   • Returns join paths between orders and customers           │
+└──────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌──────────────────────────────────────────────────────────────┐
+│                SQL Generation Agent                           │
+│   Uses semantic context to generate accurate SQL:             │
+│   SELECT c.tier, SUM(o.total_amount) as revenue               │
+│   FROM orders o JOIN customers c ON o.customer_id = c.id      │
+│   GROUP BY c.tier                                             │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Enabling MDL in Agent Sessions
+
+#### Method 1: Via KaiToolContext (Programmatic)
+
+```python
+from app.utils.deep_agent.tools import KaiToolContext, build_tool_specs
+from app.modules.mdl import MDLService, MDLRepository
+from app.data.db.storage import Storage
+
+# Get the MDL manifest
+storage = Storage()
+mdl_repo = MDLRepository(storage=storage)
+mdl_service = MDLService(repository=mdl_repo)
+
+manifest = await mdl_service.get_manifest(manifest_id)
+
+# Create tool context with MDL
+ctx = KaiToolContext(
+    database=sql_database,
+    db_scan=table_descriptions,
+    embedding=embedding_model,
+    mdl_manifest=manifest,  # Enable MDL semantic lookup
+)
+
+# Build tools - includes mdl_semantic_lookup when manifest is provided
+tool_specs = build_tool_specs(ctx)
+```
+
+#### Method 2: Via CLI (kai-agent)
+
+```bash
+# First, ensure an MDL manifest exists for your database
+uv run kai-agent run "Show revenue by customer tier" \
+    --db mydb \
+    --mdl-manifest-id your_manifest_id
+```
+
+### MDL Semantic Lookup Tool
+
+The `mdl_semantic_lookup` tool allows the agent to search semantic definitions:
+
+```python
+from app.utils.sql_tools.mdl_semantic_lookup import (
+    create_mdl_semantic_tool,
+    get_mdl_context_prompt,
+)
+
+# Create the tool
+tool = create_mdl_semantic_tool(manifest)
+
+# Example searches
+print(tool._run("revenue"))
+# Output:
+# ## Business Metrics:
+# **total_revenue** - Total revenue metric
+#   Base: orders
+#   Dimensions: customer_tier
+#   Measure: revenue = SUM(total_amount)
+#   Time Grain: order_date on created_at
+
+print(tool._run("customers"))
+# Output:
+# ## Matching Tables/Models:
+# **customers** - Customer master data, PK: id
+# Columns:
+#   - id: INTEGER
+#   - name: VARCHAR (Customer full name)
+#   - tier: VARCHAR
+#   - created_at: TIMESTAMP
+#
+# ## Available Joins:
+# **orders_customers**: orders N:1 customers
+#   JOIN: orders.customer_id = customers.id
+```
+
+### System Prompt Context
+
+For enhanced awareness without tool calls, inject MDL context into the agent's system prompt:
+
+```python
+from app.utils.sql_tools.mdl_semantic_lookup import get_mdl_context_prompt
+
+# Generate context string for system prompt
+mdl_context = get_mdl_context_prompt(manifest)
+print(mdl_context)
+```
+
+Output:
+```
+## Semantic Layer (MDL) Context
+
+This database has a semantic layer defined. Use business-friendly names when possible.
+
+### Available Tables:
+- **customers** - Customer master data
+- **orders** - Customer orders
+- **products** - Product catalog
+
+### Table Relationships (use these for JOINs):
+- orders → customers: `orders.customer_id = customers.id`
+- orders → products: `orders.product_id = products.id`
+
+### Business Metrics (use these formulas):
+- **total_revenue.revenue**: `SUM(total_amount)`
+- **total_revenue.order_count**: `COUNT(*)`
+```
+
+### Agent Behavior with MDL
+
+When the MDL tool is available, the agent will:
+
+1. **Search semantic layer first** before querying raw schema
+2. **Use metric formulas** instead of guessing aggregations
+3. **Follow defined join paths** for multi-table queries
+4. **Map business terms** to actual column/table names
+
+Example agent reasoning:
+```
+User: "What's our total revenue by product category this month?"
+
+Agent thinking:
+1. Search MDL for "revenue" → Found metric with SUM(total_amount) formula
+2. Search MDL for "product category" → Found in products.category column
+3. Search MDL for "orders" → Found relationship orders_products
+4. Generate SQL using the semantic definitions...
+```
+
+### Best Practices for Agent Integration
+
+1. **Define all important metrics**: Pre-define common business metrics so the agent uses consistent formulas
+
+2. **Add column descriptions**: Help the agent understand what each column represents
+   ```python
+   MDLColumn(
+       name="ltv",
+       type="DECIMAL",
+       properties={"description": "Customer Lifetime Value"}
+   )
+   ```
+
+3. **Name relationships clearly**: Use descriptive names like `orders_customers` instead of `rel_1`
+
+4. **Include time grains**: Define time dimensions for proper date handling
+   ```python
+   MDLTimeGrain(
+       name="order_date",
+       ref_column="created_at",
+       date_parts=[DatePart.YEAR, DatePart.MONTH, DatePart.DAY]
+   )
+   ```
+
+5. **Keep manifests updated**: Update the MDL when schema changes to maintain accuracy
 
 ---
 
