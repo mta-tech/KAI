@@ -1,0 +1,76 @@
+{
+    "name": "mdl_manifests",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "db_connection_id",
+            "type": "string",
+            "reference": "database_connections.id"
+        },
+        {
+            "name": "name",
+            "type": "string"
+        },
+        {
+            "name": "catalog",
+            "type": "string"
+        },
+        {
+            "name": "schema",
+            "type": "string"
+        },
+        {
+            "name": "data_source",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "models",
+            "type": "object[]",
+            "optional": true
+        },
+        {
+            "name": "relationships",
+            "type": "object[]",
+            "optional": true
+        },
+        {
+            "name": "metrics",
+            "type": "object[]",
+            "optional": true
+        },
+        {
+            "name": "views",
+            "type": "object[]",
+            "optional": true
+        },
+        {
+            "name": "enum_definitions",
+            "type": "object[]",
+            "optional": true
+        },
+        {
+            "name": "version",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        },
+        {
+            "name": "updated_at",
+            "type": "string",
+            "optional": true
+        }
+    ]
+}
