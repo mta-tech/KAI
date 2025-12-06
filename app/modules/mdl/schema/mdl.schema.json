@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kai.dev/mdl.schema.json",
+  "title": "KAI MDL Manifest Schema",
+  "type": "object",
+  "properties": {
+    "catalog": {
+      "type": "string",
+      "description": "Database catalog name"
+    },
+    "schema": {
+      "type": "string",
+      "description": "Database schema name"
+    },
+    "dataSource": {
+      "type": "string",
+      "enum": ["postgresql", "mysql", "bigquery", "duckdb", "sqlite", "snowflake", "clickhouse"],
+      "description": "Type of data source"
+    },
+    "models": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/model" },
+      "description": "Array of data models (tables)"
+    },
+    "relationships": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/relationship" },
+      "description": "Array of relationships between models"
+    },
+    "metrics": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/metric" },
+      "description": "Array of business metrics"
+    },
+    "views": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/view" },
+      "description": "Array of saved views"
+    },
+    "enumDefinitions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/enumDefinition" },
+      "description": "Array of enum definitions"
+    }
+  },
+  "required": ["catalog", "schema"],
+  "$defs": {
+    "model": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "tableReference": { "$ref": "#/$defs/tableReference" },
+        "refSql": { "type": "string" },
+        "columns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/column" }
+        },
+        "primaryKey": { "type": "string" },
+        "cached": { "type": "boolean", "default": false },
+        "refreshTime": { "type": "string" },
+        "properties": { "$ref": "#/$defs/properties" }
+      },
+      "required": ["name", "columns"]
+    },
+    "tableReference": {
+      "type": "object",
+      "properties": {
+        "catalog": { "type": "string" },
+        "schema": { "type": "string" },
+        "table": { "type": "string" }
+      },
+      "required": ["table"]
+    },
+    "column": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "notNull": { "type": "boolean", "default": false },
+        "isCalculated": { "type": "boolean", "default": false },
+        "expression": { "type": "string" },
+        "relationship": { "type": "string" },
+        "isHidden": { "type": "boolean", "default": false },
+        "properties": { "$ref": "#/$defs/properties" }
+      },
+      "required": ["name", "type"]
+    },
+    "relationship": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "models": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "joinType": {
+          "type": "string",
+          "enum": ["ONE_TO_ONE", "ONE_TO_MANY", "MANY_TO_ONE", "MANY_TO_MANY"]
+        },
+        "condition": { "type": "string" },
+        "properties": { "$ref": "#/$defs/properties" }
+      },
+      "required": ["name", "models", "joinType", "condition"]
+    },
+    "metric": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "baseObject": { "type": "string" },
+        "dimension": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/column" }
+        },
+        "measure": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/column" }
+        },
+        "timeGrain": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/timeGrain" }
+        },
+        "cached": { "type": "boolean", "default": false },
+        "refreshTime": { "type": "string" },
+        "properties": { "$ref": "#/$defs/properties" }
+      },
+      "required": ["name", "baseObject"]
+    },
+    "timeGrain": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "refColumn": { "type": "string" },
+        "dateParts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["YEAR", "QUARTER", "MONTH", "WEEK", "DAY", "HOUR", "MINUTE"]
+          }
+        }
+      },
+      "required": ["name", "refColumn", "dateParts"]
+    },
+    "view": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "statement": { "type": "string" },
+        "properties": { "$ref": "#/$defs/properties" }
+      },
+      "required": ["name", "statement"]
+    },
+    "enumDefinition": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "value": { "type": "string" },
+              "properties": { "$ref": "#/$defs/properties" }
+            },
+            "required": ["name"]
+          }
+        },
+        "properties": { "$ref": "#/$defs/properties" }
+      },
+      "required": ["name", "values"]
+    },
+    "properties": {
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "displayName": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  }
+}
