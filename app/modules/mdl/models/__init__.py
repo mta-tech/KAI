@@ -111,11 +111,13 @@ class MDLEnumDefinition(BaseModel):
 class MDLManifest(BaseModel):
     """Complete MDL manifest for a semantic layer."""
 
+    model_config = {"populate_by_name": True}
+
     id: str | None = None
     db_connection_id: str | None = None
     name: str | None = None
     catalog: str
-    schema: str
+    schema_name: str = Field(alias="schema")
     data_source: str | None = None
     models: list[MDLModel] = Field(default_factory=list)
     relationships: list[MDLRelationship] = Field(default_factory=list)
@@ -134,7 +136,7 @@ class MDLManifest(BaseModel):
             "db_connection_id": self.db_connection_id,
             "name": self.name,
             "catalog": self.catalog,
-            "schema": self.schema,
+            "schema": self.schema_name,
             "data_source": self.data_source,
             "models": [self._model_to_dict(m) for m in self.models],
             "relationships": [self._relationship_to_dict(r) for r in self.relationships],
@@ -345,7 +347,7 @@ class MDLManifest(BaseModel):
             db_connection_id=data.get("db_connection_id"),
             name=data.get("name"),
             catalog=data["catalog"],
-            schema=data["schema"],
+            schema_name=data["schema"],
             data_source=data.get("data_source", data.get("dataSource")),
             models=models,
             relationships=relationships,
@@ -362,7 +364,7 @@ class MDLManifest(BaseModel):
         """Export to WrenAI-compatible MDL JSON format."""
         result = {
             "catalog": self.catalog,
-            "schema": self.schema,
+            "schema": self.schema_name,
         }
 
         if self.data_source:

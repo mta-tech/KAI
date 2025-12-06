@@ -39,6 +39,28 @@ from app.modules.autonomous_agent.tools.memory_tools import (
     create_list_memories_tool,
     create_recall_for_question_tool,
 )
+from app.modules.autonomous_agent.tools.notebook_tools import (
+    create_notebook_tool,
+    create_list_notebooks_tool,
+    create_get_notebook_tool,
+    create_export_notebook_tool,
+)
+from app.modules.autonomous_agent.tools.context_store_tools import (
+    create_lookup_verified_sql_tool,
+    create_save_verified_sql_tool,
+    create_list_verified_queries_tool,
+    create_search_verified_queries_tool,
+    create_delete_verified_sql_tool,
+)
+from app.modules.autonomous_agent.tools.mdl_tools import (
+    create_get_mdl_manifest_tool,
+    create_explore_mdl_model_tool,
+    create_explore_mdl_relationships_tool,
+    create_explore_mdl_metrics_tool,
+    create_explore_mdl_views_tool,
+    create_search_mdl_columns_tool,
+    create_get_mdl_join_path_tool,
+)
 
 __all__ = [
     "create_sql_query_tool",
@@ -75,4 +97,23 @@ __all__ = [
     "create_forget_tool",
     "create_list_memories_tool",
     "create_recall_for_question_tool",
+    # Notebook tools
+    "create_notebook_tool",
+    "create_list_notebooks_tool",
+    "create_get_notebook_tool",
+    "create_export_notebook_tool",
+    # Context store tools
+    "create_lookup_verified_sql_tool",
+    "create_save_verified_sql_tool",
+    "create_list_verified_queries_tool",
+    "create_search_verified_queries_tool",
+    "create_delete_verified_sql_tool",
+    # MDL manifest explorer tools
+    "create_get_mdl_manifest_tool",
+    "create_explore_mdl_model_tool",
+    "create_explore_mdl_relationships_tool",
+    "create_explore_mdl_metrics_tool",
+    "create_explore_mdl_views_tool",
+    "create_search_mdl_columns_tool",
+    "create_get_mdl_join_path_tool",
 ]

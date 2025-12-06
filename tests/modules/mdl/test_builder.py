@@ -29,7 +29,7 @@ class TestMDLBuilder:
         )
 
         assert manifest.catalog == "test"
-        assert manifest.schema == "public"
+        assert manifest.schema_name == "public"
         assert manifest.db_connection_id == "conn_123"
         assert manifest.models == []
         assert manifest.relationships == []

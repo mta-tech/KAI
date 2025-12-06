@@ -45,6 +45,14 @@ dependencies = [
     "rich>=13.0.0",
     "matplotlib>=3.8.0",
     "openpyxl>=3.1.0",
+    # Advanced visualization
+    "plotly>=5.18.0",
+    "kaleido>=0.2.1",
+    # Statistical analysis and forecasting
+    "scipy>=1.11.0",
+    "statsmodels>=0.14.0",
+    # SSE streaming support
+    "sse-starlette>=1.6.0",
     # Optional: Letta AI memory backend and auto-learning
     # Note: agentic-learning pins letta-client to a pre-release version
     # Install with: uv pip install agentic-learning --prerelease=allow

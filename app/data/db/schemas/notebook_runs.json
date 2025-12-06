@@ -1,0 +1,50 @@
+{
+    "name": "notebook_runs",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "notebook_id",
+            "type": "string",
+            "reference": "notebooks.id",
+            "facet": true
+        },
+        {
+            "name": "parameters",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "status",
+            "type": "string",
+            "facet": true
+        },
+        {
+            "name": "started_at",
+            "type": "string"
+        },
+        {
+            "name": "completed_at",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "results",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "error",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "execution_time_ms",
+            "type": "float",
+            "optional": true
+        }
+    ]
+}

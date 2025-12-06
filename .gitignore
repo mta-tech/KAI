@@ -239,3 +239,6 @@ storybook-static/
 container.env
 agent_results/
 .langgraph_api/
+.bmad_docs/
+.bmad/
+app/data/dbdata/

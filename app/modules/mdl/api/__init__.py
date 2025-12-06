@@ -18,20 +18,24 @@ from app.modules.mdl.services import MDLService
 class CreateManifestRequest(BaseModel):
     """Request to create a new MDL manifest."""
 
+    model_config = {"populate_by_name": True}
+
     db_connection_id: str
     name: str
     catalog: str
-    schema: str
+    schema_name: str = Field(alias="schema")
     data_source: str | None = None
 
 
 class BuildManifestRequest(BaseModel):
     """Request to build MDL manifest from database."""
 
+    model_config = {"populate_by_name": True}
+
     db_connection_id: str
     name: str
     catalog: str
-    schema: str
+    schema_name: str = Field(alias="schema")
     data_source: str | None = None
     infer_relationships: bool = True
 
@@ -68,11 +72,13 @@ class ManifestResponse(BaseModel):
 class ManifestDetailResponse(BaseModel):
     """Response with full manifest details."""
 
+    model_config = {"populate_by_name": True}
+
     id: str | None
     db_connection_id: str | None
     name: str | None
     catalog: str
-    schema: str
+    schema_name: str = Field(alias="schema")
     data_source: str | None
     models: list[dict]
     relationships: list[dict]
@@ -101,7 +107,7 @@ def create_mdl_router(service: MDLService) -> APIRouter:
             db_connection_id=request.db_connection_id,
             name=request.name,
             catalog=request.catalog,
-            schema=request.schema,
+            schema=request.schema_name,
             data_source=request.data_source,
         )
         return ManifestResponse(id=manifest_id)
@@ -140,7 +146,7 @@ def create_mdl_router(service: MDLService) -> APIRouter:
             db_connection_id=request.db_connection_id,
             name=request.name,
             catalog=request.catalog,
-            schema=request.schema,
+            schema=request.schema_name,
             data_source=request.data_source,
             infer_relationships=request.infer_relationships,
         )
@@ -235,7 +241,7 @@ def _manifest_to_response(manifest: MDLManifest) -> ManifestDetailResponse:
         db_connection_id=manifest.db_connection_id,
         name=manifest.name,
         catalog=manifest.catalog,
-        schema=manifest.schema,
+        schema_name=manifest.schema_name,
         data_source=manifest.data_source,
         models=[
             {

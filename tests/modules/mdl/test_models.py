@@ -213,7 +213,7 @@ class TestMDLManifest:
             schema="public",
         )
         assert manifest.catalog == "analytics"
-        assert manifest.schema == "public"
+        assert manifest.schema_name == "public"
         assert manifest.models == []
         assert manifest.relationships == []
 

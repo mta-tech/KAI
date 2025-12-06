@@ -167,7 +167,7 @@ class MDLBuilder:
             db_connection_id=manifest.db_connection_id,
             name=manifest.name,
             catalog=manifest.catalog,
-            schema=manifest.schema,
+            schema_name=manifest.schema_name,
             data_source=manifest.data_source,
             models=models,
             relationships=manifest.relationships,
@@ -203,7 +203,7 @@ class MDLBuilder:
             db_connection_id=manifest.db_connection_id,
             name=manifest.name,
             catalog=manifest.catalog,
-            schema=manifest.schema,
+            schema_name=manifest.schema_name,
             data_source=manifest.data_source,
             models=manifest.models,
             relationships=relationships,
@@ -240,7 +240,7 @@ class MDLBuilder:
             db_connection_id=manifest.db_connection_id,
             name=manifest.name,
             catalog=manifest.catalog,
-            schema=manifest.schema,
+            schema_name=manifest.schema_name,
             data_source=manifest.data_source,
             models=models,
             relationships=relationships,
@@ -276,7 +276,7 @@ class MDLBuilder:
             db_connection_id=manifest.db_connection_id,
             name=manifest.name,
             catalog=manifest.catalog,
-            schema=manifest.schema,
+            schema_name=manifest.schema_name,
             data_source=manifest.data_source,
             models=manifest.models,
             relationships=relationships,
@@ -328,7 +328,7 @@ class MDLBuilder:
                     for target_table in candidates:
                         if target_table in model_names and target_table != model.name:
                             # Determine target column (usually pk or id)
-                            target_pk = model_primary_keys.get(target_table, "id")
+                            target_pk = model_primary_keys.get(target_table) or "id"
 
                             condition = f"{model.name}.{column.name} = {target_table}.{target_pk}"
 
@@ -349,7 +349,7 @@ class MDLBuilder:
             db_connection_id=manifest.db_connection_id,
             name=manifest.name,
             catalog=manifest.catalog,
-            schema=manifest.schema,
+            schema_name=manifest.schema_name,
             data_source=manifest.data_source,
             models=manifest.models,
             relationships=new_relationships,

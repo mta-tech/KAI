@@ -18,6 +18,7 @@ from app.modules.memory.services import MemoryService
 from app.modules.skill.services import SkillService
 from app.modules.autonomous_agent.tools import (
     create_sql_query_tool,
+    create_chart_tool,
     create_pandas_analysis_tool,
     create_python_execute_tool,
     create_report_tool,
@@ -42,6 +43,22 @@ from app.modules.autonomous_agent.tools import (
     create_forget_tool,
     create_list_memories_tool,
     create_recall_for_question_tool,
+    create_notebook_tool,
+    create_list_notebooks_tool,
+    create_get_notebook_tool,
+    create_export_notebook_tool,
+    create_lookup_verified_sql_tool,
+    create_save_verified_sql_tool,
+    create_list_verified_queries_tool,
+    create_search_verified_queries_tool,
+    create_delete_verified_sql_tool,
+    create_get_mdl_manifest_tool,
+    create_explore_mdl_model_tool,
+    create_explore_mdl_relationships_tool,
+    create_explore_mdl_metrics_tool,
+    create_explore_mdl_views_tool,
+    create_search_mdl_columns_tool,
+    create_get_mdl_join_path_tool,
 )
 from app.data.db.storage import Storage
 from app.modules.autonomous_agent.subagents import get_analysis_subagents
@@ -166,6 +183,27 @@ class AutonomousAgentService:
             create_report_tool(output_dir=results_dir),
             create_excel_tool(output_dir=results_dir),
             create_read_excel_tool(base_dir=results_dir),
+            # Visualization tools
+            create_chart_tool(output_dir=results_dir),
+            # Notebook tools
+            create_notebook_tool(self.storage, output_dir=results_dir),
+            create_list_notebooks_tool(self.storage),
+            create_get_notebook_tool(self.storage),
+            create_export_notebook_tool(self.storage, output_dir=results_dir),
+            # Context store tools - lookup/save verified SQL queries
+            create_lookup_verified_sql_tool(self.db_connection.id, self.storage),
+            create_save_verified_sql_tool(self.db_connection.id, self.storage),
+            create_list_verified_queries_tool(self.db_connection.id, self.storage),
+            create_search_verified_queries_tool(self.db_connection.id, self.storage),
+            create_delete_verified_sql_tool(self.db_connection.id, self.storage),
+            # MDL manifest explorer tools - explore semantic layer
+            create_get_mdl_manifest_tool(self.db_connection.id, self.storage),
+            create_explore_mdl_model_tool(self.db_connection.id, self.storage),
+            create_explore_mdl_relationships_tool(self.db_connection.id, self.storage),
+            create_explore_mdl_metrics_tool(self.db_connection.id, self.storage),
+            create_explore_mdl_views_tool(self.db_connection.id, self.storage),
+            create_search_mdl_columns_tool(self.db_connection.id, self.storage),
+            create_get_mdl_join_path_tool(self.db_connection.id, self.storage),
         ]
 
         # Load MCP tools if enabled

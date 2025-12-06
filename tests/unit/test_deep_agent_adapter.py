@@ -117,6 +117,16 @@ class _DummyChatModel:
 
 stub_module("app.utils.model.chat_model", ChatModel=_DummyChatModel)
 class _DummySettings:
+    """Dummy settings class for testing that mimics real Settings attributes."""
+    ENCRYPT_KEY = "isrjPNZ4zcIkGq0pwHrf2jtFheA_DlQyWsMSH_v6k4A="  # Valid Fernet key
+    CHAT_FAMILY = "openai"
+    CHAT_MODEL = "gpt-4o-mini"
+    AGENT_LANGUAGE = "en"
+    TYPESENSE_HOST = "localhost"
+    TYPESENSE_PORT = 8108
+    TYPESENSE_PROTOCOL = "http"
+    TYPESENSE_API_KEY = "test_key"
+
     def __init__(self, *_, **__):
         pass
 

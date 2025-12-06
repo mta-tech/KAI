@@ -16,6 +16,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.api.requests import ScannerRequest
 from app.modules.table_description.models import (
     ColumnDescription,
+    ForeignKeyDetail,
     TableDescription,
     TableDescriptionStatus,
 )
@@ -408,6 +409,8 @@ class SqlAlchemyScanner:
         db_engine: Engine,
         column: dict,
         scanner_service: PostgreSqlScanner,
+        is_primary_key: bool = False,
+        foreign_key_info: dict | None = None,
     ) -> ColumnDescription:
         meta_table_name = f"{meta.schema}.{table_name}" if meta.schema else table_name
         dynamic_meta_table = meta.tables[meta_table_name]
@@ -422,11 +425,22 @@ class SqlAlchemyScanner:
         # Check if the column is empty
         if not field_size:
             field_size = [""]
+
+        # Build foreign key detail if present
+        fk_detail = None
+        if foreign_key_info:
+            fk_detail = ForeignKeyDetail(
+                field_name=foreign_key_info["field_name"],
+                reference_table=foreign_key_info["reference_table"],
+            )
+
         if len(str(str(field_size[0]))) > MAX_SIZE_LETTERS:
             column_description = ColumnDescription(
                 name=column["name"],
                 data_type=str(column["type"]),
                 low_cardinality=False,
+                is_primary_key=is_primary_key,
+                foreign_key=fk_detail,
             )
             return column_description
 
@@ -440,12 +454,16 @@ class SqlAlchemyScanner:
                 data_type=str(column["type"]),
                 low_cardinality=True,
                 categories=[str(x) for x in category_values],
+                is_primary_key=is_primary_key,
+                foreign_key=fk_detail,
             )
         else:
             column_description = ColumnDescription(
                 name=column["name"],
                 data_type=str(column["type"]),
                 low_cardinality=False,
+                is_primary_key=is_primary_key,
+                foreign_key=fk_detail,
             )
 
         return column_description
@@ -524,6 +542,29 @@ class SqlAlchemyScanner:
         columns = inspector.get_columns(table_name=table_name, schema=schema)
         columns = [column for column in columns if column["name"].find(".") < 0]
 
+        # Get primary key columns
+        try:
+            pk_constraint = inspector.get_pk_constraint(table_name=table_name, schema=schema)
+            pk_columns = set(pk_constraint.get("constrained_columns", []))
+        except Exception:
+            pk_columns = set()
+
+        # Get foreign key info
+        try:
+            fk_constraints = inspector.get_foreign_keys(table_name=table_name, schema=schema)
+            # Build mapping: column_name -> (referenced_table, referenced_column)
+            fk_mapping = {}
+            for fk in fk_constraints:
+                for i, col in enumerate(fk.get("constrained_columns", [])):
+                    ref_cols = fk.get("referred_columns", [])
+                    if i < len(ref_cols):
+                        fk_mapping[col] = {
+                            "reference_table": fk.get("referred_table"),
+                            "field_name": ref_cols[i],
+                        }
+        except Exception:
+            fk_mapping = {}
+
         for column in columns:
             table_columns.append(
                 self.get_processed_column(
@@ -533,6 +574,8 @@ class SqlAlchemyScanner:
                     column=column,
                     db_engine=db_engine,
                     scanner_service=scanner_service,
+                    is_primary_key=column["name"] in pk_columns,
+                    foreign_key_info=fk_mapping.get(column["name"]),
                 )
             )
 
