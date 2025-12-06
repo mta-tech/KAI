@@ -37,3 +37,38 @@ def test_cli_scan_all_mdl_option_documented():
     # Check that MDL examples are in the help text
     assert "--generate-mdl" in result.output
     assert "semantic layer" in result.output.lower()
+
+
+def test_cli_mdl_list_help():
+    """Test mdl-list command help."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["mdl-list", "--help"])
+    assert result.exit_code == 0
+    assert "List MDL semantic layer manifests" in result.output
+
+
+def test_cli_mdl_show_help():
+    """Test mdl-show command help."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["mdl-show", "--help"])
+    assert result.exit_code == 0
+    assert "Show details of an MDL manifest" in result.output
+
+
+def test_cli_mdl_export_help():
+    """Test mdl-export command help."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["mdl-export", "--help"])
+    assert result.exit_code == 0
+    assert "Export MDL manifest" in result.output
+    assert "--output" in result.output
+    assert "-o" in result.output
+
+
+def test_cli_mdl_delete_help():
+    """Test mdl-delete command help."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["mdl-delete", "--help"])
+    assert result.exit_code == 0
+    assert "Delete an MDL manifest" in result.output
+    assert "--force" in result.output

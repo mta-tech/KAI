@@ -87,6 +87,13 @@ Usage:
     kai-agent config --json                               # Output as JSON
     kai-agent env-check                                   # Validate environment
     kai-agent version                                     # Show version info
+
+    # MDL Semantic Layer management
+    kai-agent mdl-list <connection_id>                    # List MDL manifests
+    kai-agent mdl-show <manifest_id>                      # Show manifest details
+    kai-agent mdl-export <manifest_id>                    # Export as WrenAI JSON
+    kai-agent mdl-export <manifest_id> -o manifest.json   # Export to file
+    kai-agent mdl-delete <manifest_id>                    # Delete manifest
 """
 import asyncio
 import json
@@ -1571,7 +1578,7 @@ def scan_all(db_connection_id: str, with_descriptions: bool, model_family: str, 
                             name=manifest_name,
                             catalog=db_connection.alias,
                             schema=db_connection.schemas[0] if db_connection.schemas else "public",
-                            data_source=db_connection.database_type,
+                            data_source=db_connection.dialect,
                             infer_relationships=True,
                         )
                     )
@@ -3948,6 +3955,248 @@ def version():
     ]
 
     console.print(Panel("\n".join(info), title="Version", border_style="cyan"))
+
+
+# =============================================================================
+# MDL Semantic Layer Commands
+# =============================================================================
+
+
+@cli.command()
+@click.argument("db_connection_id")
+def mdl_list(db_connection_id: str):
+    """List MDL semantic layer manifests for a database connection.
+
+    Examples:
+
+        # List all MDL manifests for a connection
+        kai-agent mdl-list abc123
+    """
+    import asyncio
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.mdl.repositories import MDLRepository
+    from rich.table import Table
+
+    settings = Settings()
+    storage = Storage(settings)
+    mdl_repo = MDLRepository(storage=storage)
+
+    try:
+        manifests = asyncio.get_event_loop().run_until_complete(
+            mdl_repo.list(db_connection_id=db_connection_id)
+        )
+
+        if not manifests:
+            console.print(f"[yellow]No MDL manifests found for connection '{db_connection_id}'[/yellow]")
+            console.print("[dim]Use 'kai-agent scan-all <connection_id> --generate-mdl' to create one[/dim]")
+            return
+
+        table = Table(title=f"MDL Manifests ({len(manifests)})")
+        table.add_column("ID", style="cyan")
+        table.add_column("Name", style="green")
+        table.add_column("Catalog")
+        table.add_column("Schema")
+        table.add_column("Models", justify="right")
+        table.add_column("Relationships", justify="right")
+
+        for m in manifests:
+            table.add_row(
+                m.id or "-",
+                m.name or "-",
+                m.catalog,
+                m.schema,
+                str(len(m.models)),
+                str(len(m.relationships)),
+            )
+
+        console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+
+
+@cli.command()
+@click.argument("manifest_id")
+def mdl_show(manifest_id: str):
+    """Show details of an MDL manifest.
+
+    Examples:
+
+        # Show manifest details
+        kai-agent mdl-show abc123
+    """
+    import asyncio
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.mdl.repositories import MDLRepository
+    from rich.table import Table
+    from rich.tree import Tree
+
+    settings = Settings()
+    storage = Storage(settings)
+    mdl_repo = MDLRepository(storage=storage)
+
+    try:
+        manifest = asyncio.get_event_loop().run_until_complete(
+            mdl_repo.get(manifest_id)
+        )
+
+        if not manifest:
+            console.print(f"[red]Error:[/red] Manifest '{manifest_id}' not found")
+            return
+
+        # Header
+        console.print(f"\n[bold cyan]MDL Manifest:[/bold cyan] {manifest.name or manifest_id}")
+        console.print(f"[dim]ID: {manifest.id}[/dim]")
+        console.print(f"[dim]Database: {manifest.db_connection_id}[/dim]")
+        console.print(f"Catalog: {manifest.catalog} | Schema: {manifest.schema}")
+        if manifest.data_source:
+            console.print(f"Data Source: {manifest.data_source}")
+        console.print()
+
+        # Models
+        if manifest.models:
+            console.print(f"[bold]Models ({len(manifest.models)}):[/bold]")
+            for model in manifest.models:
+                desc = f" - {model.properties.get('description')}" if model.properties and model.properties.get('description') else ""
+                pk = f" (PK: {model.primary_key})" if model.primary_key else ""
+                console.print(f"  [green]•[/green] [cyan]{model.name}[/cyan]{pk}{desc}")
+
+                # Show columns (limited)
+                if model.columns:
+                    col_names = [c.name for c in model.columns[:8]]
+                    more = f" +{len(model.columns) - 8} more" if len(model.columns) > 8 else ""
+                    console.print(f"    Columns: {', '.join(col_names)}{more}")
+            console.print()
+
+        # Relationships
+        if manifest.relationships:
+            console.print(f"[bold]Relationships ({len(manifest.relationships)}):[/bold]")
+            for rel in manifest.relationships:
+                jt_map = {"ONE_TO_ONE": "1:1", "ONE_TO_MANY": "1:N", "MANY_TO_ONE": "N:1", "MANY_TO_MANY": "N:N"}
+                jt = jt_map.get(rel.join_type.value, rel.join_type.value) if rel.join_type else "?"
+                console.print(f"  [green]•[/green] [cyan]{rel.name}[/cyan]: {rel.models[0]} {jt} {rel.models[1]}")
+                console.print(f"    [dim]{rel.condition}[/dim]")
+            console.print()
+
+        # Metrics
+        if manifest.metrics:
+            console.print(f"[bold]Metrics ({len(manifest.metrics)}):[/bold]")
+            for metric in manifest.metrics:
+                desc = f" - {metric.properties.get('description')}" if metric.properties and metric.properties.get('description') else ""
+                console.print(f"  [green]•[/green] [cyan]{metric.name}[/cyan]{desc}")
+                console.print(f"    Base: {metric.base_object}")
+                if metric.measure:
+                    for m in metric.measure:
+                        expr = m.expression or m.name
+                        console.print(f"    Measure: {m.name} = {expr}")
+            console.print()
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+
+
+@cli.command()
+@click.argument("manifest_id")
+@click.option("--output", "-o", type=click.Path(), help="Output file path")
+@click.option("--pretty", "-p", is_flag=True, default=True, help="Pretty print JSON (default: true)")
+def mdl_export(manifest_id: str, output: str, pretty: bool):
+    """Export MDL manifest as WrenAI-compatible JSON.
+
+    Examples:
+
+        # Print to console
+        kai-agent mdl-export abc123
+
+        # Save to file
+        kai-agent mdl-export abc123 -o manifest.json
+
+        # Compact JSON (no formatting)
+        kai-agent mdl-export abc123 --no-pretty
+    """
+    import asyncio
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.mdl.repositories import MDLRepository
+    from app.modules.mdl.services import MDLService
+
+    settings = Settings()
+    storage = Storage(settings)
+    mdl_repo = MDLRepository(storage=storage)
+    mdl_service = MDLService(repository=mdl_repo)
+
+    try:
+        mdl_json = asyncio.get_event_loop().run_until_complete(
+            mdl_service.export_mdl_json(manifest_id)
+        )
+
+        if pretty:
+            json_str = json.dumps(mdl_json, indent=2)
+        else:
+            json_str = json.dumps(mdl_json)
+
+        if output:
+            with open(output, 'w') as f:
+                f.write(json_str)
+            console.print(f"[green]✔[/green] Exported to {output}")
+        else:
+            console.print(json_str)
+
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+
+
+@cli.command()
+@click.argument("manifest_id")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+def mdl_delete(manifest_id: str, force: bool):
+    """Delete an MDL manifest.
+
+    Examples:
+
+        # Delete with confirmation
+        kai-agent mdl-delete abc123
+
+        # Delete without confirmation
+        kai-agent mdl-delete abc123 --force
+    """
+    import asyncio
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.mdl.repositories import MDLRepository
+
+    settings = Settings()
+    storage = Storage(settings)
+    mdl_repo = MDLRepository(storage=storage)
+
+    try:
+        # Check if exists
+        manifest = asyncio.get_event_loop().run_until_complete(
+            mdl_repo.get(manifest_id)
+        )
+
+        if not manifest:
+            console.print(f"[red]Error:[/red] Manifest '{manifest_id}' not found")
+            return
+
+        # Confirm deletion
+        if not force:
+            name = manifest.name or manifest_id
+            if not click.confirm(f"Delete MDL manifest '{name}'?"):
+                console.print("[yellow]Cancelled[/yellow]")
+                return
+
+        asyncio.get_event_loop().run_until_complete(
+            mdl_repo.delete(manifest_id)
+        )
+
+        console.print(f"[green]✔[/green] Deleted MDL manifest '{manifest_id}'")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
 
 
 if __name__ == "__main__":
