@@ -61,6 +61,9 @@ class FastAPI:
         # Configure and register analysis suggestions module
         self._setup_suggestions_module()
 
+        # Configure and register dashboard module
+        self._setup_dashboard_module()
+
         @self._app.on_event("shutdown")
         async def shutdown_event():
             DBConnections.dispose_all_engines()
@@ -169,6 +172,15 @@ class FastAPI:
         service = AnalysisSuggestionService(self._storage)
         suggestions_router = create_suggestions_router(service)
         self._app.include_router(suggestions_router)
+
+    def _setup_dashboard_module(self):
+        """Configure and register the dashboard module."""
+        from app.modules.dashboard.api import create_dashboard_router
+        from app.modules.dashboard.services import DashboardService
+
+        service = DashboardService(self._storage)
+        dashboard_router = create_dashboard_router(service)
+        self._app.include_router(dashboard_router)
 
     def app(self) -> fastapi.FastAPI:
         return self._app

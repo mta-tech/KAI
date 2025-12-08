@@ -4400,5 +4400,477 @@ def mdl_delete(manifest_id: str, force: bool):
         console.print(f"[red]Error:[/red] {str(e)}")
 
 
+# =============================================================================
+# Dashboard Helper Functions
+# =============================================================================
+
+
+def _ask_dashboard_clarifications(
+    clarification_response,
+    console,
+) -> dict[str, str]:
+    """
+    Ask clarification questions using questionary with arrow-key selection.
+
+    Args:
+        clarification_response: ClarificationResponse from LLM
+        console: Rich console for output
+
+    Returns:
+        Dict mapping question to selected answer
+    """
+    import questionary
+    from questionary import Choice
+
+    answers = {}
+
+    for question in clarification_response.questions:
+        # Build choices for questionary
+        choices = []
+        for opt in question.options:
+            choices.append(Choice(
+                title=f"{opt.label} - {opt.description}",
+                value=opt.label,
+            ))
+
+        # Add custom option if allowed
+        if question.allow_custom:
+            choices.append(Choice(
+                title="Type something...",
+                value="__custom__",
+            ))
+
+        # Ask the question
+        answer = questionary.select(
+            question.question,
+            choices=choices,
+            instruction="Enter to select · Arrow keys to navigate",
+        ).ask()
+
+        # Handle custom input
+        if answer == "__custom__":
+            answer = questionary.text(
+                "Enter your answer:",
+            ).ask()
+
+        if answer:
+            answers[question.question] = answer
+
+    return answers
+
+
+def _build_enhanced_request(original_request: str, clarifications: dict[str, str]) -> str:
+    """
+    Build enhanced request by appending clarification answers.
+
+    Args:
+        original_request: Original user request
+        clarifications: Dict of question -> answer
+
+    Returns:
+        Enhanced request string
+    """
+    if not clarifications:
+        return original_request
+
+    enhanced = original_request
+    for question, answer in clarifications.items():
+        # Extract key topic from question
+        if "metric" in question.lower():
+            enhanced += f"\nFocus on: {answer}"
+        elif "time" in question.lower() or "period" in question.lower():
+            enhanced += f"\nTime period: {answer}"
+        elif "dimension" in question.lower() or "break" in question.lower():
+            enhanced += f"\nGroup by: {answer}"
+        else:
+            enhanced += f"\n{answer}"
+
+    return enhanced
+
+
+# =============================================================================
+# Dashboard Commands
+# =============================================================================
+
+
+@cli.command()
+@click.argument("request")
+@click.option("--db", "-d", "db_alias", required=True, help="Database connection alias")
+@click.option("--name", "-n", help="Dashboard name (optional)")
+@click.option("--theme", "-t", default="default", help="Theme: default, dark, minimal, corporate")
+@click.option("--open", "-o", "open_browser", is_flag=True, help="Open in browser after creation")
+@click.option("--output", type=str, help="Save HTML to file")
+@click.option("--no-clarify", is_flag=True, help="Skip clarification questions")
+def dashboard_create(
+    request: str,
+    db_alias: str,
+    name: str,
+    theme: str,
+    open_browser: bool,
+    output: str,
+    no_clarify: bool,
+):
+    """Create a BI dashboard from natural language.
+
+    Examples:
+
+        # Create a sales dashboard (with clarification questions)
+        kai-agent dashboard-create "Sales dashboard" --db demo_sales
+
+        # Skip clarification questions
+        kai-agent dashboard-create "Sales dashboard with revenue trends" --db demo_sales --no-clarify
+
+        # Create and open in browser
+        kai-agent dashboard-create "Customer analytics dashboard" --db mydb --open
+
+        # Create with custom name and theme
+        kai-agent dashboard-create "Executive KPIs" --db mydb --name "Q4 Dashboard" --theme dark
+
+        # Save to file
+        kai-agent dashboard-create "Monthly report" --db mydb --output report.html
+    """
+    import asyncio
+    import webbrowser
+    import tempfile
+    from pathlib import Path
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.dashboard.services import DashboardService, ClarificationService
+    from app.modules.dashboard.models import CreateDashboardRequest
+    from app.modules.database_connection.repositories import DatabaseConnectionRepository
+
+    settings = Settings()
+    storage = Storage(settings)
+
+    # Find database connection by alias or ID
+    db_conn_repo = DatabaseConnectionRepository(storage)
+    connection = db_conn_repo.find_one({"alias": db_alias})
+    if not connection:
+        # Try by ID
+        connection = db_conn_repo.find_by_id(db_alias)
+
+    if not connection:
+        console.print(f"[red]Error:[/red] Database connection '{db_alias}' not found")
+        console.print("Use 'kai-agent list-connections' to see available connections")
+        return
+
+    service = DashboardService(storage)
+
+    console.print(f"\n[bold]Creating Dashboard[/bold]")
+    console.print(f"Request: {request}")
+    console.print(f"Database: {db_alias}")
+    console.print()
+
+    # Enhanced request with clarifications
+    enhanced_request = request
+
+    # Helper to run async code (handles event loop issues with questionary)
+    def run_async(coro):
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        return loop.run_until_complete(coro)
+
+    try:
+        # Generate and ask clarification questions (unless --no-clarify)
+        if not no_clarify:
+            with console.status("[bold blue]Generating clarification questions...[/bold blue]"):
+                clarification_service = ClarificationService(storage)
+                clarification_response = run_async(
+                    clarification_service.generate_clarifications(
+                        user_request=request,
+                        db_connection_id=connection.id,
+                    )
+                )
+
+            if clarification_response.questions:
+                console.print("[dim]Answer a few questions to improve the dashboard:[/dim]\n")
+                clarifications = _ask_dashboard_clarifications(clarification_response, console)
+                enhanced_request = _build_enhanced_request(request, clarifications)
+                console.print()
+
+        with console.status("[bold blue]Planning dashboard...[/bold blue]"):
+            dashboard_request = CreateDashboardRequest(
+                request=enhanced_request,
+                db_connection_id=connection.id,
+                name=name,
+                theme=theme,
+            )
+            dashboard = run_async(
+                service.create_from_nl(dashboard_request)
+            )
+
+        console.print(f"[green]✔[/green] Dashboard created: [bold]{dashboard.name}[/bold]")
+        console.print(f"  ID: {dashboard.id}")
+        console.print(f"  Widgets: {len(dashboard.layout.widgets)}")
+        console.print()
+
+        # Display widgets
+        from rich.table import Table
+        table = Table(title="Widgets", show_header=True)
+        table.add_column("#", style="cyan", width=3)
+        table.add_column("Name")
+        table.add_column("Type", style="dim")
+        table.add_column("Size", style="dim")
+
+        for i, widget in enumerate(dashboard.layout.widgets, 1):
+            icon = {
+                "kpi": "📊",
+                "chart": "📈",
+                "table": "📋",
+                "text": "📝",
+                "filter": "🔍",
+            }.get(widget.widget_type.value, "")
+            table.add_row(
+                str(i),
+                widget.name,
+                f"{icon} {widget.widget_type.value}",
+                widget.size.value,
+            )
+
+        console.print(table)
+        console.print()
+
+        # Render and optionally save/open
+        if output or open_browser:
+            with console.status("[bold blue]Rendering dashboard...[/bold blue]"):
+                html = run_async(
+                    service.render(dashboard.id, format="html", execute=True)
+                )
+
+            if output:
+                Path(output).write_text(html)
+                console.print(f"[green]✔[/green] Saved to: {output}")
+
+            if open_browser:
+                if not output:
+                    # Save to temp file
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", suffix=".html", delete=False
+                    ) as f:
+                        f.write(html)
+                        output = f.name
+
+                webbrowser.open(f"file://{Path(output).absolute()}")
+                console.print(f"[green]✔[/green] Opened in browser")
+
+        console.print(f"\n[dim]View: kai-agent dashboard-view {dashboard.id}[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+
+
+@cli.command()
+@click.option("--db", "-d", "db_alias", required=True, help="Database connection alias")
+def dashboard_list(db_alias: str):
+    """List dashboards for a database connection.
+
+    Examples:
+
+        kai-agent dashboard-list --db demo_sales
+    """
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.dashboard.services import DashboardService
+    from app.modules.database_connection.repositories import DatabaseConnectionRepository
+
+    settings = Settings()
+    storage = Storage(settings)
+
+    # Find database connection by alias or ID
+    db_conn_repo = DatabaseConnectionRepository(storage)
+    connection = db_conn_repo.find_one({"alias": db_alias})
+    if not connection:
+        connection = db_conn_repo.find_by_id(db_alias)
+
+    if not connection:
+        console.print(f"[red]Error:[/red] Database connection '{db_alias}' not found")
+        return
+
+    service = DashboardService(storage)
+    dashboards = service.list_by_connection(connection.id)
+
+    if not dashboards:
+        console.print(f"[yellow]No dashboards found for '{db_alias}'[/yellow]")
+        console.print("[dim]Create one with: kai-agent dashboard-create \"...\" --db {db_alias}[/dim]")
+        return
+
+    from rich.table import Table
+    table = Table(title=f"Dashboards for {db_alias}", show_header=True)
+    table.add_column("ID", style="cyan")
+    table.add_column("Name")
+    table.add_column("Widgets", justify="center")
+    table.add_column("Public", justify="center")
+    table.add_column("Updated")
+
+    for d in dashboards:
+        public = "[green]✔[/green]" if d.is_public else "[dim]–[/dim]"
+        updated = d.updated_at.strftime("%Y-%m-%d %H:%M") if d.updated_at else "–"
+        table.add_row(d.id[:8] + "...", d.name, str(d.widget_count), public, updated)
+
+    console.print(table)
+
+
+@cli.command()
+@click.argument("dashboard_id")
+@click.option("--browser", "-b", is_flag=True, default=True, help="Open in browser")
+@click.option("--output", "-o", type=str, help="Save HTML to file instead of opening browser")
+def dashboard_view(dashboard_id: str, browser: bool, output: str):
+    """View a dashboard.
+
+    Examples:
+
+        # Open in browser
+        kai-agent dashboard-view abc123
+
+        # Save to file
+        kai-agent dashboard-view abc123 --output dashboard.html
+    """
+    import asyncio
+    import webbrowser
+    import tempfile
+    from pathlib import Path
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.dashboard.services import DashboardService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = DashboardService(storage)
+
+    # Try to find by full ID or partial ID
+    dashboard = service.get(dashboard_id)
+
+    if not dashboard:
+        # Try partial match
+        all_dashboards = service.repository.list_all()
+        matches = [d for d in all_dashboards if d.id.startswith(dashboard_id)]
+        if len(matches) == 1:
+            dashboard = matches[0]
+        elif len(matches) > 1:
+            console.print(f"[yellow]Multiple dashboards match '{dashboard_id}':[/yellow]")
+            for d in matches:
+                console.print(f"  {d.id}: {d.name}")
+            return
+        else:
+            console.print(f"[red]Error:[/red] Dashboard '{dashboard_id}' not found")
+            return
+
+    console.print(f"\n[bold]{dashboard.name}[/bold]")
+    if dashboard.description:
+        console.print(f"[dim]{dashboard.description}[/dim]")
+    console.print()
+
+    try:
+        with console.status("[bold blue]Rendering dashboard...[/bold blue]"):
+            html = asyncio.get_event_loop().run_until_complete(
+                service.render(dashboard.id, format="html", execute=True)
+            )
+
+        if output:
+            Path(output).write_text(html)
+            console.print(f"[green]✔[/green] Saved to: {output}")
+        elif browser:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".html", delete=False
+            ) as f:
+                f.write(html)
+                temp_path = f.name
+
+            webbrowser.open(f"file://{Path(temp_path).absolute()}")
+            console.print(f"[green]✔[/green] Opened in browser")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+
+
+@cli.command()
+@click.argument("dashboard_id")
+@click.option("--format", "-f", "fmt", default="html", help="Export format: html, json")
+@click.option("--output", "-o", required=True, help="Output file path")
+def dashboard_export(dashboard_id: str, fmt: str, output: str):
+    """Export a dashboard to file.
+
+    Examples:
+
+        # Export as HTML
+        kai-agent dashboard-export abc123 --output dashboard.html
+
+        # Export as JSON
+        kai-agent dashboard-export abc123 --format json --output dashboard.json
+    """
+    import asyncio
+    import json
+    from pathlib import Path
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.dashboard.services import DashboardService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = DashboardService(storage)
+
+    dashboard = service.get(dashboard_id)
+    if not dashboard:
+        console.print(f"[red]Error:[/red] Dashboard '{dashboard_id}' not found")
+        return
+
+    try:
+        with console.status("[bold blue]Exporting dashboard...[/bold blue]"):
+            result = asyncio.get_event_loop().run_until_complete(
+                service.render(dashboard.id, format=fmt, execute=True)
+            )
+
+        if fmt == "json":
+            Path(output).write_text(json.dumps(result, indent=2, default=str))
+        else:
+            Path(output).write_text(result)
+
+        console.print(f"[green]✔[/green] Exported to: {output}")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+
+
+@cli.command()
+@click.argument("dashboard_id")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+def dashboard_delete(dashboard_id: str, force: bool):
+    """Delete a dashboard.
+
+    Examples:
+
+        kai-agent dashboard-delete abc123
+        kai-agent dashboard-delete abc123 --force
+    """
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.dashboard.services import DashboardService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = DashboardService(storage)
+
+    dashboard = service.get(dashboard_id)
+    if not dashboard:
+        console.print(f"[red]Error:[/red] Dashboard '{dashboard_id}' not found")
+        return
+
+    if not force:
+        if not click.confirm(f"Delete dashboard '{dashboard.name}'?"):
+            console.print("[yellow]Cancelled[/yellow]")
+            return
+
+    if service.delete(dashboard_id):
+        console.print(f"[green]✔[/green] Deleted dashboard '{dashboard.name}'")
+    else:
+        console.print(f"[red]Error:[/red] Failed to delete dashboard")
+
+
 if __name__ == "__main__":
     cli()

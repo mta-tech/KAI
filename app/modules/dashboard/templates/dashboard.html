@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ dashboard.name }}</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <link href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css" rel="stylesheet">
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: {{ theme.background }};
+            --card-bg: {{ theme.card_background }};
+            --text-color: {{ theme.text_color }};
+            --primary-color: {{ theme.primary_color }};
+            --accent-color: {{ theme.accent_color }};
+            --border-color: #e2e8f0;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: {{ theme.font_family }};
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.5;
+        }
+
+        .dashboard-header {
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dashboard-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .dashboard-description {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .dashboard-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        .refresh-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .refresh-indicator::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: {{ layout.gap }}px;
+            padding: 24px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .widget {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+            transition: box-shadow 0.2s ease;
+            overflow: hidden;
+        }
+
+        .widget:hover {
+            box-shadow: var(--shadow-lg);
+        }
+
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .widget-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .widget-small { grid-column: span 3; }
+        .widget-medium { grid-column: span 4; }
+        .widget-large { grid-column: span 6; }
+        .widget-wide { grid-column: span 8; }
+        .widget-full { grid-column: span 12; }
+        .widget-tall { grid-row: span 2; }
+
+        /* KPI Widget Styles */
+        .kpi-widget {
+            text-align: center;
+            padding: 12px 0;
+        }
+
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-color);
+            line-height: 1.2;
+        }
+
+        .kpi-change {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-top: 8px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .kpi-change.up {
+            color: #059669;
+            background: #d1fae5;
+        }
+
+        .kpi-change.down {
+            color: #dc2626;
+            background: #fee2e2;
+        }
+
+        .kpi-change.neutral {
+            color: #6b7280;
+            background: #f3f4f6;
+        }
+
+        /* Chart Widget Styles */
+        .chart-container {
+            width: 100%;
+            height: 100%;
+            min-height: 250px;
+        }
+
+        .chart-container .js-plotly-plot {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Table Widget Styles */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border-bottom: 2px solid var(--border-color);
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .data-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .data-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .table-footer {
+            padding: 12px 16px;
+            font-size: 0.75rem;
+            color: #64748b;
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* No Data State */
+        .no-data {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
+
+        /* Error State */
+        .widget-error {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: #dc2626;
+            font-size: 0.875rem;
+            background: #fef2f2;
+            border-radius: 8px;
+        }
+
+        /* Loading State */
+        .widget-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .widget-small { grid-column: span 4; }
+            .widget-medium { grid-column: span 6; }
+            .widget-large { grid-column: span 6; }
+            .widget-wide { grid-column: span 12; }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .dashboard-grid {
+                padding: 16px;
+                gap: 16px;
+            }
+
+            .widget-small,
+            .widget-medium,
+            .widget-large,
+            .widget-wide,
+            .widget-full {
+                grid-column: span 12;
+            }
+
+            .kpi-value {
+                font-size: 2rem;
+            }
+        }
+
+        /* Print Styles */
+        @media print {
+            body {
+                background: white;
+            }
+
+            .dashboard-grid {
+                display: block;
+            }
+
+            .widget {
+                page-break-inside: avoid;
+                margin-bottom: 20px;
+                box-shadow: none;
+                border: 1px solid var(--border-color);
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="dashboard-header">
+        <div>
+            <h1 class="dashboard-title">{{ dashboard.name }}</h1>
+            {% if dashboard.description %}
+            <p class="dashboard-description">{{ dashboard.description }}</p>
+            {% endif %}
+        </div>
+        <div class="dashboard-meta">
+            {% if dashboard.refresh_interval %}
+            <span class="refresh-indicator">Auto-refresh: {{ dashboard.refresh_interval }}s</span>
+            {% endif %}
+            <span>Last updated: {{ last_updated }}</span>
+        </div>
+    </header>
+
+    <main class="dashboard-grid">
+        {% for widget in widgets %}
+        <div class="widget widget-{{ widget.size.value }}" data-widget-id="{{ widget.id }}">
+            <div class="widget-header">
+                <h3 class="widget-title">{{ widget.name }}</h3>
+            </div>
+
+            {% set result = widget_results.get(widget.id) %}
+
+            {% if result and result.status == 'failed' %}
+            <div class="widget-error">
+                Error: {{ result.error }}
+            </div>
+
+            {% elif result and result.status == 'completed' %}
+
+                {% if widget.widget_type.value == 'kpi' %}
+                <div class="kpi-widget">
+                    <div class="kpi-value">{{ result.formatted_value }}</div>
+                    {% if result.change is not none %}
+                    <div class="kpi-change {{ result.change_direction }}">
+                        {% if result.change > 0 %}↑{% elif result.change < 0 %}↓{% else %}→{% endif %}
+                        {{ result.change | abs }}%
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% elif widget.widget_type.value == 'chart' %}
+                <div class="chart-container" id="chart-{{ widget.id }}"></div>
+
+                {% elif widget.widget_type.value == 'table' %}
+                <div class="table-container">
+                    {{ result.html | safe }}
+                </div>
+
+                {% else %}
+                {{ result.html | safe }}
+                {% endif %}
+
+            {% else %}
+            <div class="widget-loading">
+                <div class="spinner"></div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </main>
+
+    <script>
+        // Initialize Plotly charts
+        {% for widget in widgets %}
+        {% set result = widget_results.get(widget.id) %}
+        {% if widget.widget_type.value == 'chart' and result and result.plotly_json %}
+        (function() {
+            var data = {{ result.plotly_json | tojson | safe }};
+            var layout = {
+                autosize: true,
+                margin: { l: 40, r: 20, t: 20, b: 40 },
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                font: { family: '{{ theme.font_family }}', color: '{{ theme.text_color }}' }
+            };
+            var config = { responsive: true, displayModeBar: false };
+            Plotly.newPlot('chart-{{ widget.id }}', data.data || data, layout, config);
+        })();
+        {% endif %}
+        {% endfor %}
+
+        // Auto-refresh
+        {% if dashboard.refresh_interval %}
+        setTimeout(function() {
+            location.reload();
+        }, {{ dashboard.refresh_interval * 1000 }});
+        {% endif %}
+
+        // Resize charts on window resize
+        window.addEventListener('resize', function() {
+            document.querySelectorAll('.js-plotly-plot').forEach(function(plot) {
+                Plotly.Plots.resize(plot);
+            });
+        });
+        // Initialize DataTables
+        $(document).ready(function() {
+            $('.data-table').DataTable({
+                pageLength: 10,
+                lengthMenu: [5, 10, 25, 50],
+                order: [], // Disable initial sort to preserve SQL order
+                language: {
+                    searchPlaceholder: "Search records..."
+                }
+            });
+        });
+    </script>
+</body>
+</html>
