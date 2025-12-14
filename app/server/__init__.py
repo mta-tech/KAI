@@ -24,6 +24,9 @@ from app.modules.autonomous_agent import (
 # Visualization module imports
 from app.modules.visualization import visualization_router
 
+# Chart visualization module imports (Pydantic AI-based)
+from app.modules.chartviz import router as chartviz_router
+
 # Analytics module imports
 from app.modules.analytics import analytics_router
 
@@ -154,6 +157,9 @@ class FastAPI:
 
         # Include visualization router (v2 API)
         self._app.include_router(visualization_router)
+
+        # Include chart visualization router (Pydantic AI-based, v2 API)
+        self._app.include_router(chartviz_router)
 
         # Include analytics router (v2 API)
         self._app.include_router(analytics_router)

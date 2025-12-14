@@ -6,7 +6,7 @@ from typing import AsyncGenerator, Any, Optional
 
 from app.modules.session.repositories import SessionRepository
 from app.modules.session.models import Session, SessionStatus
-from app.modules.session.constants import STATUS_MESSAGES
+from app.modules.session.constants import get_status_messages, get_thinking_traces
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ class SessionService:
     async def create_session(
         self,
         db_connection_id: str,
+        language: str = "id",
         metadata: dict | None = None
     ) -> str:
         """
@@ -46,6 +47,7 @@ class SessionService:
 
         Args:
             db_connection_id: Database connection for this session
+            language: Response language ('id' for Indonesian, 'en' for English)
             metadata: Optional custom metadata
 
         Returns:
@@ -53,6 +55,7 @@ class SessionService:
         """
         return await self.repository.create(
             db_connection_id=db_connection_id,
+            language=language,
             metadata=metadata
         )
 
@@ -152,18 +155,20 @@ class SessionService:
         input_state = {
             "current_query": query,
             "db_connection_id": session.db_connection_id,
+            "language": session.language,
             "messages": []  # Initialize for first run, checkpoint will override
         }
 
         try:
             # Stream events from LangGraph
             final_state = None
+            language = session.language
             async for event in self.graph.astream_events(
                 input_state,
                 config=config,
                 version="v2"
             ):
-                sse_events = self._process_graph_event(event)
+                sse_events = self._process_graph_event(event, language)
                 for sse_event in sse_events:
                     yield sse_event
 
@@ -227,12 +232,13 @@ class SessionService:
 
         await self.repository.update(session)
 
-    def _process_graph_event(self, event: dict) -> list[str]:
+    def _process_graph_event(self, event: dict, language: str = "id") -> list[str]:
         """
         Process LangGraph event and convert to SSE events.
 
         Args:
             event: LangGraph event
+            language: Response language ('id' for Indonesian, 'en' for English)
 
         Returns:
             List of SSE formatted strings
@@ -240,76 +246,108 @@ class SessionService:
         events = []
         event_type = event.get("event")
 
+        # Get language-aware messages
+        status_messages = get_status_messages(language)
+        thinking_traces = get_thinking_traces(language)
+
         if event_type == "on_chain_start":
             node = event.get("name", "")
-            if node in STATUS_MESSAGES:
+            if node in status_messages:
+                # Emit status message
                 events.append(self._format_sse("status", {
                     "step": node,
-                    "message": STATUS_MESSAGES[node]
+                    "message": status_messages[node]
                 }))
 
-        elif event_type == "on_chat_model_stream":
-            chunk = event.get("data", {}).get("chunk")
-            if chunk:
-                content = chunk.content if hasattr(chunk, 'content') else str(chunk)
-                if content:
-                    events.append(self._format_sse("chunk", {
-                        "type": "text",
-                        "content": content
-                    }))
+                # Emit thinking traces for this step
+                if node in thinking_traces:
+                    for trace in thinking_traces[node]:
+                        events.append(self._format_sse("thinking", {
+                            "step": node,
+                            "trace": trace
+                        }))
+
+        # NOTE: We intentionally suppress on_chat_model_stream events
+        # to avoid streaming raw JSON from LLM analysis output.
+        # The final processed results are emitted in on_chain_end.
 
         elif event_type == "on_chain_end":
             node = event.get("name", "")
             output = event.get("data", {}).get("output", {})
 
+            # Check if output is a dict with our expected keys
+            if not isinstance(output, dict):
+                return events
+
+            # Only process output from specific nodes to avoid duplicates
+            # (LangGraph final state also has these keys but we don't want to emit twice)
+            valid_nodes = {"process_query", "reasoning_only"}
+            if node not in valid_nodes:
+                return events
+
+            # Handle error output from nodes
+            if output.get("error"):
+                events.append(self._format_sse("error", {
+                    "message": output["error"]
+                }))
+                return events
+
             # Handle process_query output (combined SQL gen + execution + analysis)
-            if node == "process_query":
-                # SQL chunk
+            has_sql_output = "current_sql" in output or "current_analysis" in output
+
+            if has_sql_output:
+                # SQL chunk - emit the generated SQL
                 if output.get("current_sql"):
-                    events.append(self._format_sse("chunk", {
-                        "type": "sql",
-                        "content": output["current_sql"]
+                    sql_trace = f"Kueri SQL: {output['current_sql']}" if language == "id" else f"Generated SQL: {output['current_sql']}"
+                    events.append(self._format_sse("thinking", {
+                        "step": "sql_generated",
+                        "trace": sql_trace
                     }))
 
-                # Analysis chunks - split into separate chunks for easier parsing
+                # Analysis chunks - emit as direct text, not JSON
                 analysis = output.get("current_analysis", {})
-                if analysis:
-                    # Summary chunk
+                if analysis and isinstance(analysis, dict):
+                    # Check if this is reasoning_only (no SQL, reasoning_only flag)
+                    is_reasoning = analysis.get("reasoning_only", False)
+
+                    # Emit summary as direct text answer
                     if analysis.get("summary"):
-                        events.append(self._format_sse("chunk", {
-                            "type": "summary",
+                        # Stream the answer as text chunks for a natural feel
+                        events.append(self._format_sse("answer", {
                             "content": analysis["summary"]
                         }))
 
-                    # Insights chunk
-                    if analysis.get("insights"):
-                        events.append(self._format_sse("chunk", {
-                            "type": "insights",
-                            "content": analysis["insights"]
-                        }))
+                    # Emit insights as thinking traces
+                    if not is_reasoning and analysis.get("insights"):
+                        for insight in analysis["insights"]:
+                            if isinstance(insight, dict):
+                                title = insight.get("title", "Insight")
+                                desc = insight.get("description", "")
+                                events.append(self._format_sse("thinking", {
+                                    "step": "insight",
+                                    "trace": f"{title}: {desc}"
+                                }))
 
-                    # Chart recommendations chunk
-                    if analysis.get("chart_recommendations"):
-                        events.append(self._format_sse("chunk", {
-                            "type": "chart_recommendations",
-                            "content": analysis["chart_recommendations"]
-                        }))
+                    # Emit metadata for client-side rendering (charts, etc.)
+                    # This is kept as structured data for frontend use
+                    if not is_reasoning:
+                        metadata = {}
+                        if output.get("current_sql"):
+                            metadata["sql"] = output["current_sql"]
+                        if analysis.get("insights"):
+                            metadata["insights"] = analysis["insights"]
+                        if analysis.get("chart_recommendations"):
+                            metadata["chart_recommendations"] = analysis["chart_recommendations"]
+                        # Include result data for chartviz (limited to 100 rows)
+                        if output.get("current_results"):
+                            metadata["result_data"] = output["current_results"][:100]
+                        if metadata:
+                            events.append(self._format_sse("metadata", metadata))
 
                     # Error event if present
                     if analysis.get("error"):
                         events.append(self._format_sse("error", {
                             "message": analysis["error"]
-                        }))
-
-            # Handle reasoning_only output (context-based response without SQL)
-            elif node == "reasoning_only":
-                analysis = output.get("current_analysis", {})
-                if analysis:
-                    # Reasoning response chunk
-                    if analysis.get("summary"):
-                        events.append(self._format_sse("chunk", {
-                            "type": "reasoning",
-                            "content": analysis["summary"]
                         }))
 
         return events

@@ -1,4 +1,5 @@
 """Session graph nodes for LangGraph."""
+import re
 import uuid
 from datetime import datetime
 from typing import Any
@@ -11,7 +12,50 @@ from app.modules.session.constants import (
     MAX_SUMMARY_TOKENS,
     SUMMARIZATION_PROMPT,
 )
-from app.modules.session.prompts import ROUTER_PROMPT, REASONING_PROMPT
+from app.modules.session.prompts import ROUTER_PROMPT, get_reasoning_prompt
+
+
+# Common greetings in various languages (Indonesian, English, etc.)
+GREETING_PATTERNS = [
+    r"^(hi|hello|hey|halo|hai|selamat\s*(pagi|siang|sore|malam))[\s!.,?]*$",
+    r"^(good\s*(morning|afternoon|evening|night))[\s!.,?]*$",
+    r"^(apa\s*kabar|how\s*are\s*you|what'?s?\s*up)[\s!?,]*$",
+    r"^(terima\s*kasih|thanks?|thank\s*you)[\s!.,?]*$",
+    r"^(help|bantuan|tolong)[\s!?,]*$",
+    r"^(test|testing)[\s!.,?]*$",
+]
+
+
+def is_greeting_or_conversational(query: str) -> bool:
+    """
+    Check if query is a greeting or simple conversational message.
+
+    Args:
+        query: User query string
+
+    Returns:
+        True if the query appears to be a greeting or conversational message
+    """
+    normalized = query.strip().lower()
+
+    # Very short messages (< 3 words) that don't look like data queries
+    words = normalized.split()
+    if len(words) <= 2:
+        # Check against greeting patterns
+        for pattern in GREETING_PATTERNS:
+            if re.match(pattern, normalized, re.IGNORECASE):
+                return True
+
+        # Single word that's not a typical data keyword
+        data_keywords = {
+            "show", "get", "list", "count", "total", "average", "sum",
+            "tampilkan", "berapa", "jumlah", "rata-rata", "hitung",
+            "analyze", "analisis", "query", "select", "find", "cari"
+        }
+        if len(words) == 1 and normalized not in data_keywords:
+            return True
+
+    return False
 
 
 def should_summarize(state: SessionState) -> bool:
@@ -135,7 +179,11 @@ async def route_query_node(
     query = state["current_query"]
     messages = state.get("messages", [])
 
-    # If no conversation context, always route to database
+    # Check for greetings/conversational messages first (even without context)
+    if is_greeting_or_conversational(query):
+        return {"query_intent": "reasoning_only"}
+
+    # If no conversation context, route to database for data queries
     if not context or not messages:
         return {"query_intent": "database_query"}
 
@@ -153,6 +201,68 @@ async def route_query_node(
         return {"query_intent": "database_query"}
 
 
+def _clean_llm_response(response_text: str) -> str:
+    """
+    Clean LLM response by removing routing prefixes.
+
+    Args:
+        response_text: Raw LLM response
+
+    Returns:
+        Cleaned response text
+    """
+    # Strip leading/trailing whitespace
+    cleaned = response_text.strip()
+
+    # Remove common routing prefixes that LLM might include
+    prefixes_to_remove = ["REASONING", "DATABASE", "REASONING:", "DATABASE:"]
+    for prefix in prefixes_to_remove:
+        if cleaned.upper().startswith(prefix):
+            cleaned = cleaned[len(prefix):].strip()
+            # Also strip any leading newlines or colons after prefix
+            cleaned = cleaned.lstrip(":\n").strip()
+            break
+
+    return cleaned
+
+
+def _get_greeting_prompt(language: str, query: str) -> str:
+    """
+    Get a prompt for handling greetings/conversational messages.
+
+    Args:
+        language: Language code ('id' for Indonesian, 'en' for English)
+        query: User's greeting message
+
+    Returns:
+        Prompt string for generating greeting response
+    """
+    if language == "id":
+        return f"""Kamu adalah KAI, asisten analisis data bisnis yang ramah dan profesional.
+
+Pengguna menyapa: "{query}"
+
+Berikan sapaan balik yang ramah dan singkat dalam Bahasa Indonesia.
+Perkenalkan dirimu secara singkat sebagai asisten yang dapat membantu:
+- Menjawab pertanyaan bisnis
+- Menganalisis data dari database
+- Memberikan insight dan visualisasi
+
+Jangan terlalu panjang, cukup 2-3 kalimat saja. Jangan gunakan emoji."""
+    else:
+        return f"""You are KAI, a friendly and professional business data analytics assistant.
+
+User greeted: "{query}"
+
+Provide a brief, friendly greeting in response.
+Briefly introduce yourself as an assistant that can help with:
+- Answering business questions
+- Analyzing data from databases
+- Providing insights and visualizations
+
+Keep it concise, just 2-3 sentences. Don't use emojis."""
+
+
 async def reasoning_only_node(
     state: SessionState,
     llm: Any
@@ -161,7 +271,8 @@ async def reasoning_only_node(
     Answer query using only conversation context.
 
     This node generates a response based on previous analyses
-    without executing any database queries.
+    without executing any database queries. Also handles greetings
+    when there's no conversation context.
 
     Args:
         state: Current session state
@@ -172,18 +283,28 @@ async def reasoning_only_node(
     """
     context = state.get("metadata", {}).get("built_context", "")
     query = state["current_query"]
+    language = state.get("language", "id")
 
-    prompt = REASONING_PROMPT.format(context=context, query=query)
+    # Handle greetings/conversational messages when no context exists
+    if not context and is_greeting_or_conversational(query):
+        prompt = _get_greeting_prompt(language, query)
+    else:
+        # Get language-aware prompt for reasoning from context
+        prompt_template = get_reasoning_prompt(language)
+        prompt = prompt_template.format(context=context, query=query)
 
     try:
         response = await llm.ainvoke(prompt)
         response_text = response.content if hasattr(response, 'content') else str(response)
 
+        # Clean the response to remove any routing prefixes
+        cleaned_response = _clean_llm_response(response_text)
+
         return {
             "current_sql": None,
             "current_results": None,
             "current_analysis": {
-                "summary": response_text,
+                "summary": cleaned_response,
                 "insights": [],
                 "chart_recommendations": [],
                 "reasoning_only": True
@@ -242,6 +363,7 @@ async def process_query_node(
     context = state.get("metadata", {}).get("built_context", "")
     query = state["current_query"]
     db_connection_id = state["db_connection_id"]
+    language = state.get("language", "id")
 
     # Build prompt with context
     contextualized_query = query
@@ -250,9 +372,12 @@ async def process_query_node(
 
     try:
         # Create prompt request
+        # - text: full contextualized query (for SQL generation)
+        # - search_text: original query only (for Typesense searches to avoid 4000 char limit)
         prompt_request = PromptRequest(
             text=contextualized_query,
-            db_connection_id=db_connection_id
+            db_connection_id=db_connection_id,
+            search_text=query
         )
 
         # Call comprehensive analysis service (does SQL gen + execution + analysis)
@@ -260,7 +385,8 @@ async def process_query_node(
         result = await analysis_service.create_comprehensive_analysis(
             prompt_request=prompt_request,
             max_rows=100,
-            use_deep_agent=True
+            use_deep_agent=True,
+            language=language
         )
 
         # Create results summary for context
@@ -269,7 +395,7 @@ async def process_query_node(
 
         return {
             "current_sql": result.get("sql"),
-            "current_results": None,  # Results are processed in the analysis
+            "current_results": result.get("data", []),  # Include for chartviz
             "current_analysis": {
                 "summary": result.get("summary", ""),
                 "insights": result.get("insights", []),
@@ -356,13 +482,19 @@ async def save_message_node(state: SessionState) -> dict[str, Any]:
     Returns:
         State update with new message to be added (reducer handles accumulation)
     """
+    # Safely access optional state values
+    current_analysis = state.get("current_analysis")
+    analysis_summary = None
+    if current_analysis and isinstance(current_analysis, dict):
+        analysis_summary = current_analysis.get("summary")
+
     new_message: MessageDict = {
         "id": f"msg_{uuid.uuid4().hex[:8]}",
         "role": "assistant",
-        "query": state["current_query"] or "",
-        "sql": state["current_sql"],
+        "query": state.get("current_query") or "",
+        "sql": state.get("current_sql"),
         "results_summary": state.get("metadata", {}).get("results_summary"),
-        "analysis": state["current_analysis"].get("summary") if state.get("current_analysis") else None,
+        "analysis": analysis_summary,
         "timestamp": datetime.now().isoformat()
     }
 

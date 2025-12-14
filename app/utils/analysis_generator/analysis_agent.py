@@ -17,8 +17,8 @@ from app.modules.analysis.models import (
 )
 from app.modules.sql_generation.models import LLMConfig, SQLGeneration
 from app.utils.analysis_generator.prompts import (
-    ANALYSIS_SYSTEM_PROMPT,
     ANALYSIS_USER_TEMPLATE,
+    get_analysis_system_prompt,
 )
 from app.utils.model.chat_model import ChatModel
 
@@ -39,6 +39,7 @@ class AnalysisAgent:
         query_results: list[dict],
         user_prompt: str,
         database_connection: Any = None,
+        language: str = "id",
     ) -> AnalysisResult:
         """Execute analysis on SQL query results.
 
@@ -47,6 +48,7 @@ class AnalysisAgent:
             query_results: List of row dictionaries from query execution
             user_prompt: Original user question
             database_connection: Optional database connection for model config
+            language: Response language ('id' for Indonesian, 'en' for English)
 
         Returns:
             AnalysisResult with summary, insights, and chart recommendations
@@ -77,9 +79,10 @@ class AnalysisAgent:
             sample_size = min(len(query_results), self.max_sample_rows)
             data_sample = self._format_data_sample(query_results[:sample_size])
 
-            # Build prompt
+            # Build prompt with language-aware system prompt
+            system_prompt = get_analysis_system_prompt(language)
             prompt = ChatPromptTemplate.from_messages([
-                ("system", ANALYSIS_SYSTEM_PROMPT),
+                ("system", system_prompt),
                 ("user", ANALYSIS_USER_TEMPLATE),
             ])
 

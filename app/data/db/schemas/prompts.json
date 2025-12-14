@@ -21,6 +21,11 @@
             "type": "string"
         },
         {
+            "name": "search_text",
+            "type": "string",
+            "optional": true
+        },
+        {
             "name": "metadata",
             "type": "object",
             "optional": true

@@ -111,6 +111,7 @@ class AnalysisService:
         llm_config: LLMConfig | None = None,
         max_rows: int = 100,
         use_deep_agent: bool = False,
+        language: str = "id",
         metadata: dict | None = None,
     ) -> dict:
         """End-to-end pipeline: Prompt -> SQL Gen -> Execution -> Analysis.
@@ -120,6 +121,7 @@ class AnalysisService:
             llm_config: LLM configuration for SQL generation and analysis
             max_rows: Maximum rows to fetch for analysis
             use_deep_agent: Whether to use the deep agent for SQL generation
+            language: Response language ('id' for Indonesian, 'en' for English)
             metadata: Additional metadata
 
         Returns:
@@ -161,6 +163,7 @@ class AnalysisService:
 
         # Step 3: Execute SQL and analyze
         analysis_start = datetime.now()
+        query_results = []  # Initialize for return
 
         if sql_generation.status == "VALID":
             # Fetch database connection
@@ -181,6 +184,7 @@ class AnalysisService:
                 query_results=query_results,
                 user_prompt=prompt.text,
                 database_connection=db_connection,
+                language=language,
             )
 
             # Persist analysis
@@ -215,6 +219,7 @@ class AnalysisService:
                 rec.model_dump() if hasattr(rec, "model_dump") else rec
                 for rec in analysis.chart_recommendations
             ],
+            "data": query_results[:100],  # Include result data for chartviz (limited)
             "row_count": analysis.row_count,
             "column_count": analysis.column_count,
             "input_tokens_used": (

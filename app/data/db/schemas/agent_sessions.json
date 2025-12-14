@@ -1,0 +1,47 @@
+{
+    "name": "agent_sessions",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "db_connection_id",
+            "type": "string",
+            "facet": true
+        },
+        {
+            "name": "status",
+            "type": "string",
+            "facet": true
+        },
+        {
+            "name": "mode",
+            "type": "string",
+            "facet": true
+        },
+        {
+            "name": "recursion_limit",
+            "type": "int32"
+        },
+        {
+            "name": "title",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        },
+        {
+            "name": "updated_at",
+            "type": "string"
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        }
+    ]
+}

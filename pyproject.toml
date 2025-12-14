@@ -53,6 +53,8 @@ dependencies = [
     "statsmodels>=0.14.0",
     # SSE streaming support
     "sse-starlette>=1.6.0",
+    # Pydantic AI for structured chart generation
+    "pydantic-ai>=0.1.0",
     # Optional: Letta AI memory backend and auto-learning
     # Note: agentic-learning pins letta-client to a pre-release version
     # Install with: uv pip install agentic-learning --prerelease=allow

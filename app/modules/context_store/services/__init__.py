@@ -186,12 +186,14 @@ class ContextStoreService:
         )
 
     def retrieve_context_for_question(self, prompt: Prompt) -> list[dict]:
-        logger.info(f"Getting context for {prompt.text}")
+        # Use search_text (original query) for Typesense searches, not full contextualized text
+        search_text = prompt.get_search_text()
+        logger.info(f"Getting context for {search_text}")
 
         embedding_model = EmbeddingModel().get_model()
-        prompt_embedding = embedding_model.embed_query(prompt.text)
+        prompt_embedding = embedding_model.embed_query(search_text)
         relevant_context = self.repository.find_by_relevance(
-            prompt.db_connection_id, prompt.text, prompt_embedding
+            prompt.db_connection_id, search_text, prompt_embedding
         )
 
         return relevant_context

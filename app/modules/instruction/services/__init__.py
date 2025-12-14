@@ -61,10 +61,12 @@ class InstructionService:
         }
         default_instructions = self.repository.find_by(default_filter)
 
+        # Use search_text (original query) for Typesense searches
+        search_text = prompt.get_search_text()
         embedding_model = EmbeddingModel().get_model()
-        prompt_embedding = embedding_model.embed_query(prompt.text)
+        prompt_embedding = embedding_model.embed_query(search_text)
         relevant_instructions = self.repository.find_by_relevance(
-            prompt.db_connection_id, prompt.text, prompt_embedding
+            prompt.db_connection_id, search_text, prompt_embedding
         )
 
         instructions = default_instructions + relevant_instructions

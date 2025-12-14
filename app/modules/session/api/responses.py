@@ -1,6 +1,6 @@
 """Session API response models."""
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime
 
 
@@ -19,6 +19,7 @@ class SessionResponse(BaseModel):
     """Response model for session details."""
     id: str
     db_connection_id: str
+    language: Literal["id", "en"] = "id"
     status: str
     messages: List[MessageResponse] = Field(default_factory=list)
     summary: Optional[str] = None
@@ -32,6 +33,7 @@ class SessionResponse(BaseModel):
         return cls(
             id=session.id,
             db_connection_id=session.db_connection_id,
+            language=session.language,
             status=session.status.value,
             messages=[
                 MessageResponse(

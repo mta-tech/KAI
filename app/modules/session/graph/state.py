@@ -24,6 +24,7 @@ class SessionState(TypedDict):
     # Session identification
     session_id: str
     db_connection_id: str
+    language: Literal["id", "en"]  # Response language
 
     # Conversation history (use Annotated to accumulate messages across nodes)
     messages: Annotated[list[MessageDict], add]
@@ -49,6 +50,7 @@ class SessionState(TypedDict):
 def create_initial_state(
     session_id: str,
     db_connection_id: str,
+    language: Literal["id", "en"] = "id",
     metadata: dict | None = None
 ) -> SessionState:
     """
@@ -57,6 +59,7 @@ def create_initial_state(
     Args:
         session_id: Unique session identifier
         db_connection_id: Database connection to use for queries
+        language: Response language ('id' for Indonesian, 'en' for English)
         metadata: Optional custom metadata
 
     Returns:
@@ -65,6 +68,7 @@ def create_initial_state(
     return SessionState(
         session_id=session_id,
         db_connection_id=db_connection_id,
+        language=language,
         messages=[],
         summary=None,
         current_query=None,
