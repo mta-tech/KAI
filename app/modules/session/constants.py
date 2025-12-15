@@ -16,6 +16,7 @@ def get_status_messages(language: str = "id") -> dict[str, str]:
             "route_query": "Menganalisis pertanyaan Anda...",
             "process_query": "Memproses pertanyaan Anda...",
             "reasoning_only": "Memikirkan pertanyaan Anda...",
+            "code_execution": "Menjalankan analisis dengan kode Python...",
             "generate_sql": "Membuat kueri SQL...",
             "execute_sql": "Menjalankan kueri...",
             "generate_analysis": "Menghasilkan wawasan...",
@@ -29,6 +30,7 @@ def get_status_messages(language: str = "id") -> dict[str, str]:
             "route_query": "Analyzing your question...",
             "process_query": "Processing your question...",
             "reasoning_only": "Thinking about your question...",
+            "code_execution": "Executing analysis with Python code...",
             "generate_sql": "Generating SQL query...",
             "execute_sql": "Running query...",
             "generate_analysis": "Generating insights...",
@@ -66,6 +68,12 @@ def get_thinking_traces(language: str = "id") -> dict[str, list[str]]:
                 "Menjawab dari konteks percakapan sebelumnya",
                 "Tidak memerlukan kueri database",
             ],
+            "code_execution": [
+                "Mendeteksi kebutuhan analisis lanjutan (ML, statistik, forecasting)",
+                "Mengalihkan ke autonomous agent untuk eksekusi kode Python",
+                "Menjalankan model machine learning atau analisis statistik",
+                "Menghasilkan wawasan dan visualisasi dari kode",
+            ],
         }
     else:
         return {
@@ -85,6 +93,12 @@ def get_thinking_traces(language: str = "id") -> dict[str, list[str]]:
             "reasoning_only": [
                 "Answering from previous conversation context",
                 "No database query needed",
+            ],
+            "code_execution": [
+                "Detecting need for advanced analysis (ML, statistics, forecasting)",
+                "Routing to autonomous agent for Python code execution",
+                "Running machine learning models or statistical analysis",
+                "Generating insights and visualizations from code",
             ],
         }
 

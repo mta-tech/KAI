@@ -5,14 +5,21 @@ from app.data.db import TypeSenseDB
 
 # Typesense has a 4000 character limit for query strings
 MAX_TYPESENSE_QUERY_LENGTH = 3900
+# Max length for individual filter values to stay under query limit
+MAX_FILTER_VALUE_LENGTH = 500
 
 
 class Storage(TypeSenseDB):
     def __init__(self, setting) -> None:
         super().__init__(setting)
 
-    def _escape_filter_value(self, value) -> str:
-        """Escape filter values for Typesense - wrap strings in backticks."""
+    def _escape_filter_value(self, value, truncate: bool = True) -> str:
+        """Escape filter values for Typesense - wrap strings in backticks.
+
+        Args:
+            value: The value to escape
+            truncate: If True, truncate long strings to avoid 4000 char limit
+        """
         if isinstance(value, bool):
             # Booleans must be lowercase true/false without quotes
             return "true" if value else "false"
@@ -20,6 +27,9 @@ class Storage(TypeSenseDB):
             # Check if it's a string representation of a boolean
             if value.lower() in ("true", "false"):
                 return value.lower()
+            # Truncate long strings to avoid Typesense 4000 char limit
+            if truncate and len(value) > MAX_FILTER_VALUE_LENGTH:
+                value = value[:MAX_FILTER_VALUE_LENGTH]
             # Escape backticks within the value and wrap in backticks
             escaped = value.replace('`', '\\`')
             return f"`{escaped}`"

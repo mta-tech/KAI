@@ -67,7 +67,7 @@ class ChartGenerationAgent:
         # Create agent with structured output
         agent: Agent[None, ChartWidget] = Agent(
             model,
-            result_type=ChartWidget,
+            output_type=ChartWidget,
             system_prompt=get_generation_system_prompt(chart_type, language),
         )
 
@@ -77,7 +77,7 @@ class ChartGenerationAgent:
         try:
             # Run the agent
             result = await agent.run(prompt)
-            widget = result.data
+            widget = result.output
 
             # Ensure widget_type matches requested type
             widget.widget_type = chart_type
@@ -139,7 +139,7 @@ class ChartRecommendationAgent:
         # Create agent with structured output
         agent: Agent[None, ChartRecommendation] = Agent(
             model,
-            result_type=ChartRecommendation,
+            output_type=ChartRecommendation,
             system_prompt=get_recommendation_system_prompt(language),
         )
 
@@ -149,7 +149,7 @@ class ChartRecommendationAgent:
         try:
             # Run the agent
             result = await agent.run(prompt)
-            return result.data
+            return result.output
 
         except Exception as e:
             logger.error(f"Chart recommendation failed: {e}")

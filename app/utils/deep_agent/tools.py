@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, List
+from typing import Any, Callable, List
+
+from langchain_core.tools import StructuredTool
 
 from app.agents.types import ToolSpec
 from app.modules.table_description.models import TableDescription
@@ -28,6 +30,8 @@ from app.utils.sql_tools.mdl_semantic_lookup import (
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.modules.mdl.models import MDLManifest
+    from app.modules.database_connection.models import DatabaseConnection
+    from app.data.db.storage import Storage
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +54,16 @@ class KaiToolContext:
     sql_generation_id: str | None = None
     result_dir: str | None = None
     mdl_manifest: "MDLManifest | None" = None  # Semantic layer manifest
+
+    # Extended fields for kai-agent tool parity
+    db_connection: "DatabaseConnection | None" = None  # Full connection object for factory tools
+    db_connection_id: str | None = None  # Connection ID for context store tools
+    storage: "Storage | None" = None  # Storage instance for repository access
+
+    # Feature flags for selective tool enablement
+    enable_memory_tools: bool = True
+    enable_skill_tools: bool = True
+    enable_verified_sql_tools: bool = True
 
 
 def build_tool_specs(ctx: KaiToolContext) -> List[ToolSpec]:
@@ -177,5 +191,147 @@ def build_tool_specs(ctx: KaiToolContext) -> List[ToolSpec]:
             f"MDL semantic tool enabled with {len(ctx.mdl_manifest.models)} models, "
             f"{len(ctx.mdl_manifest.relationships)} relationships"
         )
+
+    # =========================================================================
+    # KAI-AGENT TOOL PARITY
+    # Additional tools imported from kai-agent CLI for session endpoint
+    # =========================================================================
+
+    def _wrap_factory_tool(factory_callable: Callable, name: str, description: str) -> StructuredTool:
+        """Wrap a kai-agent factory callable as a LangChain StructuredTool.
+
+        Factory tools return JSON strings, so we wrap them for ToolSpec compatibility.
+        """
+        return StructuredTool.from_function(
+            func=factory_callable,
+            name=name,
+            description=description,
+        )
+
+    # Verified SQL (Context Store) Tools
+    if ctx.enable_verified_sql_tools and ctx.storage and ctx.db_connection_id:
+        from app.modules.autonomous_agent.tools.context_store_tools import (
+            create_lookup_verified_sql_tool,
+            create_save_verified_sql_tool,
+            create_search_verified_queries_tool,
+        )
+
+        # Create factory callables
+        lookup_verified_sql_fn = create_lookup_verified_sql_tool(ctx.db_connection_id, ctx.storage)
+        save_verified_sql_fn = create_save_verified_sql_tool(ctx.db_connection_id, ctx.storage)
+        search_verified_queries_fn = create_search_verified_queries_tool(ctx.db_connection_id, ctx.storage)
+
+        _register(
+            "lookup_verified_sql",
+            lambda: _wrap_factory_tool(
+                lookup_verified_sql_fn,
+                "lookup_verified_sql",
+                "Check if a question has a verified SQL query. Use BEFORE generating SQL to reuse proven queries."
+            ),
+            "Check if a question has a verified SQL query. Use BEFORE generating SQL to reuse proven queries.",
+        )
+        _register(
+            "save_verified_sql",
+            lambda: _wrap_factory_tool(
+                save_verified_sql_fn,
+                "save_verified_sql",
+                "Save a verified SQL query for future reuse after confirming it works correctly."
+            ),
+            "Save a verified SQL query for future reuse after confirming it works correctly.",
+        )
+        _register(
+            "search_verified_queries",
+            lambda: _wrap_factory_tool(
+                search_verified_queries_fn,
+                "search_verified_queries",
+                "Search for similar verified SQL queries by semantic similarity."
+            ),
+            "Search for similar verified SQL queries by semantic similarity.",
+        )
+        logger.info("Verified SQL (context store) tools enabled")
+
+    # Memory Tools
+    if ctx.enable_memory_tools and ctx.db_connection and ctx.storage:
+        from app.modules.autonomous_agent.tools.memory_tools import (
+            create_remember_tool,
+            create_recall_tool,
+            create_recall_for_question_tool,
+        )
+
+        # Create factory callables with captured context
+        remember_fn = create_remember_tool(ctx.db_connection, ctx.storage)
+        recall_fn = create_recall_tool(ctx.db_connection, ctx.storage)
+        recall_for_question_fn = create_recall_for_question_tool(ctx.db_connection, ctx.storage)
+
+        _register(
+            "remember",
+            lambda: _wrap_factory_tool(
+                remember_fn,
+                "remember",
+                "Store important information in long-term memory for future reference across conversations."
+            ),
+            "Store important information in long-term memory for future reference across conversations.",
+        )
+        _register(
+            "recall",
+            lambda: _wrap_factory_tool(
+                recall_fn,
+                "recall",
+                "Search long-term memory for relevant information about preferences, facts, or corrections."
+            ),
+            "Search long-term memory for relevant information about preferences, facts, or corrections.",
+        )
+        _register(
+            "recall_for_question",
+            lambda: _wrap_factory_tool(
+                recall_for_question_fn,
+                "recall_for_question",
+                "Automatically recall memories relevant to a user's question. Call at START of analysis."
+            ),
+            "Automatically recall memories relevant to a user's question. Call at START of analysis.",
+        )
+        logger.info("Memory tools enabled")
+
+    # Skill Tools
+    if ctx.enable_skill_tools and ctx.db_connection and ctx.storage:
+        from app.modules.autonomous_agent.tools.skill_tools import (
+            create_list_skills_tool,
+            create_load_skill_tool,
+            create_find_skills_for_question_tool,
+        )
+
+        # Create factory callables with captured context
+        list_skills_fn = create_list_skills_tool(ctx.db_connection, ctx.storage)
+        load_skill_fn = create_load_skill_tool(ctx.db_connection, ctx.storage)
+        find_skills_for_question_fn = create_find_skills_for_question_tool(ctx.db_connection, ctx.storage)
+
+        _register(
+            "list_skills",
+            lambda: _wrap_factory_tool(
+                list_skills_fn,
+                "list_skills",
+                "List all available analysis skills for the current database connection."
+            ),
+            "List all available analysis skills for the current database connection.",
+        )
+        _register(
+            "load_skill",
+            lambda: _wrap_factory_tool(
+                load_skill_fn,
+                "load_skill",
+                "Load a skill's full instructions by its skill_id to get detailed analysis guidance."
+            ),
+            "Load a skill's full instructions by its skill_id to get detailed analysis guidance.",
+        )
+        _register(
+            "find_skills_for_question",
+            lambda: _wrap_factory_tool(
+                find_skills_for_question_fn,
+                "find_skills_for_question",
+                "Find skills that might help answer a user's question. Call for complex analysis questions."
+            ),
+            "Find skills that might help answer a user's question. Call for complex analysis questions.",
+        )
+        logger.info("Skill tools enabled")
 
     return tool_specs

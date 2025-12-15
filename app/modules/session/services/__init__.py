@@ -2,7 +2,21 @@
 import json
 import logging
 import traceback
+from decimal import Decimal
+from datetime import datetime, date
 from typing import AsyncGenerator, Any, Optional
+
+
+class ExtendedJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles Decimal and datetime types."""
+
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            # Convert Decimal to float for JSON serialization
+            return float(obj)
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        return super().default(obj)
 
 from app.modules.session.repositories import SessionRepository
 from app.modules.session.models import Session, SessionStatus
@@ -281,7 +295,7 @@ class SessionService:
 
             # Only process output from specific nodes to avoid duplicates
             # (LangGraph final state also has these keys but we don't want to emit twice)
-            valid_nodes = {"process_query", "reasoning_only"}
+            valid_nodes = {"process_query", "reasoning_only", "code_execution"}
             if node not in valid_nodes:
                 return events
 
@@ -336,13 +350,60 @@ class SessionService:
                             metadata["sql"] = output["current_sql"]
                         if analysis.get("insights"):
                             metadata["insights"] = analysis["insights"]
-                        if analysis.get("chart_recommendations"):
-                            metadata["chart_recommendations"] = analysis["chart_recommendations"]
+
+                        # Build proper chart widgets from recommendations + data
+                        result_data = output.get("current_results", [])[:100]
+                        chart_recs = analysis.get("chart_recommendations", [])
+
+                        if chart_recs and result_data:
+                            from app.modules.analysis.chart_builder import build_chart_widgets
+                            # Convert Pydantic models to dicts if needed
+                            chart_rec_dicts = [
+                                r.model_dump() if hasattr(r, 'model_dump') else r
+                                for r in chart_recs
+                            ]
+                            chart_widgets = build_chart_widgets(result_data, chart_rec_dicts)
+                            if chart_widgets:
+                                metadata["chart_widgets"] = chart_widgets
+                            # Also keep raw recommendations for backward compatibility
+                            metadata["chart_recommendations"] = chart_rec_dicts
+
                         # Include result data for chartviz (limited to 100 rows)
-                        if output.get("current_results"):
-                            metadata["result_data"] = output["current_results"][:100]
+                        if result_data:
+                            metadata["result_data"] = result_data
+
                         if metadata:
                             events.append(self._format_sse("metadata", metadata))
+
+                    # Handle code_execution specific output
+                    if analysis.get("code_execution"):
+                        # Emit status indicating code execution was used
+                        code_exec_msg = "Analisis dengan eksekusi kode Python selesai" if language == "id" else "Code execution analysis completed"
+                        events.append(self._format_sse("status", {
+                            "step": "code_execution",
+                            "message": code_exec_msg
+                        }))
+
+                        # Emit artifacts if present
+                        if analysis.get("artifacts"):
+                            events.append(self._format_sse("artifacts", {
+                                "items": analysis["artifacts"]
+                            }))
+
+                        # Emit suggested questions if present
+                        if analysis.get("suggested_questions"):
+                            events.append(self._format_sse("suggested_questions", {
+                                "questions": analysis["suggested_questions"]
+                            }))
+
+                        # Add code execution metadata
+                        code_metadata = {
+                            "execution_mode": output.get("metadata", {}).get("execution_mode", "autonomous_agent"),
+                            "task_id": output.get("metadata", {}).get("task_id"),
+                            "artifacts": analysis.get("artifacts", []),
+                            "suggested_questions": analysis.get("suggested_questions", []),
+                        }
+                        events.append(self._format_sse("metadata", code_metadata))
 
                     # Error event if present
                     if analysis.get("error"):
@@ -363,7 +424,7 @@ class SessionService:
         Returns:
             SSE formatted string
         """
-        return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+        return f"event: {event_type}\ndata: {json.dumps(data, cls=ExtendedJSONEncoder)}\n\n"
 
 
 __all__ = ["SessionService"]

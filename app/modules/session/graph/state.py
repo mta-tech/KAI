@@ -37,7 +37,7 @@ class SessionState(TypedDict):
     current_analysis: dict | None
 
     # Query routing
-    query_intent: Literal["database_query", "reasoning_only"] | None
+    query_intent: Literal["database_query", "reasoning_only", "code_execution"] | None
 
     # Status tracking
     status: Literal["idle", "processing", "error", "closed"]

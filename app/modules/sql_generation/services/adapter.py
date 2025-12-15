@@ -40,6 +40,13 @@ USE_LANGGRAPH_AGENTS = os.getenv("USE_LANGGRAPH_AGENTS", "false").lower() == "tr
 class DeepAgentSQLGeneratorProxy(SQLGenerator):
     """SQLGenerator-compatible wrapper around the Deep Agent runtime."""
 
+    # Maximum retries when sensitive keywords are detected
+    MAX_SENSITIVE_KEYWORD_RETRIES = 2
+
+    # Sensitive keywords that should trigger retry instead of error
+    SENSITIVE_KEYWORDS = ["CREATE", "DROP", "DELETE", "UPDATE", "INSERT", "GRANT",
+                          "REVOKE", "ALTER", "TRUNCATE", "MERGE", "EXECUTE"]
+
     def __init__(
         self,
         llm_config: LLMConfig,
@@ -321,6 +328,45 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
 
         return final_event, artifact_log
 
+    def _detect_sensitive_keyword_error(self, response: SQLGeneration) -> str | None:
+        """Detect if the error is caused by a sensitive SQL keyword.
+
+        Returns the detected keyword if found, None otherwise.
+        """
+        if response.status != "INVALID" or not response.error:
+            return None
+
+        error_lower = response.error.lower()
+        if "sensitive sql keyword" not in error_lower:
+            return None
+
+        # Extract the keyword from the error message
+        for keyword in self.SENSITIVE_KEYWORDS:
+            if keyword.lower() in error_lower:
+                return keyword
+
+        return "UNKNOWN"
+
+    def _create_retry_prompt_with_fix_instruction(
+        self,
+        original_prompt: str,
+        detected_keyword: str,
+        retry_count: int,
+    ) -> str:
+        """Create a modified prompt instructing the agent to avoid sensitive keywords."""
+        fix_instruction = f"""
+
+IMPORTANT CORRECTION (Attempt {retry_count + 1}):
+Your previous SQL query contained the '{detected_keyword}' keyword which is not allowed.
+Only SELECT queries are permitted. Do NOT use {detected_keyword}, CREATE, DROP, DELETE, UPDATE, INSERT, or any DDL/DML statements.
+
+If the user is asking about available tables, columns, or metrics, use a SELECT query to retrieve this information from the database schema/information_schema, or provide the information based on the schema context you already have.
+
+Please generate a valid SELECT query to answer the original question.
+
+Original question: {original_prompt}"""
+        return fix_instruction
+
     def generate_response(
         self,
         user_prompt,
@@ -328,34 +374,89 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
         context: list[dict] | None = None,
         metadata: dict | None = None,
     ) -> SQLGeneration:
-        try:
-            result = self._invoke_agent(user_prompt, metadata, context)
-        except DeepAgentRuntimeUnavailable as exc:  # pragma: no cover - env guard
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except Exception as exc:  # pragma: no cover - future logging
-            logger.exception("Deep Agent invocation failed")
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        retry_count = 0
+        last_response = None
+        original_text = user_prompt.text
 
-        # Extract SQL from the final message
-        sql_text = self._extract_sql_from_result(result)
+        while retry_count <= self.MAX_SENSITIVE_KEYWORD_RETRIES:
+            try:
+                # Modify prompt if this is a retry
+                if retry_count > 0 and last_response:
+                    detected_keyword = self._detect_sensitive_keyword_error(last_response)
+                    user_prompt.text = self._create_retry_prompt_with_fix_instruction(
+                        original_text, detected_keyword or "CREATE", retry_count
+                    )
+                    logger.info(f"[DEEPAGENT] Retry {retry_count}: Reinvoking agent with fix instruction for '{detected_keyword}'")
 
-        response = SQLGeneration(
-            prompt_id=user_prompt.id,
-            llm_config=self.llm_config,
-            sql=sql_text,
-            metadata={
-                "runtime": "native_deep_agent",
-                "runtime_details": {
-                    "message_count": len(result.get("messages", [])),
+                result = self._invoke_agent(user_prompt, metadata, context)
+            except DeepAgentRuntimeUnavailable as exc:  # pragma: no cover - env guard
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
+            except Exception as exc:  # pragma: no cover - future logging
+                logger.exception("Deep Agent invocation failed")
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+            # Extract SQL from the final message
+            sql_text = self._extract_sql_from_result(result)
+
+            # If no SQL found, extract clarifying message from the agent
+            clarifying_message = None
+            if not sql_text:
+                clarifying_message = self._extract_clarifying_message(result)
+
+            response = SQLGeneration(
+                prompt_id=user_prompt.id,
+                llm_config=self.llm_config,
+                sql=sql_text,
+                metadata={
+                    "runtime": "native_deep_agent",
+                    "runtime_details": {
+                        "message_count": len(result.get("messages", [])),
+                        "retry_count": retry_count,
+                    },
                 },
-            },
-        )
-        response = self.create_sql_query_status(
-            db=self.database,
-            query=response.sql or "",
-            sql_generation=response,
-        )
-        return response
+            )
+
+            # Add clarifying message to metadata if present
+            if clarifying_message:
+                response.metadata["clarifying_message"] = clarifying_message
+                logger.info(f"[DEEPAGENT] Added clarifying message to response metadata")
+
+            # Validate the SQL query
+            response = self.create_sql_query_status(
+                db=self.database,
+                query=response.sql or "",
+                sql_generation=response,
+            )
+
+            # Check if we need to retry due to sensitive keyword
+            detected_keyword = self._detect_sensitive_keyword_error(response)
+            if detected_keyword and retry_count < self.MAX_SENSITIVE_KEYWORD_RETRIES:
+                logger.warning(
+                    f"[DEEPAGENT] Sensitive keyword '{detected_keyword}' detected in SQL. "
+                    f"Retrying ({retry_count + 1}/{self.MAX_SENSITIVE_KEYWORD_RETRIES})..."
+                )
+                last_response = response
+                retry_count += 1
+                # Restore original prompt text for next iteration
+                user_prompt.text = original_text
+                continue
+
+            # Success or max retries reached
+            if retry_count > 0:
+                response.metadata["retry_info"] = {
+                    "total_retries": retry_count,
+                    "reason": "sensitive_keyword_detected",
+                }
+                if response.status == "VALID":
+                    logger.info(f"[DEEPAGENT] Successfully generated valid SQL after {retry_count} retries")
+
+            # Restore original prompt text before returning
+            user_prompt.text = original_text
+            return response
+
+        # This shouldn't be reached, but just in case
+        user_prompt.text = original_text
+        return last_response or response
 
     def _extract_sql_from_result(self, result: dict) -> str:
         """Extract SQL from the Deep Agent result."""
@@ -457,6 +558,58 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
         logger.warning(f"[DEEPAGENT] No SQL found in any messages!")
         return ""
 
+    def _extract_clarifying_message(self, result: dict) -> str | None:
+        """Extract clarifying message from the last AI message when no SQL was generated.
+
+        This is used when the agent needs more information or cannot generate SQL.
+        """
+        from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
+        messages = result.get("messages", [])
+        logger.info(f"[DEEPAGENT] _extract_clarifying_message: {len(messages)} messages to check")
+
+        if not messages:
+            logger.warning("[DEEPAGENT] No messages in result to extract clarifying message from")
+            return None
+
+        # Log message types for debugging
+        for i, msg in enumerate(messages):
+            msg_type = type(msg).__name__
+            content = getattr(msg, 'content', None)
+            has_tool_calls = hasattr(msg, 'tool_calls') and msg.tool_calls
+            logger.info(f"[DEEPAGENT] Message {i}: type={msg_type}, content_len={len(content) if content else 0}, has_tool_calls={has_tool_calls}")
+
+        # Look for the last AI message that contains actual content (not tool calls)
+        for msg in reversed(messages):
+            if isinstance(msg, AIMessage):
+                content = msg.content if hasattr(msg, 'content') else None
+                if content and isinstance(content, str) and content.strip():
+                    # Skip if it looks like it contains SQL (shouldn't happen, but safety check)
+                    content_upper = content.upper()
+                    if any(kw in content_upper for kw in ['SELECT ', 'WITH ', 'INSERT ', 'UPDATE ', 'DELETE ']):
+                        logger.info(f"[DEEPAGENT] Skipping message with SQL keywords")
+                        continue
+
+                    logger.info(f"[DEEPAGENT] Extracted clarifying message from AIMessage: {content[:200]}...")
+                    return content.strip()
+
+        # Fallback: Look for tool message results that might contain useful info
+        # (e.g., schema information that the agent retrieved but couldn't turn into SQL)
+        for msg in reversed(messages):
+            if isinstance(msg, ToolMessage):
+                tool_name = getattr(msg, 'name', '')
+                # Don't use tool results that are just schema dumps
+                if tool_name in ['get_schema', 'get_table_schema', 'list_tables']:
+                    continue
+                content = msg.content if hasattr(msg, 'content') else None
+                if content and isinstance(content, str) and len(content) < 500:
+                    logger.info(f"[DEEPAGENT] Using tool message as clarifying info: {content[:200]}...")
+                    # Don't return tool results directly, just note we found something
+                    break
+
+        logger.warning("[DEEPAGENT] No clarifying message found in messages")
+        return None
+
     def stream_response(
         self,
         user_prompt,
@@ -466,6 +619,11 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
         metadata: dict | None = None,
     ):
         artifact_log: list = []
+        clarifying_message = None
+        final_event = None
+        retry_count = 0
+        original_text = user_prompt.text
+
         try:
             final_event, artifact_log = self._stream_agent(
                 user_prompt=user_prompt,
@@ -475,6 +633,10 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
             )
             # Extract SQL from final event
             response.sql = self._extract_sql_from_result(final_event)
+
+            # If no SQL found, extract clarifying message
+            if not response.sql and final_event:
+                clarifying_message = self._extract_clarifying_message(final_event)
         except AttributeError:
             queue.put("Deep Agent runtime missing streaming support; falling back to sync execution.\n")
             final_response = self.generate_response(
@@ -483,17 +645,64 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
                 metadata=metadata,
             )
             response.sql = final_response.sql
+            # Copy clarifying message from sync response if present
+            if final_response.metadata and final_response.metadata.get("clarifying_message"):
+                clarifying_message = final_response.metadata["clarifying_message"]
+            # Copy retry info if present
+            if final_response.metadata and final_response.metadata.get("retry_info"):
+                response.metadata = response.metadata or {}
+                response.metadata["retry_info"] = final_response.metadata["retry_info"]
+            queue.put(None)
+            return final_response
         finally:
             queue.put(None)
+
         response.metadata = response.metadata or {}
         response.metadata["runtime"] = "native_deep_agent"
         runtime_details = response.metadata.setdefault("runtime_details", {})
         runtime_details["artifacts"] = artifact_log
+
+        # Add clarifying message to metadata if present
+        if clarifying_message:
+            response.metadata["clarifying_message"] = clarifying_message
+            logger.info(f"[DEEPAGENT] Added clarifying message to stream response metadata")
+
+        # Validate the SQL query
         response = self.create_sql_query_status(
             db=self.database,
             query=response.sql or "",
             sql_generation=response,
         )
+
+        # Check if we need to retry due to sensitive keyword
+        detected_keyword = self._detect_sensitive_keyword_error(response)
+        if detected_keyword and retry_count < self.MAX_SENSITIVE_KEYWORD_RETRIES:
+            logger.warning(
+                f"[DEEPAGENT] Sensitive keyword '{detected_keyword}' detected in streamed SQL. "
+                f"Falling back to sync retry..."
+            )
+            # For streaming, we fall back to sync generate_response which handles retries
+            user_prompt.text = self._create_retry_prompt_with_fix_instruction(
+                original_text, detected_keyword, 1
+            )
+            try:
+                retry_response = self.generate_response(
+                    user_prompt=user_prompt,
+                    database_connection=database_connection,
+                    metadata=metadata,
+                )
+                # Restore original prompt text
+                user_prompt.text = original_text
+                # Merge retry info
+                if retry_response.status == "VALID":
+                    logger.info(f"[DEEPAGENT] Successfully generated valid SQL after stream retry")
+                return retry_response
+            except Exception as e:
+                logger.exception(f"[DEEPAGENT] Retry after stream failed: {e}")
+                user_prompt.text = original_text
+                # Return original invalid response
+                return response
+
         return response
 
 

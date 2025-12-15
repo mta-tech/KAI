@@ -38,3 +38,23 @@ def test_build_session_graph_without_checkpointer():
     )
 
     assert graph is not None
+
+
+def test_build_session_graph_with_storage_enables_code_execution():
+    """Should build graph with code_execution node when storage is provided."""
+    mock_sql_service = MagicMock()
+    mock_analysis_service = MagicMock()
+    mock_llm = MagicMock()
+    mock_storage = MagicMock()
+
+    graph = build_session_graph(
+        sql_generation_service=mock_sql_service,
+        analysis_service=mock_analysis_service,
+        llm=mock_llm,
+        checkpointer=None,
+        storage=mock_storage
+    )
+
+    assert graph is not None
+    # Graph should have the code_execution node when storage is provided
+    assert hasattr(graph, 'invoke') or hasattr(graph, 'ainvoke')

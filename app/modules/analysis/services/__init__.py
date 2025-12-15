@@ -190,13 +190,49 @@ class AnalysisService:
             # Persist analysis
             analysis = self.repository.insert(analysis)
         else:
-            # Create error analysis
+            # Create error analysis - check for clarifying message from agent
+            sql_gen_metadata = sql_generation.metadata or {}
+            clarifying_message = sql_gen_metadata.get("clarifying_message")
+
+            if clarifying_message:
+                # Use agent's clarifying message (e.g., asking for more info)
+                summary = clarifying_message
+                error_msg = None  # Not an error, just needs clarification
+            else:
+                # Provide a more helpful fallback message based on the error and language
+                error_text = sql_generation.error or "Invalid SQL"
+
+                # Check if it's a "no SQL generated" case vs an actual error
+                if "couldn't generate" in error_text.lower() or "no sql" in error_text.lower():
+                    # The agent couldn't generate SQL - provide helpful guidance
+                    if language == "id":
+                        summary = (
+                            "Maaf, saya tidak dapat memahami pertanyaan Anda dengan baik. "
+                            "Mohon coba ajukan pertanyaan dengan lebih spesifik, misalnya:\n"
+                            "- Sebutkan nama tabel atau metrik yang ingin Anda analisis\n"
+                            "- Berikan konteks waktu (bulan, tahun, periode)\n"
+                            "- Jelaskan data apa yang ingin ditampilkan"
+                        )
+                    else:
+                        summary = (
+                            "Sorry, I couldn't understand your question well. "
+                            "Please try asking more specifically, for example:\n"
+                            "- Mention the table or metric you want to analyze\n"
+                            "- Provide time context (month, year, period)\n"
+                            "- Explain what data you want to display"
+                        )
+                    error_msg = None  # Not a hard error, just needs clarification
+                else:
+                    # Actual error occurred
+                    summary = f"SQL generation failed: {error_text}"
+                    error_msg = error_text
+
             analysis = AnalysisResult(
                 sql_generation_id=sql_generation.id,
                 prompt_id=prompt.id,
                 llm_config=llm_config,
-                summary=f"SQL generation failed: {sql_generation.error or 'Invalid SQL'}",
-                error=sql_generation.error,
+                summary=summary,
+                error=error_msg,
                 completed_at=datetime.now().isoformat(),
             )
             analysis = self.repository.insert(analysis)

@@ -77,6 +77,10 @@ def setup_pydantic_ai_env() -> None:
     if settings.GOOGLE_API_KEY and "GOOGLE_API_KEY" not in os.environ:
         os.environ["GOOGLE_API_KEY"] = settings.GOOGLE_API_KEY
 
+    # Also set GEMINI_API_KEY for Pydantic AI (it expects this for GoogleGLAProvider)
+    if settings.GOOGLE_API_KEY and "GEMINI_API_KEY" not in os.environ:
+        os.environ["GEMINI_API_KEY"] = settings.GOOGLE_API_KEY
+
     # Handle OpenRouter - requires setting base URL
     if settings.OPENROUTER_API_KEY:
         if "OPENAI_API_KEY" not in os.environ:

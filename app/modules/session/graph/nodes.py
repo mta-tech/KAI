@@ -183,21 +183,51 @@ async def route_query_node(
     if is_greeting_or_conversational(query):
         return {"query_intent": "reasoning_only"}
 
-    # If no conversation context, route to database for data queries
-    if not context or not messages:
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Keywords that indicate code execution is needed (ML, statistics, forecasting)
+    code_keywords = [
+        "korelasi", "correlation", "clustering", "cluster", "segmentasi", "segment",
+        "prediksi", "predict", "forecast", "forecasting", "ramalan", "prakiraan",
+        "regresi", "regression", "anomali", "anomaly", "outlier",
+        "statistik", "statistic", "statistical", "machine learning", "ml model",
+        "train", "training", "latih", "klasifikasi", "classification",
+        "python", "script", "kode", "code execution",
+    ]
+
+    query_lower = query.lower()
+    has_code_keyword = any(kw in query_lower for kw in code_keywords)
+    logger.info(f"[ROUTER] Query: {query[:50]}... | Has code keyword: {has_code_keyword}")
+
+    # If query contains code keywords, always use LLM to confirm
+    # Otherwise, for first queries without context, default to database
+    if not has_code_keyword and (not context or not messages):
         return {"query_intent": "database_query"}
 
-    prompt = ROUTER_PROMPT.format(context=context, query=query)
+    # Use LLM to classify the query
+    prompt = ROUTER_PROMPT.format(context=context or "No previous context.", query=query)
 
     try:
         response = await llm.ainvoke(prompt)
         response_text = response.content if hasattr(response, 'content') else str(response)
+        response_upper = response_text.upper()
+        logger.info(f"[ROUTER] LLM response: {response_text[:100]}")
 
-        if "REASONING" in response_text.upper():
+        if "REASONING" in response_upper:
+            logger.info("[ROUTER] Decision: reasoning_only")
             return {"query_intent": "reasoning_only"}
+        elif "CODE" in response_upper:
+            logger.info("[ROUTER] Decision: code_execution")
+            return {"query_intent": "code_execution"}
+        logger.info("[ROUTER] Decision: database_query")
         return {"query_intent": "database_query"}
-    except Exception:
-        # Default to database query on error
+    except Exception as e:
+        logger.error(f"[ROUTER] Error: {e}")
+        # Default to database query on error, but if code keywords detected, try code_execution
+        if has_code_keyword:
+            logger.info("[ROUTER] Fallback decision (code keyword detected): code_execution")
+            return {"query_intent": "code_execution"}
         return {"query_intent": "database_query"}
 
 
@@ -420,6 +450,117 @@ async def process_query_node(
         }
 
 
+async def code_execution_node(
+    state: SessionState,
+    storage: Any
+) -> dict[str, Any]:
+    """
+    Execute code using the autonomous agent for complex analysis.
+
+    This node routes to the autonomous agent service for queries that
+    require Python code execution, machine learning, statistical analysis,
+    or complex data transformations.
+
+    Args:
+        state: Current session state
+        storage: Storage instance for repositories
+
+    Returns:
+        State update with analysis results from autonomous agent
+    """
+    from app.modules.autonomous_agent.service import AutonomousAgentService
+    from app.modules.autonomous_agent.models import AgentTask
+    from app.modules.database_connection.repositories import DatabaseConnectionRepository
+    from app.utils.sql_database.sql_database import SQLDatabase
+    from langgraph.checkpoint.memory import MemorySaver
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    query = state["current_query"]
+    db_connection_id = state["db_connection_id"]
+    session_id = state.get("session_id", str(uuid.uuid4()))
+    language = state.get("language", "id")
+    context = state.get("metadata", {}).get("built_context", "")
+
+    # Get database connection
+    db_repo = DatabaseConnectionRepository(storage)
+    db_connection = db_repo.find_by_id(db_connection_id)
+    if not db_connection:
+        return {
+            "error": f"Database connection {db_connection_id} not found",
+            "status": "error"
+        }
+
+    database = SQLDatabase.get_sql_engine(db_connection, False)
+
+    # Create autonomous agent service with checkpointer
+    checkpointer = MemorySaver()
+    service = AutonomousAgentService(
+        db_connection=db_connection,
+        database=database,
+        checkpointer=checkpointer,
+        storage=storage,
+        language=language,
+    )
+
+    # Build contextualized prompt with conversation history
+    if context:
+        full_prompt = f"Context from previous conversation:\n{context}\n\nCurrent question: {query}"
+    else:
+        full_prompt = query
+
+    # Create task for autonomous agent
+    task = AgentTask(
+        id=f"task_{uuid.uuid4().hex[:8]}",
+        session_id=f"session_{session_id}",
+        prompt=full_prompt,
+        db_connection_id=db_connection_id,
+        mode="full_autonomy",
+    )
+
+    try:
+        logger.info(f"Routing to autonomous agent for code execution: {query[:100]}...")
+        result = await service.execute(task)
+
+        # Transform agent result to session state format
+        return {
+            "current_sql": result.sql_queries[0] if result.sql_queries else None,
+            "current_results": [],  # Results are in artifacts/final_answer
+            "current_analysis": {
+                "summary": result.final_answer,
+                "insights": [
+                    {"category": i.category, "title": i.title, "description": i.description, "importance": i.importance}
+                    for i in result.insights
+                ] if result.insights else [],
+                "chart_recommendations": [
+                    {"chart_type": c.chart_type, "title": c.title, "x_column": c.x_column, "y_column": c.y_column}
+                    for c in result.charts
+                ] if result.charts else [],
+                "code_execution": True,
+                "artifacts": result.artifacts,
+                "suggested_questions": [
+                    {"question": q.question, "category": q.category, "rationale": q.rationale}
+                    for q in result.suggested_questions
+                ] if result.suggested_questions else [],
+            },
+            "metadata": {
+                **state.get("metadata", {}),
+                "results_summary": f"Code execution completed in {result.execution_time_ms}ms",
+                "execution_mode": "autonomous_agent",
+                "task_id": task.id,
+            },
+            "status": "processing" if result.status == "completed" else "error",
+            "error": result.error,
+        }
+    except Exception as e:
+        logger.error(f"Code execution failed: {e}")
+        return {
+            "error": str(e),
+            "status": "error"
+        }
+
+
 async def summarize_node(
     state: SessionState,
     llm: Any
@@ -514,6 +655,7 @@ __all__ = [
     "reasoning_only_node",
     "receive_query_node",
     "process_query_node",
+    "code_execution_node",
     "summarize_node",
     "save_message_node",
 ]

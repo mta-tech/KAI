@@ -226,7 +226,8 @@ class SQLDatabase:
                     and token.normalized in sensitive_keywords
                 ):
                     raise HTTPException(
-                        f"Sensitive SQL keyword '{token.normalized}' detected in the query."
+                        status_code=400,
+                        detail=f"Sensitive SQL keyword '{token.normalized}' detected in the query."
                     )
 
         return command

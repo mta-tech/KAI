@@ -85,11 +85,13 @@ class FastAPI:
         llm = self._get_session_llm()
 
         # Build graph
+        # Pass storage to enable code_execution node for ML/advanced analysis
         graph = build_session_graph(
             sql_generation_service=sql_generation_service,
             analysis_service=analysis_service,
             llm=llm,
-            checkpointer=checkpointer
+            checkpointer=checkpointer,
+            storage=self._storage
         )
 
         # Create and configure service

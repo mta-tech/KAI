@@ -113,8 +113,11 @@ class SQLGenerationService:
         database = SQLDatabase.get_sql_engine(db_connection, False)
 
         # Perform Smart Cache
+        # Use get_search_text() to get the original short query instead of the full
+        # contextualized prompt.text which may include conversation history and exceed
+        # Typesense's 4000 character query limit
         context_store = ContextStoreService(self.storage).retrieve_exact_prompt(
-            prompt.db_connection_id, prompt.text
+            prompt.db_connection_id, prompt.get_search_text()
         )
 
         # Check for aliases in the prompt and add them as context
@@ -313,8 +316,11 @@ class SQLGenerationService:
         database = SQLDatabase.get_sql_engine(db_connection, False)
 
         context_store_service = ContextStoreService(self.storage)
+        # Use get_search_text() to get the original short query instead of the full
+        # contextualized prompt.text which may include conversation history and exceed
+        # Typesense's 4000 character query limit
         context_store = context_store_service.retrieve_exact_prompt(
-            prompt.db_connection_id, prompt.text
+            prompt.db_connection_id, prompt.get_search_text()
         )
 
         relevant_aliases = self.find_aliases_in_prompt(
@@ -841,6 +847,13 @@ class SQLGenerationService:
             tenant_id=tenant_id,
             sql_generation_id=sql_generation_id,
             result_dir=str(base_dir),
+            # Extended fields for kai-agent tool parity
+            db_connection=db_connection,
+            db_connection_id=str(db_connection.id),
+            storage=self.storage,
+            enable_memory_tools=True,
+            enable_skill_tools=True,
+            enable_verified_sql_tools=True,
         )
 
         extra_instructions: list[str] = []
