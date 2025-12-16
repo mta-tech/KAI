@@ -9,7 +9,6 @@ dependencies = [
     "ruff>=0.6.2",
     "pydantic-settings>=2.4.0",
     "SQLAlchemy>=2.0.32",
-    "psycopg2>=2.9.9",
     "uvicorn>=0.30.6",
     "black>=24.8.0",
     "sql-metadata>=2.13.0",
@@ -58,6 +57,7 @@ dependencies = [
     # Note: agentic-learning pins letta-client to a pre-release version
     # Install with: uv pip install agentic-learning --prerelease=allow
     "agentic-learning>=0.4.0",
+    "psycopg2-binary>=2.9.11",
 ]
 
 [project.scripts]
