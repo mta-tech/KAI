@@ -2,9 +2,123 @@
 import json
 import logging
 import os
+import re
 import time
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import AsyncGenerator
+
+
+# =============================================================================
+# Tag-Based Streaming Parser
+# =============================================================================
+
+class StreamContext(Enum):
+    """Current parsing context for tag-based streaming."""
+    NONE = "none"           # Outside any tag
+    THINKING = "thinking"   # Inside <thinking>
+    ANSWER = "answer"       # Inside <answer>
+
+
+@dataclass
+class ParsedToken:
+    """A parsed token with its semantic type."""
+    content: str
+    type: str  # "thinking" or "answer"
+
+
+class TagStreamParser:
+    """State machine for parsing XML-tagged streaming output.
+
+    Parses LLM output with <thinking>...</thinking> and <answer>...</answer> tags
+    to differentiate internal reasoning from user-facing answers.
+
+    Usage:
+        parser = TagStreamParser()
+        for token in stream:
+            for parsed in parser.feed(token):
+                emit(parsed.type, parsed.content)
+        for parsed in parser.flush():
+            emit(parsed.type, parsed.content)
+    """
+
+    def __init__(self):
+        self.context = StreamContext.NONE
+        self.buffer = ""
+
+    def reset(self):
+        """Reset parser state for a new stream."""
+        self.context = StreamContext.NONE
+        self.buffer = ""
+
+    def feed(self, token: str) -> list[ParsedToken]:
+        """Feed a token and return parsed tokens with types.
+
+        Args:
+            token: Raw token from LLM stream
+
+        Returns:
+            List of ParsedToken with content and type ("thinking" or "answer")
+        """
+        self.buffer += token
+        results = []
+
+        while True:
+            if self.context == StreamContext.NONE:
+                # Look for opening tags
+                match = re.search(r'<(thinking|answer)>', self.buffer)
+                if match:
+                    # Emit any untagged content as "thinking" (fallback)
+                    prefix = self.buffer[:match.start()].strip()
+                    if prefix:
+                        results.append(ParsedToken(prefix, "thinking"))
+
+                    tag = match.group(1)
+                    self.context = StreamContext(tag)
+                    self.buffer = self.buffer[match.end():]
+                else:
+                    break  # Wait for more tokens
+
+            else:
+                # Look for closing tag
+                close_tag = f'</{self.context.value}>'
+                if close_tag in self.buffer:
+                    idx = self.buffer.index(close_tag)
+                    content = self.buffer[:idx]
+                    if content:
+                        results.append(ParsedToken(content, self.context.value))
+                    self.buffer = self.buffer[idx + len(close_tag):]
+                    self.context = StreamContext.NONE
+                else:
+                    # Emit buffered content (keep last 20 chars for partial tag detection)
+                    safe_boundary = max(0, len(self.buffer) - 20)
+                    if safe_boundary > 0:
+                        results.append(ParsedToken(self.buffer[:safe_boundary], self.context.value))
+                        self.buffer = self.buffer[safe_boundary:]
+                    break
+
+        return results
+
+    def flush(self) -> list[ParsedToken]:
+        """Call at stream end to emit any remaining buffer.
+
+        Returns:
+            List of remaining ParsedToken
+        """
+        results = []
+        if self.buffer.strip():
+            # Default to thinking if outside tags, otherwise use current context
+            emit_type = self.context.value if self.context != StreamContext.NONE else "thinking"
+            results.append(ParsedToken(self.buffer, emit_type))
+        self.buffer = ""
+        self.context = StreamContext.NONE
+        return results
+
+
+# =============================================================================
+# Autonomous Agent Service
+# =============================================================================
 
 from deepagents import create_deep_agent
 from deepagents.backends import CompositeBackend, StateBackend, FilesystemBackend
@@ -115,6 +229,12 @@ class AutonomousAgentService:
         self._session_messages: list[dict] = []
         self._last_user_prompt: str | None = None
         self._last_assistant_response: str | None = None
+        # Buffer for accumulating response content before cleaning
+        self._response_buffer = ""
+        # Track if we've started emitting the final answer
+        self._in_final_answer = False
+        # Tag-based streaming parser for thinking/answer differentiation
+        self._tag_parser = TagStreamParser()
 
     def _get_session_results_dir(self, session_id: str) -> str:
         """Get results directory for a specific session.
@@ -457,9 +577,11 @@ class AutonomousAgentService:
         """Execute task with streaming updates."""
         start_time = time.time()
 
-        # Clear deduplication cache for new request
+        # Clear deduplication cache and buffers for new request
         self._seen_content_hashes.clear()
         self._last_streamed_content = ""
+        self._response_buffer = ""
+        self._in_final_answer = False
 
         # Create session-specific results directory
         session_results_dir = self._get_session_results_dir(task.session_id)
@@ -576,11 +698,17 @@ class AutonomousAgentService:
                 ):
                     processed = self._process_event(event)
 
-                    # Collect AI responses for memory
-                    if processed.get("type") == "token":
-                        final_answer_parts.append(processed.get("content", ""))
-
-                    yield processed
+                    # Handle both single event (dict) and multiple events (list) returns
+                    if isinstance(processed, list):
+                        for p in processed:
+                            if p.get("type") == "token":
+                                final_answer_parts.append(p.get("content", ""))
+                            yield p
+                    else:
+                        # Collect AI responses for memory
+                        if processed.get("type") == "token":
+                            final_answer_parts.append(processed.get("content", ""))
+                        yield processed
 
             # Reconstruct final answer from streamed tokens
             final_answer = "".join(final_answer_parts)
@@ -664,8 +792,172 @@ class AutonomousAgentService:
             logger.error(f"Failed to save session {session_id}: {e}")
             return False
 
-    def _process_event(self, event: dict) -> dict:
-        """Process LangGraph event for streaming."""
+    # Compiled regex patterns (lazy initialization)
+    _json_block_regex = None
+    _reasoning_regex = None
+    _answer_start_regex = None
+
+    @classmethod
+    def _get_json_block_regex(cls):
+        """Compile JSON block detection regex on first use."""
+        if cls._json_block_regex is None:
+            import re
+            # Match JSON blocks: ```json...``` or raw {...} or [...]
+            cls._json_block_regex = re.compile(
+                r'```json\s*\{[\s\S]*?\}[\s\S]*?```|'  # ```json {...} ```
+                r'```\s*\{[\s\S]*?\}[\s\S]*?```|'      # ``` {...} ```
+                r'\{\s*"[^"]+"\s*:\s*(?:\{|\[|"|\d|true|false|null)[\s\S]*?\}(?=\s|$|\n)|'  # Raw JSON object
+                r'\[\s*\{[\s\S]*?\}\s*\]',  # JSON array
+                re.MULTILINE
+            )
+        return cls._json_block_regex
+
+    @classmethod
+    def _get_reasoning_regex(cls):
+        """Compile reasoning patterns regex on first use."""
+        if cls._reasoning_regex is None:
+            import re
+            patterns = [
+                # Indonesian reasoning patterns
+                r"^(baik|oke|tentu),?\s*(saya akan|mari saya)",
+                r"^saya akan (membantu|mencari|menggunakan|memanggil|memeriksa|menganalisis|mencari tahu|mencoba)",
+                r"^berdasarkan (instruksi|data|hasil|informasi)",
+                r"^pertama[,\s]+(saya|mari)",
+                r"^langkah (pertama|selanjutnya|berikutnya)",
+                r"^untuk menjawab (pertanyaan|ini)",
+                r"^(saya perlu|kita perlu|perlu) (memanggil|menggunakan|memeriksa)",
+                r"(kueri|query) (gagal|berhasil|sebelumnya|utama)",
+                r"^mari (saya|kita) (coba|perbaiki|cek)",
+                r"^(sekarang|selanjutnya),?\s*(saya akan|mari)",
+                r"karena (kueri|kesalahan)",
+                r"mencoba lagi",
+                r"terjadi kesalahan",
+                r"mungkin maksud",
+                r"pesan kesalahan",
+                r"kolom.{0,50}tidak (ada|ditemukan)",
+                # English reasoning patterns
+                r"^(okay|ok|alright),?\s*(let me|i will|i'll)",
+                r"^i (will|need to|should|am going to) (use|call|check|analyze|query|find|try)",
+                r"^based on (the|this|these) (instructions|data|results)",
+                r"^first[,\s]+(let me|i will|i'll)",
+                r"^let me (try|fix|check|call|use|find)",
+                r"(query|sql).{0,30}(failed|error|incorrect)",
+                r"there was an error",
+                r"the error message",
+                r"column.{0,30}(not found|doesn't exist)",
+            ]
+            cls._reasoning_regex = re.compile("|".join(patterns), re.IGNORECASE | re.MULTILINE)
+        return cls._reasoning_regex
+
+    @classmethod
+    def _get_answer_start_regex(cls):
+        """Compile answer start detection regex on first use."""
+        if cls._answer_start_regex is None:
+            import re
+            # Patterns that indicate the start of actual answer content
+            patterns = [
+                r"^total\s+\w+",  # "Total koperasi..."
+                r"^jumlah\s+\w+",  # "Jumlah koperasi..." (Indonesian for count/amount)
+                r"^\d+[\.,]?\d*\s*(koperasi|unit|orang|buah|ribu|juta)",  # Numbers with units
+                r"^(berdasarkan|dari)\s+(data|hasil|analisis)",  # "Based on data/results..."
+                r"^\*\*saran\s+tindak\s+lanjut",  # "**Saran Tindak Lanjut"
+                r"^(berikut|ini)\s+(adalah|hasil)",  # "Here are/These are..."
+                r"^(jawaban|hasil|ringkasan)",  # "Answer/Result/Summary"
+                r"^(terdapat|ada)\s+\d+",  # "Terdapat X..." / "Ada X..."
+                r"^\w+\s+(adalah|berjumlah|sebanyak)\s+\d+",  # "X adalah Y" / "X berjumlah Y"
+            ]
+            cls._answer_start_regex = re.compile("|".join(patterns), re.IGNORECASE | re.MULTILINE)
+        return cls._answer_start_regex
+
+    def _clean_response_buffer(self, content: str) -> str:
+        """Clean response buffer by removing JSON blocks and reasoning patterns.
+
+        Args:
+            content: Raw accumulated content from LLM
+
+        Returns:
+            Cleaned content suitable for user display
+        """
+        if not content:
+            return ""
+
+        import re
+
+        # Step 1: Remove JSON code blocks (```json...```)
+        content = re.sub(r'```json[\s\S]*?```', '', content)
+        content = re.sub(r'```[\s\S]*?```', '', content)
+
+        # Step 2: Remove raw JSON objects that look like tool outputs
+        # Match patterns like { "success": true, ... } or { "todos": [...] }
+        content = re.sub(
+            r'\{\s*"(success|todos|database|instructions|columns|tables|error)"[\s\S]*?\}(?:\s*\})*',
+            '',
+            content
+        )
+
+        # Step 3: Remove reasoning sentences
+        reasoning_regex = self._get_reasoning_regex()
+        lines = content.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped and not reasoning_regex.search(stripped):
+                cleaned_lines.append(line)
+        content = '\n'.join(cleaned_lines)
+
+        # Step 4: Clean up excessive whitespace
+        content = re.sub(r'\n{3,}', '\n\n', content)
+        content = content.strip()
+
+        return content
+
+    def _is_final_answer_content(self, content: str) -> bool:
+        """Check if content appears to be final answer (not reasoning).
+
+        Args:
+            content: Content to check
+
+        Returns:
+            True if this looks like final answer content
+        """
+        if not content or len(content) < 3:
+            return False
+
+        content_stripped = content.strip()
+
+        # If it starts with JSON-like content, it's not final answer
+        if content_stripped.startswith(('{', '[', '```')):
+            return False
+
+        # If it matches reasoning patterns, it's not final answer
+        if self._get_reasoning_regex().search(content_stripped):
+            return False
+
+        # If it matches answer patterns or contains numbers/results, it's likely answer
+        if self._get_answer_start_regex().search(content_stripped):
+            return True
+
+        # If it contains emoji (follow-up suggestions), it's answer
+        if any(ord(c) > 0x1F300 for c in content_stripped):
+            return True
+
+        # If it's a short numeric response, it's answer
+        if any(c.isdigit() for c in content_stripped[:20]):
+            return True
+
+        return False
+
+    def _process_event(self, event: dict) -> dict | list:
+        """Process LangGraph event for streaming.
+
+        Uses tag-based parsing for token content:
+        1. LLM output should be wrapped in <thinking>...</thinking> or <answer>...</answer> tags
+        2. TagStreamParser tracks context and emits typed tokens
+        3. Untagged content defaults to "thinking" for safety
+
+        Returns:
+            dict for single event, list of dicts for multiple events
+        """
         event_type = event.get("event")
 
         if event_type == "on_chat_model_stream":
@@ -675,7 +967,6 @@ class AutonomousAgentService:
                 if content:
                     # Normalize content to string
                     if isinstance(content, list):
-                        # Extract text from list of content blocks
                         text_parts = []
                         for item in content:
                             if isinstance(item, dict) and "text" in item:
@@ -689,48 +980,88 @@ class AutonomousAgentService:
                     if not content:
                         return {"type": "other", "event": "empty_content"}
 
-                    # Detect cumulative content: if new content starts with last content,
-                    # only emit the delta (new part)
+                    # Handle cumulative content (get delta only)
                     if self._last_streamed_content and content.startswith(self._last_streamed_content):
                         delta = content[len(self._last_streamed_content):]
                         if not delta:
                             return {"type": "other", "event": "no_new_content"}
                         self._last_streamed_content = content
-                        return {"type": "token", "content": delta}
+                        content = delta
+                    else:
+                        # Hash deduplication for exact duplicates
+                        content_hash = hash(content)
+                        if content_hash in self._seen_content_hashes:
+                            return {"type": "other", "event": "duplicate_skipped"}
+                        self._seen_content_hashes.add(content_hash)
+                        self._last_streamed_content = content
 
-                    # Not cumulative - use hash deduplication for exact duplicates
-                    content_hash = hash(content)
-                    if content_hash in self._seen_content_hashes:
-                        return {"type": "other", "event": "duplicate_skipped"}
-                    self._seen_content_hashes.add(content_hash)
+                    # Feed token to tag parser
+                    parsed_tokens = self._tag_parser.feed(content)
 
-                    # Track for cumulative detection
-                    self._last_streamed_content = content
-                    return {"type": "token", "content": content}
+                    if parsed_tokens:
+                        results = []
+                        for parsed in parsed_tokens:
+                            if parsed.type == "thinking":
+                                results.append({
+                                    "type": "thinking",
+                                    "content": parsed.content
+                                })
+                            elif parsed.type == "answer":
+                                results.append({
+                                    "type": "token",  # User-visible answer
+                                    "content": parsed.content
+                                })
+                        return results if len(results) > 1 else results[0] if results else {"type": "other", "event": "buffering"}
+
+                    # Parser buffering - no complete tokens yet
+                    return {"type": "other", "event": "buffering"}
+
+        elif event_type == "on_chat_model_end":
+            # Stream ended - flush any remaining buffer content
+            flushed = self._tag_parser.flush()
+            if flushed:
+                results = []
+                for parsed in flushed:
+                    if parsed.type == "thinking":
+                        results.append({"type": "thinking", "content": parsed.content})
+                    elif parsed.type == "answer":
+                        results.append({"type": "token", "content": parsed.content})
+                if results:
+                    return results if len(results) > 1 else results[0]
+
+            return {"type": "other", "event": "chat_model_end"}
 
         elif event_type == "on_tool_start":
-            # Reset cumulative tracking on tool boundaries (context switch)
+            # Flush tag parser before tool call and reset tracking
+            events = []
+            flushed = self._tag_parser.flush()
+            for parsed in flushed:
+                event_type_out = "token" if parsed.type == "answer" else "thinking"
+                events.append({"type": event_type_out, "content": parsed.content})
+
             self._last_streamed_content = ""
+            self._in_final_answer = False
 
             # Check for write_todos to capture todo state
             if event.get("name") == "write_todos":
-                return {
+                events.append({
                     "type": "todo_update",
                     "todos": event.get("data", {}).get("input", {}).get("todos", [])
-                }
+                })
+            else:
+                events.append({
+                    "type": "tool_start",
+                    "tool": event.get("name"),
+                    "input": event.get("data", {}).get("input"),
+                })
 
-            # Capture regular tool starts
-            return {
-                "type": "tool_start",
-                "tool": event.get("name"),
-                "input": event.get("data", {}).get("input"),
-            }
+            return events if len(events) > 1 else events[0] if events else {"type": "other", "event": "tool_start"}
 
         elif event_type == "on_tool_end":
-            # Reset cumulative tracking on tool boundaries (context switch)
+            # Reset tracking on tool boundaries
             self._last_streamed_content = ""
 
-            # Capture full output, let CLI handle display truncation
+            # Capture tool output (not shown in answer, but for tracing)
             output = str(event.get("data", {}).get("output", ""))
             return {
                 "type": "tool_end",

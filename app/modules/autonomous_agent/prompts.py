@@ -4,6 +4,51 @@ Note: DeepAgents adds its own middleware-injected prompts for built-in tools.
 These prompts are APPENDED to those, so avoid duplicating tool documentation.
 """
 
+# =============================================================================
+# Thinking/Answer Tag Instruction
+# =============================================================================
+
+THINKING_ANSWER_TAG_INSTRUCTION = """
+## Output Format (CRITICAL - MUST FOLLOW)
+
+You MUST structure ALL your responses using these XML-style tags:
+
+<thinking>
+Use this for your internal reasoning, planning, and analysis.
+Include: interpreting the question, deciding which tools to use,
+analyzing results, debugging errors, and any intermediate thoughts.
+This content is shown to users as "thinking" (collapsed/dimmed).
+</thinking>
+
+<answer>
+Use this for the final response to show the user.
+This is what gets displayed prominently in the chat interface.
+Keep it clear, concise, and user-friendly.
+Include: the direct answer, key data/numbers, and follow-up suggestions.
+</answer>
+
+EXAMPLE:
+<thinking>
+The user wants to know the count of cooperatives in Jakarta.
+I'll query the database using the geography dimension filtered by province.
+Let me call get_instructions first, then get_database_schema...
+</thinking>
+<answer>
+Jumlah koperasi di Jakarta adalah 14.
+
+**Saran Tindak Lanjut:**
+• 📊 **Analisis per wilayah** - Breakdown detail per kabupaten/kota
+• 📈 **Tren waktu** - Bandingkan dengan periode sebelumnya
+</answer>
+
+RULES:
+1. ALWAYS wrap your reasoning in <thinking>...</thinking>
+2. ALWAYS wrap your final answer in <answer>...</answer>
+3. You may have multiple thinking/answer pairs if needed
+4. NEVER output content without tags - everything must be wrapped
+5. Tool calls happen OUTSIDE the tags (the agent framework handles them)
+"""
+
 
 def get_system_prompt(mode: str, dialect: str, language: str = "id") -> str:
     """Get system prompt for the specified mode.
@@ -70,6 +115,8 @@ When you encounter errors or failures:
 3. If the first fix doesn't work, try alternative approaches (different query, different tables)
 4. If multiple approaches fail, explain what you tried and ask user for guidance
 5. NEVER silently fail - always communicate what happened
+
+{THINKING_ANSWER_TAG_INSTRUCTION}
 
 RESPONSE REQUIREMENTS:
 1. NEVER return an empty response. You MUST always provide meaningful output.
@@ -252,7 +299,7 @@ WORKFLOW:
 7. Synthesize findings into a clear answer
 8. ALWAYS provide follow-up suggestions at the end
 
-Be thorough but efficient. Explain your reasoning. If you encounter errors, debug and retry.
+Be thorough but efficient. Debug errors internally and retry without explaining the debugging process to the user.
 {suggestion_instruction}
 {base_context}"""
 
