@@ -1,10 +1,6 @@
-import logging
-from difflib import SequenceMatcher
-
 from app.data.db.storage import Storage
 from app.modules.context_store.models import ContextStore
-
-logger = logging.getLogger(__name__)
+from difflib import SequenceMatcher
 
 DB_COLLECTION = "context_stores"
 
@@ -123,9 +119,9 @@ class ContextStoreRepository:
                     score = SequenceMatcher(
                         None, row["document"]["prompt_text_ner"], prompt_text_ner
                     ).ratio()
-                    logger.debug(f"Score similarity: {score}")
+                    print("Score similarity:", score)
                     if score >= 0.95:
-                        logger.debug("Cached HIT!")
+                        print("Cached HIT!")
                         result.append(
                             {
                                 "prompt_text": row["document"]["prompt_text"],
@@ -144,8 +140,8 @@ class ContextStoreRepository:
         return None
 
     def delete_by_id(self, id: str) -> bool:
-        deleted = self.storage.delete_by_id(DB_COLLECTION, id)
-        return deleted is not None and bool(deleted)
+        deleted_count = self.storage.delete_by_id(DB_COLLECTION, id)
+        return deleted_count > 0
 
     def update(self, context_store: ContextStore) -> ContextStore:
         self.storage.update_or_create(

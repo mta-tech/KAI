@@ -9,14 +9,12 @@ from app.modules.session.models import Session, SessionStatus
 
 @pytest.fixture
 def mock_storage():
-    """Mock storage with sync methods (repository calls them synchronously)."""
     storage = MagicMock()
-    storage.insert_one = MagicMock(return_value="sess_123")
-    storage.find_by_id = MagicMock(return_value=None)
-    storage.find = MagicMock(return_value=[])
-    storage.update_or_create = MagicMock()
-    storage.delete = MagicMock()
-    storage.delete_by_id = MagicMock()
+    storage.insert_one = AsyncMock(return_value="sess_123")
+    storage.find_by_id = AsyncMock(return_value=None)
+    storage.find = AsyncMock(return_value=[])
+    storage.update_or_create = AsyncMock()
+    storage.delete = AsyncMock()
     return storage
 
 
@@ -93,4 +91,4 @@ async def test_delete_session(repository, mock_storage):
     """Should delete session."""
     await repository.delete("sess_123")
 
-    mock_storage.delete_by_id.assert_called_once()
+    mock_storage.delete.assert_called_once()

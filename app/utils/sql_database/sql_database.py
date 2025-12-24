@@ -12,21 +12,12 @@ from urllib.parse import urlparse
 
 from fastapi import HTTPException
 import sqlparse
-import warnings
-from sqlalchemy import MetaData, create_engine, inspect, text, String
+from sqlalchemy import MetaData, create_engine, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.row import Row
-from sqlalchemy.exc import OperationalError, SAWarning
+from sqlalchemy.exc import OperationalError
 
 from app.modules.database_connection.models import DatabaseConnection
-
-# Suppress warnings for unrecognized PostgreSQL types
-# These types are rarely used in queries and can be treated as strings
-warnings.filterwarnings(
-    "ignore",
-    message=r"Did not recognize type '(aclitem|gtsvector|pg_node_tree|pg_ndistinct|pg_dependencies|pg_mcv_list|xid8|regclass|regtype|regproc|regprocedure|regoper|regoperator|regnamespace|regrole|regcollation|regconfig|regdictionary)'",
-    category=SAWarning,
-)
 from app.utils.core.encrypt import FernetEncrypt
 
 logger = logging.getLogger(__name__)

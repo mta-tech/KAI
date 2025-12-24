@@ -28,10 +28,6 @@ def test_create_database_connection(client):
         json=payload
     )
 
-    # Skip if database is not available (404 means connection failed)
-    if response.status_code == 404:
-        pytest.skip("Database not available for integration test")
-
     # Check the response status code
     assert response.status_code == 201
     # Check if the response contains the 'id'

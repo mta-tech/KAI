@@ -1,9 +1,9 @@
 from uvicorn import run
 
 from app.server import FastAPI
-from app.server.config import get_settings
+from app.server.config import Settings
 
-settings = get_settings()
+settings = Settings()
 server = FastAPI(settings)
 app = server.app()
 
