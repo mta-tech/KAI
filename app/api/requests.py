@@ -47,9 +47,6 @@ class PromptRequest(BaseModel):
     schemas: list[str] | None = None
     context: list[dict] | None = None
     metadata: dict | None = None
-    # Original query text for Typesense searches (without conversation context)
-    # If not set, falls back to 'text'
-    search_text: str | None = None
 
 
 class BusinessGlossaryRequest(BaseModel):

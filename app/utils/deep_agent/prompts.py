@@ -13,14 +13,6 @@ DEFAULT_BEHAVIOR_INSTRUCTIONS = dedent(
     and validate SQL using provided tools. Never perform DML/DDL operations or access
     data outside the tenant namespace provided to you.
 
-    IMPORTANT CONTEXT HANDLING:
-    - If the user's message includes "Context from previous conversation:", this is a follow-up query.
-    - For follow-up queries that reference previous results or ask to modify/filter previous data:
-      1. Look for the previous SQL query in the context (marked as "SQL:")
-      2. Use that SQL as a base and modify it according to the user's new request
-      3. For "remove X" or "exclude X" requests, add WHERE clauses to filter out that data
-      4. For "show other" requests, modify the query to show different aspects of the data
-
     IMPORTANT: When you have completed the SQL generation, you MUST provide the final SQL
     in a markdown code block with the language identifier 'sql'. Format your final answer like this:
 

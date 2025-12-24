@@ -111,7 +111,6 @@ class AnalysisService:
         llm_config: LLMConfig | None = None,
         max_rows: int = 100,
         use_deep_agent: bool = False,
-        language: str = "id",
         metadata: dict | None = None,
     ) -> dict:
         """End-to-end pipeline: Prompt -> SQL Gen -> Execution -> Analysis.
@@ -121,7 +120,6 @@ class AnalysisService:
             llm_config: LLM configuration for SQL generation and analysis
             max_rows: Maximum rows to fetch for analysis
             use_deep_agent: Whether to use the deep agent for SQL generation
-            language: Response language ('id' for Indonesian, 'en' for English)
             metadata: Additional metadata
 
         Returns:
@@ -163,7 +161,6 @@ class AnalysisService:
 
         # Step 3: Execute SQL and analyze
         analysis_start = datetime.now()
-        query_results = []  # Initialize for return
 
         if sql_generation.status == "VALID":
             # Fetch database connection
@@ -184,55 +181,18 @@ class AnalysisService:
                 query_results=query_results,
                 user_prompt=prompt.text,
                 database_connection=db_connection,
-                language=language,
             )
 
             # Persist analysis
             analysis = self.repository.insert(analysis)
         else:
-            # Create error analysis - check for clarifying message from agent
-            sql_gen_metadata = sql_generation.metadata or {}
-            clarifying_message = sql_gen_metadata.get("clarifying_message")
-
-            if clarifying_message:
-                # Use agent's clarifying message (e.g., asking for more info)
-                summary = clarifying_message
-                error_msg = None  # Not an error, just needs clarification
-            else:
-                # Provide a more helpful fallback message based on the error and language
-                error_text = sql_generation.error or "Invalid SQL"
-
-                # Check if it's a "no SQL generated" case vs an actual error
-                if "couldn't generate" in error_text.lower() or "no sql" in error_text.lower():
-                    # The agent couldn't generate SQL - provide helpful guidance
-                    if language == "id":
-                        summary = (
-                            "Maaf, saya tidak dapat memahami pertanyaan Anda dengan baik. "
-                            "Mohon coba ajukan pertanyaan dengan lebih spesifik, misalnya:\n"
-                            "- Sebutkan nama tabel atau metrik yang ingin Anda analisis\n"
-                            "- Berikan konteks waktu (bulan, tahun, periode)\n"
-                            "- Jelaskan data apa yang ingin ditampilkan"
-                        )
-                    else:
-                        summary = (
-                            "Sorry, I couldn't understand your question well. "
-                            "Please try asking more specifically, for example:\n"
-                            "- Mention the table or metric you want to analyze\n"
-                            "- Provide time context (month, year, period)\n"
-                            "- Explain what data you want to display"
-                        )
-                    error_msg = None  # Not a hard error, just needs clarification
-                else:
-                    # Actual error occurred
-                    summary = f"SQL generation failed: {error_text}"
-                    error_msg = error_text
-
+            # Create error analysis
             analysis = AnalysisResult(
                 sql_generation_id=sql_generation.id,
                 prompt_id=prompt.id,
                 llm_config=llm_config,
-                summary=summary,
-                error=error_msg,
+                summary=f"SQL generation failed: {sql_generation.error or 'Invalid SQL'}",
+                error=sql_generation.error,
                 completed_at=datetime.now().isoformat(),
             )
             analysis = self.repository.insert(analysis)
@@ -255,7 +215,6 @@ class AnalysisService:
                 rec.model_dump() if hasattr(rec, "model_dump") else rec
                 for rec in analysis.chart_recommendations
             ],
-            "data": query_results[:100],  # Include result data for chartviz (limited)
             "row_count": analysis.row_count,
             "column_count": analysis.column_count,
             "input_tokens_used": (

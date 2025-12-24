@@ -1,56 +1,6 @@
 """Prompts for comprehensive analysis generation."""
 
-
-def get_language_instruction(language: str) -> str:
-    """Get language-specific instruction for analysis prompts.
-
-    Args:
-        language: Language code ('id' for Indonesian, 'en' for English)
-
-    Returns:
-        Language instruction string
-    """
-    if language == "id":
-        return """BAHASA INDONESIA - PENTING:
-Kamu HARUS memberikan analisis dalam Bahasa Indonesia yang baik dan benar.
-- Semua summary, insights, dan rekomendasi harus dalam Bahasa Indonesia
-- Gunakan istilah bisnis Indonesia yang tepat
-- Format angka menggunakan format Indonesia (titik untuk ribuan: 1.000.000)
-- Gunakan format tanggal Indonesia (DD/MM/YYYY atau DD Bulan YYYY)
-
-Contoh istilah:
-- Revenue → Pendapatan
-- Growth → Pertumbuhan
-- Average → Rata-rata
-- Trend → Tren
-- Analysis → Analisis
-- Insight → Temuan/Wawasan
-- Summary → Ringkasan
-"""
-    else:
-        return """ENGLISH - IMPORTANT:
-You MUST provide analysis in clear, professional English.
-- All summaries, insights, and recommendations must be in English
-- Use standard business terminology
-- Format numbers with commas for thousands (1,000,000)
-- Use standard date formats (YYYY-MM-DD or Month DD, YYYY)
-"""
-
-
-def get_analysis_system_prompt(language: str = "id") -> str:
-    """Get language-aware analysis system prompt.
-
-    Args:
-        language: Language code ('id' for Indonesian, 'en' for English)
-
-    Returns:
-        System prompt string
-    """
-    lang_instruction = get_language_instruction(language)
-
-    return f"""You are an expert data analyst. Your task is to analyze SQL query results and provide comprehensive insights.
-
-{lang_instruction}
+ANALYSIS_SYSTEM_PROMPT = """You are an expert data analyst. Your task is to analyze SQL query results and provide comprehensive insights.
 
 Given a user's question, the SQL query that was executed, and the query results, you must provide:
 
@@ -71,10 +21,6 @@ Given a user's question, the SQL query that was executed, and the query results,
 
 Be specific and actionable. Focus on insights that would be valuable to a business user.
 """
-
-
-# Legacy constant for backward compatibility
-ANALYSIS_SYSTEM_PROMPT = get_analysis_system_prompt("en")
 
 ANALYSIS_USER_TEMPLATE = """## User Question
 {user_prompt}

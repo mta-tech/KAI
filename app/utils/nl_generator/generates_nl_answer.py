@@ -82,10 +82,8 @@ class GeneratesNlAnswer:
                         modified_row[key] = value
                 rows.append(modified_row)
 
-        except HTTPException:
-            raise  # Re-raise HTTPException as-is
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"SQL execution error: {str(e)}") from e
+            raise HTTPException("Sensitive SQL keyword detected in the query.") from e
 
         nl_history = NLHistory.get_nl_history(prompt)
         human_message_prompt = HumanMessagePromptTemplate.from_template(HUMAN_TEMPLATE)

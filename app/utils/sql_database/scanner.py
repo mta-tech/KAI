@@ -16,7 +16,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.api.requests import ScannerRequest
 from app.modules.table_description.models import (
     ColumnDescription,
-    ForeignKeyDetail,
     TableDescription,
     TableDescriptionStatus,
 )
@@ -39,70 +38,19 @@ logger = logging.getLogger(__name__)
 
 
 class PostgreSqlScanner:
-    # PostgreSQL types that don't support DISTINCT/ordering operations
-    UNSUPPORTED_TYPES = {
-        'aclitem', 'pg_node_tree', 'pg_ndistinct', 'pg_dependencies',
-        'pg_mcv_list', 'gtsvector', 'xid8', 'anyarray', 'record',
-    }
-
-    # Numeric types that typically have high cardinality (skip for category extraction)
-    NUMERIC_TYPES = {
-        'integer', 'int', 'int2', 'int4', 'int8', 'smallint', 'bigint',
-        'decimal', 'numeric', 'real', 'float', 'float4', 'float8',
-        'double', 'double precision', 'money', 'serial', 'bigserial',
-        'smallserial', 'number', 'tinyint', 'mediumint',
-    }
-
-    # Types good for categorical values (prioritize these)
-    CATEGORICAL_TYPES = {
-        'varchar', 'character varying', 'char', 'character', 'text',
-        'enum', 'boolean', 'bool', 'uuid', 'status', 'type', 'category',
-    }
-
-    def _quote_identifier(self, identifier: str) -> str:
-        """Quote an identifier to prevent SQL injection."""
-        # Replace any double quotes with escaped double quotes
-        escaped = identifier.replace('"', '""')
-        return f'"{escaped}"'
-
     def cardinality_values(self, column: Column, db_engine: Engine) -> list | None:
-        # Skip columns with types that don't support DISTINCT operations
-        column_type = str(column.type).lower()
-        if any(unsupported in column_type for unsupported in self.UNSUPPORTED_TYPES):
-            logger.debug(f"Skipping cardinality for column '{column.name}' with unsupported type '{column.type}'")
-            return None
-
-        # Skip pure numeric types (they rarely have useful categorical values)
-        # Exception: columns with names suggesting categorical data (e.g., 'status_id', 'type_id')
-        is_likely_categorical_name = any(hint in column.name.lower() for hint in [
-            'status', 'type', 'category', 'state', 'level', 'tier', 'grade',
-            'priority', 'severity', 'role', 'gender', 'country', 'region',
-            'currency', 'language', 'source', 'channel', 'method', 'mode',
-        ])
-
-        if not is_likely_categorical_name:
-            # Check if it's a numeric type without categorical hints
-            base_type = column_type.split('(')[0].strip()
-            if base_type in self.NUMERIC_TYPES:
-                logger.debug(f"Skipping cardinality for numeric column '{column.name}' with type '{column.type}'")
-                return None
-
-        # Quote identifiers to prevent SQL injection
-        quoted_column = self._quote_identifier(column.name)
-        quoted_table = self._quote_identifier(column.table.name)
-
         if str(db_engine.__dict__.get("url")).startswith("sqlite"):
             query = text(
                 f"""
                 WITH ValueCounts AS (
-                    SELECT
-                        {quoted_column} AS value,
-                        COUNT(*) AS freq
-                    FROM {quoted_table}
-                    GROUP BY {quoted_column}
+                    SELECT 
+                        "{column.name}" AS value, 
+                        COUNT(*) AS freq 
+                    FROM {column.table.name}
+                    GROUP BY "{column.name}"
                 )
-                SELECT
-                    (SELECT COUNT(DISTINCT {quoted_column}) FROM {quoted_table}) AS n_distinct,
+                SELECT 
+                    (SELECT COUNT(DISTINCT "{column.name}") FROM {column.table.name}) AS n_distinct,
                     json_group_array(value) AS most_common_vals
                 FROM ValueCounts
                 """
@@ -113,38 +61,33 @@ class PostgreSqlScanner:
                 f"""
                 WITH ValueCounts AS (
                     SELECT
-                        {quoted_column} AS value,
+                        "{column.name}" AS value,
                         COUNT(*) AS freq
-                    FROM {quoted_table}
-                    GROUP BY {quoted_column}
+                    FROM {column.table.name}
+                    GROUP BY "{column.name}"
                 )
                 SELECT
-                    (SELECT COUNT(DISTINCT {quoted_column}) FROM {quoted_table}) AS n_distinct,
+                    (SELECT COUNT(DISTINCT "{column.name}") FROM {column.table.name}) AS n_distinct,
                     json_agg(value) AS most_common_vals
                 FROM ValueCounts
                 """
             )
 
-        try:
-            with db_engine.connect() as connection:
-                result = connection.execute(
-                    query, {"table_name": column.table.name, "column_name": column.name}
-                ).fetchall()
+        with db_engine.connect() as connection:
+            result = connection.execute(
+                query, {"table_name": column.table.name, "column_name": column.name}
+            ).fetchall()
 
-                if len(result) > 0:
-                    distinct_count, most_common_vals = result[0]
-                    if isinstance(most_common_vals, str):
-                        most_common_vals = json.loads(most_common_vals)
-                        most_common_vals = [
-                            str(val) if val is not None else val for val in most_common_vals
-                        ]
+            if len(result) > 0:
+                distinct_count, most_common_vals = result[0]
+                if isinstance(most_common_vals, str):
+                    most_common_vals = json.loads(most_common_vals)
+                    most_common_vals = [
+                        str(val) if val is not None else val for val in most_common_vals
+                    ]
 
-                    if MIN_CATEGORY_VALUE <= distinct_count <= MAX_CATEGORY_VALUE:
-                        return most_common_vals
-        except Exception as e:
-            # Log and skip columns that cause errors (e.g., types without ordering operators)
-            logger.warning(f"Skipping cardinality for column '{column.name}': {str(e)[:100]}")
-            return None
+                if MIN_CATEGORY_VALUE <= distinct_count <= MAX_CATEGORY_VALUE:
+                    return most_common_vals
 
 
 class TableColumnsDescriptionGenerator:
@@ -280,7 +223,7 @@ class TableColumnsDescriptionGenerator:
         self,
         table_descriptions: List[dict],
     ) -> str:
-        logger.info("Generating database description...")
+        print(f"Generate database description...")
         chain = self.create_chain(DATABASE_DESCRIPTION_PROMPT)
 
         text = ""
@@ -409,8 +352,6 @@ class SqlAlchemyScanner:
         db_engine: Engine,
         column: dict,
         scanner_service: PostgreSqlScanner,
-        is_primary_key: bool = False,
-        foreign_key_info: dict | None = None,
     ) -> ColumnDescription:
         meta_table_name = f"{meta.schema}.{table_name}" if meta.schema else table_name
         dynamic_meta_table = meta.tables[meta_table_name]
@@ -425,22 +366,11 @@ class SqlAlchemyScanner:
         # Check if the column is empty
         if not field_size:
             field_size = [""]
-
-        # Build foreign key detail if present
-        fk_detail = None
-        if foreign_key_info:
-            fk_detail = ForeignKeyDetail(
-                field_name=foreign_key_info["field_name"],
-                reference_table=foreign_key_info["reference_table"],
-            )
-
         if len(str(str(field_size[0]))) > MAX_SIZE_LETTERS:
             column_description = ColumnDescription(
                 name=column["name"],
                 data_type=str(column["type"]),
                 low_cardinality=False,
-                is_primary_key=is_primary_key,
-                foreign_key=fk_detail,
             )
             return column_description
 
@@ -454,16 +384,12 @@ class SqlAlchemyScanner:
                 data_type=str(column["type"]),
                 low_cardinality=True,
                 categories=[str(x) for x in category_values],
-                is_primary_key=is_primary_key,
-                foreign_key=fk_detail,
             )
         else:
             column_description = ColumnDescription(
                 name=column["name"],
                 data_type=str(column["type"]),
                 low_cardinality=False,
-                is_primary_key=is_primary_key,
-                foreign_key=fk_detail,
             )
 
         return column_description
@@ -536,34 +462,11 @@ class SqlAlchemyScanner:
         llm_config: LLMConfig = None,
         instruction: str = "",
     ) -> TableDescription:
-        logger.info(f"Scanning table '{table_name}'...")
+        print(f"Scanning table '{table_name}'...")
         inspector = inspect(db_engine)
         table_columns = []
         columns = inspector.get_columns(table_name=table_name, schema=schema)
         columns = [column for column in columns if column["name"].find(".") < 0]
-
-        # Get primary key columns
-        try:
-            pk_constraint = inspector.get_pk_constraint(table_name=table_name, schema=schema)
-            pk_columns = set(pk_constraint.get("constrained_columns", []))
-        except Exception:
-            pk_columns = set()
-
-        # Get foreign key info
-        try:
-            fk_constraints = inspector.get_foreign_keys(table_name=table_name, schema=schema)
-            # Build mapping: column_name -> (referenced_table, referenced_column)
-            fk_mapping = {}
-            for fk in fk_constraints:
-                for i, col in enumerate(fk.get("constrained_columns", [])):
-                    ref_cols = fk.get("referred_columns", [])
-                    if i < len(ref_cols):
-                        fk_mapping[col] = {
-                            "reference_table": fk.get("referred_table"),
-                            "field_name": ref_cols[i],
-                        }
-        except Exception:
-            fk_mapping = {}
 
         for column in columns:
             table_columns.append(
@@ -574,8 +477,6 @@ class SqlAlchemyScanner:
                     column=column,
                     db_engine=db_engine,
                     scanner_service=scanner_service,
-                    is_primary_key=column["name"] in pk_columns,
-                    foreign_key_info=fk_mapping.get(column["name"]),
                 )
             )
 
@@ -607,7 +508,7 @@ class SqlAlchemyScanner:
                 if column.name in columns_description:
                     # Update the description with the value from the dictionary
                     column.description = columns_description[column.name]
-            logger.info(f"Table and columns generation `{table_name}` is DONE")
+            print(f"Table and columns generation `{table_name}` is DONE")
         else:
             table_description = columns_description = None
 
@@ -670,7 +571,7 @@ class SqlAlchemyScanner:
                 )
             except Exception:  # noqa: S112
                 continue
-        logger.info("Scanning tables is DONE")
+        print("Scanning tables is DONE")
 
         payload_table_descriptions = repository.get_all_tables_by_db(
             {
@@ -692,7 +593,7 @@ class SqlAlchemyScanner:
                 llm_config
             ).get_database_description(table_descriptions=payload_table_descriptions)
 
-            logger.debug(f"Database description: {database_description}")
+            print(database_description)
 
             # Initialize with Storage instance
             from app.server.config import Settings

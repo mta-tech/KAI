@@ -1,6 +1,5 @@
 import difflib
-import re
-from typing import ClassVar, List, Pattern
+from typing import List
 from sqlalchemy import text
 
 from fastapi import HTTPException
@@ -30,19 +29,6 @@ class ColumnEntityChecker(BaseTool):
     context: List[dict] | None = Field(exclude=True, default=None)
     db_scan: List[TableDescription]
     is_multiple_schema: bool
-
-    # Valid identifier pattern: alphanumeric, underscores, dots (for schema.table)
-    VALID_IDENTIFIER_PATTERN: ClassVar[Pattern[str]] = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$')
-
-    def _validate_identifier(self, identifier: str) -> bool:
-        """Validate that an identifier is safe for SQL queries."""
-        return bool(self.VALID_IDENTIFIER_PATTERN.match(identifier))
-
-    def _quote_identifier(self, identifier: str) -> str:
-        """Quote an identifier to prevent SQL injection."""
-        # Replace any double quotes with escaped double quotes
-        escaped = identifier.replace('"', '""')
-        return f'"{escaped}"'
 
     def find_similar_strings(
         self, input_list: List[tuple], target_string: str, threshold=0.4
@@ -74,19 +60,8 @@ class ColumnEntityChecker(BaseTool):
                 )
         except ValueError:
             return "Invalid input format, use following format: table_name -> column_name, entity (entity should be a string without ',')"
-
-        # Validate identifiers to prevent SQL injection
-        if not self._validate_identifier(table_name):
-            return f"Invalid table name: {table_name}. Only alphanumeric characters, underscores, and dots are allowed."
-        if not self._validate_identifier(column_name):
-            return f"Invalid column name: {column_name}. Only alphanumeric characters and underscores are allowed."
-
-        # Quote identifiers for safe SQL construction
-        quoted_table = self._quote_identifier(table_name)
-        quoted_column = self._quote_identifier(column_name)
-
         search_pattern = f"%{entity.strip().lower()}%"
-        search_query = text(f"SELECT DISTINCT {quoted_column} FROM {quoted_table} WHERE {quoted_column} ILIKE :search_pattern")
+        search_query = text(f"SELECT DISTINCT {column_name} FROM {table_name} WHERE {column_name} ILIKE :search_pattern")
         try:
             search_results = self.db.engine.connect().execute(
                 search_query, {"search_pattern": search_pattern}
@@ -94,7 +69,7 @@ class ColumnEntityChecker(BaseTool):
             search_results = search_results[:25]
         except SQLAlchemyError:
             search_results = []
-        distinct_query = text(f"SELECT DISTINCT {quoted_column} FROM {quoted_table}")
+        distinct_query = text(f"SELECT DISTINCT {column_name} FROM {table_name}")
         results = self.db.engine.connect().execute(distinct_query).fetchall()
         results = self.find_similar_strings(results, entity)
         similar_items = "Similar items:\n"

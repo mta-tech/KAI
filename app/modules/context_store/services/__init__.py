@@ -95,7 +95,7 @@ class ContextStoreService:
                     )
                     labels_entities = get_labels_entities(labels_entities_ner)
         except Exception as e:
-            logger.warning(f"NER processing failed: {e}")
+            print(e)
             pass
 
         context_store = ContextStore(
@@ -186,14 +186,12 @@ class ContextStoreService:
         )
 
     def retrieve_context_for_question(self, prompt: Prompt) -> list[dict]:
-        # Use search_text (original query) for Typesense searches, not full contextualized text
-        search_text = prompt.get_search_text()
-        logger.info(f"Getting context for {search_text}")
+        logger.info(f"Getting context for {prompt.text}")
 
         embedding_model = EmbeddingModel().get_model()
-        prompt_embedding = embedding_model.embed_query(search_text)
+        prompt_embedding = embedding_model.embed_query(prompt.text)
         relevant_context = self.repository.find_by_relevance(
-            prompt.db_connection_id, search_text, prompt_embedding
+            prompt.db_connection_id, prompt.text, prompt_embedding
         )
 
         return relevant_context

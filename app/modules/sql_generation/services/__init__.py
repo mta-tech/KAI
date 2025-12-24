@@ -68,9 +68,9 @@ logger = logging.getLogger(__name__)
 
 class SQLGenerationService:
     def __init__(self, storage):
-        from app.server.config import get_settings
+        from app.server.config import Settings
 
-        self.settings = get_settings()
+        self.settings = Settings()
         self.storage = storage
         self.sql_generation_repository = SQLGenerationRepository(storage)
         self.alias_service = AliasService(storage)
@@ -113,11 +113,8 @@ class SQLGenerationService:
         database = SQLDatabase.get_sql_engine(db_connection, False)
 
         # Perform Smart Cache
-        # Use get_search_text() to get the original short query instead of the full
-        # contextualized prompt.text which may include conversation history and exceed
-        # Typesense's 4000 character query limit
         context_store = ContextStoreService(self.storage).retrieve_exact_prompt(
-            prompt.db_connection_id, prompt.get_search_text()
+            prompt.db_connection_id, prompt.text
         )
 
         # Check for aliases in the prompt and add them as context
@@ -140,7 +137,7 @@ class SQLGenerationService:
         if context_store:
             sql_generation_request.sql = context_store.sql
             sql_generation_request.evaluate = False
-            logger.info("Exact context cache HIT!")
+            print("Exact context cache HIT!")
 
         elif sql_generation_request.using_ner:
             llm_model = ChatModel().get_model(
@@ -158,7 +155,7 @@ class SQLGenerationService:
                         prompt=prompt, llm_model=llm_model
                     )
                     if similar_prompts:
-                        logger.info("Similar prompt context HIT!")
+                        print("Similar prompt context HIT!")
                         similar_prompt = similar_prompts[0]
                         sql_generation_request.sql = generate_ner_llm(
                             llm_model,
@@ -167,7 +164,7 @@ class SQLGenerationService:
                             prompt.text,
                         )
                 except Exception as e:
-                    logger.warning(f"Error in similar prompt context: {e}")
+                    print(e)
 
             input_tokens = cb.prompt_tokens
             output_tokens = cb.completion_tokens
@@ -316,11 +313,8 @@ class SQLGenerationService:
         database = SQLDatabase.get_sql_engine(db_connection, False)
 
         context_store_service = ContextStoreService(self.storage)
-        # Use get_search_text() to get the original short query instead of the full
-        # contextualized prompt.text which may include conversation history and exceed
-        # Typesense's 4000 character query limit
         context_store = context_store_service.retrieve_exact_prompt(
-            prompt.db_connection_id, prompt.get_search_text()
+            prompt.db_connection_id, prompt.text
         )
 
         relevant_aliases = self.find_aliases_in_prompt(
@@ -847,13 +841,6 @@ class SQLGenerationService:
             tenant_id=tenant_id,
             sql_generation_id=sql_generation_id,
             result_dir=str(base_dir),
-            # Extended fields for kai-agent tool parity
-            db_connection=db_connection,
-            db_connection_id=str(db_connection.id),
-            storage=self.storage,
-            enable_memory_tools=True,
-            enable_skill_tools=True,
-            enable_verified_sql_tools=True,
         )
 
         extra_instructions: list[str] = []

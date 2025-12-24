@@ -55,7 +55,6 @@ class Session:
     """A multi-query conversation session."""
     id: str
     db_connection_id: str
-    language: Literal["id", "en"] = "id"  # Response language
     messages: list[Message] = field(default_factory=list)
     summary: str | None = None
     status: SessionStatus = SessionStatus.IDLE
@@ -68,7 +67,6 @@ class Session:
         return {
             "id": self.id,
             "db_connection_id": self.db_connection_id,
-            "language": self.language,
             "messages": [m.to_dict() for m in self.messages],
             "summary": self.summary,
             "status": self.status.value,
@@ -83,7 +81,6 @@ class Session:
         return cls(
             id=data["id"],
             db_connection_id=data["db_connection_id"],
-            language=data.get("language", "id"),
             messages=[Message.from_dict(m) for m in data.get("messages", [])],
             summary=data.get("summary"),
             status=SessionStatus(data.get("status", "idle")),

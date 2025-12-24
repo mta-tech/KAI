@@ -32,7 +32,6 @@ class PromptService:
             db_connection_id=prompt_request.db_connection_id,
             schemas=prompt_request.schemas,
             metadata=prompt_request.metadata,
-            search_text=prompt_request.search_text,
         )
         return self.repository.insert(prompt)
 

@@ -178,10 +178,8 @@ class SimpleEvaluatorLCEL(Evaluator):
                 result = execution.mappings().fetchmany(TOP_K)
             rows = self.create_sql_results(result)
 
-        except HTTPException:
-            raise  # Re-raise HTTPException as-is
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"SQL execution error: {str(e)}") from e
+            raise HTTPException("Sensitive SQL keyword detected in the query.") from e
 
         if not rows:
             logger.info(

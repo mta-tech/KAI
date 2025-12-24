@@ -1,11 +1,9 @@
-import logging
 import re
-
-from langchain_core.output_parsers import JsonOutputParser
-
+# import os
+# from dotenv import load_dotenv
 from app.utils.prompts.agent_prompts import NER_PROMPTS, PROMPT_NER_LLM
-
-logger = logging.getLogger(__name__)
+# import requests
+from langchain_core.output_parsers import JsonOutputParser
 
 # load_dotenv()
 
@@ -34,7 +32,7 @@ def request_ner_llm(llm_model, prompt_text: str, labels: list[str]) -> list[dict
 
     result = llm_model.invoke(prompt)
     parsed_result = JsonOutputParser().parse(result.content)
-    logger.debug(f"NER labels-entities: {parsed_result}")
+    print("NER labels-entities\n", parsed_result)
     return parsed_result
     
 def get_ner_labels(text: str) -> list[str]:

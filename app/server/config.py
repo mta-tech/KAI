@@ -1,11 +1,9 @@
-from functools import lru_cache
 from typing import Any
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(extra='ignore', env_file='.env')
     APP_NAME: str | None
     APP_VERSION: str | None
     APP_DESCRIPTION: str | None
@@ -48,46 +46,13 @@ class Settings(BaseSettings):
     SQL_EXECUTION_TIMEOUT: int
     UPPER_LIMIT_QUERY_RETURN_ROWS: int
 
-    # Agent language setting ("id" for Indonesian, "en" for English)
-    AGENT_LANGUAGE: str = "id"
-
     ENCRYPT_KEY: str
 
-    # Long-term memory configuration
-    MEMORY_BACKEND: str = "typesense"  # "typesense" or "letta"
-    LETTA_API_KEY: str | None = None
-    LETTA_BASE_URL: str | None = None  # For self-hosted Letta
-
-    # Automatic learning via agentic-learning SDK
-    ENABLE_AUTO_LEARNING: bool = False  # Toggle automatic memory learning
-    AUTO_LEARNING_CAPTURE_ONLY: bool = False  # True = capture only, no injection
-
-    # Memory blocks for session agent (session-specific)
-    AUTO_LEARNING_MEMORY_BLOCKS: str = "human,context,user_preferences,corrections"
-    # Shared memory block stored in shared agent (visible to all sessions)
-    # Note: "shared_knowledge" combines legacy "business_facts" and "data_insights"
-    AUTO_LEARNING_SHARED_MEMORY_BLOCK: str = "shared_knowledge"
-
-    # MCP (Model Context Protocol) integration
-    MCP_ENABLED: bool = False
-    MCP_SERVERS_CONFIG: str | None = None  # Path to mcp-servers.json
+    class Config:
+        env_file = ".env"
 
     def require(self, key: str) -> Any:
         val = getattr(self, key)
         if val is None:
             raise ValueError(f"Missing required config value '{key}'")
         return val
-
-
-@lru_cache()
-def get_settings() -> Settings:
-    """Get cached Settings instance.
-
-    This function returns a cached singleton Settings instance,
-    avoiding repeated environment variable parsing and validation.
-    Use this instead of Settings() for better performance.
-
-    Returns:
-        Cached Settings instance.
-    """
-    return Settings()

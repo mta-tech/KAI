@@ -30,7 +30,6 @@ class SessionRepository:
     async def create(
         self,
         db_connection_id: str,
-        language: str = "id",
         metadata: dict | None = None
     ) -> str:
         """
@@ -38,7 +37,6 @@ class SessionRepository:
 
         Args:
             db_connection_id: Database connection for this session
-            language: Response language ('id' for Indonesian, 'en' for English)
             metadata: Optional custom metadata
 
         Returns:
@@ -48,7 +46,6 @@ class SessionRepository:
 
         session_data = {
             "db_connection_id": db_connection_id,
-            "language": language,
             "messages": "[]",  # JSON string for Typesense
             "summary": None,
             "status": SessionStatus.IDLE.value,
@@ -205,7 +202,6 @@ class SessionRepository:
         return Session(
             id=doc["id"],
             db_connection_id=doc["db_connection_id"],
-            language=doc.get("language", "id"),
             messages=messages,
             summary=doc.get("summary"),
             status=SessionStatus(doc.get("status", "idle")),

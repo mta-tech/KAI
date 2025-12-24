@@ -16,23 +16,24 @@ from typing import AsyncGenerator
 
 class StreamContext(Enum):
     """Current parsing context for tag-based streaming."""
-    NONE = "none"           # Outside any tag
-    THINKING = "thinking"   # Inside <thinking>
-    ANSWER = "answer"       # Inside <answer>
+    NONE = "none"             # Outside any tag
+    THINKING = "thinking"     # Inside <thinking>
+    ANSWER = "answer"         # Inside <answer>
+    SUGGESTIONS = "suggestions"  # Inside <suggestions> (nested in answer)
 
 
 @dataclass
 class ParsedToken:
     """A parsed token with its semantic type."""
     content: str
-    type: str  # "thinking" or "answer"
+    type: str  # "thinking", "answer", or "suggestions"
 
 
 class TagStreamParser:
     """State machine for parsing XML-tagged streaming output.
 
-    Parses LLM output with <thinking>...</thinking> and <answer>...</answer> tags
-    to differentiate internal reasoning from user-facing answers.
+    Parses LLM output with <thinking>...</thinking>, <answer>...</answer>,
+    and nested <suggestions>...</suggestions> tags.
 
     Usage:
         parser = TagStreamParser()
@@ -46,11 +47,13 @@ class TagStreamParser:
     def __init__(self):
         self.context = StreamContext.NONE
         self.buffer = ""
+        self.in_answer = False  # Track if we're inside answer (for nested suggestions)
 
     def reset(self):
         """Reset parser state for a new stream."""
         self.context = StreamContext.NONE
         self.buffer = ""
+        self.in_answer = False
 
     def feed(self, token: str) -> list[ParsedToken]:
         """Feed a token and return parsed tokens with types.
@@ -59,14 +62,14 @@ class TagStreamParser:
             token: Raw token from LLM stream
 
         Returns:
-            List of ParsedToken with content and type ("thinking" or "answer")
+            List of ParsedToken with content and type ("thinking", "answer", or "suggestions")
         """
         self.buffer += token
         results = []
 
         while True:
             if self.context == StreamContext.NONE:
-                # Look for opening tags
+                # Look for opening tags (thinking or answer)
                 match = re.search(r'<(thinking|answer)>', self.buffer)
                 if match:
                     # Emit any untagged content as "thinking" (fallback)
@@ -76,12 +79,61 @@ class TagStreamParser:
 
                     tag = match.group(1)
                     self.context = StreamContext(tag)
+                    if tag == "answer":
+                        self.in_answer = True
                     self.buffer = self.buffer[match.end():]
                 else:
                     break  # Wait for more tokens
 
+            elif self.context == StreamContext.ANSWER:
+                # Inside <answer>, look for either </answer> or nested <suggestions>
+                suggestions_match = re.search(r'<suggestions>', self.buffer)
+                close_idx = self.buffer.find('</answer>')
+
+                if suggestions_match and (close_idx == -1 or suggestions_match.start() < close_idx):
+                    # Found <suggestions> before </answer>
+                    content = self.buffer[:suggestions_match.start()]
+                    if content.strip():
+                        results.append(ParsedToken(content, "answer"))
+                    self.buffer = self.buffer[suggestions_match.end():]
+                    self.context = StreamContext.SUGGESTIONS
+                elif close_idx != -1:
+                    # Found </answer>
+                    content = self.buffer[:close_idx]
+                    if content.strip():
+                        results.append(ParsedToken(content, "answer"))
+                    self.buffer = self.buffer[close_idx + len('</answer>'):]
+                    self.context = StreamContext.NONE
+                    self.in_answer = False
+                else:
+                    # Keep buffer for partial tag detection (larger for suggestions tag)
+                    safe_boundary = max(0, len(self.buffer) - 25)
+                    if safe_boundary > 0:
+                        results.append(ParsedToken(self.buffer[:safe_boundary], "answer"))
+                        self.buffer = self.buffer[safe_boundary:]
+                    break
+
+            elif self.context == StreamContext.SUGGESTIONS:
+                # Inside <suggestions>, look for </suggestions>
+                close_tag = '</suggestions>'
+                if close_tag in self.buffer:
+                    idx = self.buffer.index(close_tag)
+                    content = self.buffer[:idx]
+                    if content.strip():
+                        results.append(ParsedToken(content, "suggestions"))
+                    self.buffer = self.buffer[idx + len(close_tag):]
+                    # Go back to answer context (suggestions is nested in answer)
+                    self.context = StreamContext.ANSWER
+                else:
+                    # Keep buffer for partial tag detection
+                    safe_boundary = max(0, len(self.buffer) - 20)
+                    if safe_boundary > 0:
+                        results.append(ParsedToken(self.buffer[:safe_boundary], "suggestions"))
+                        self.buffer = self.buffer[safe_boundary:]
+                    break
+
             else:
-                # Look for closing tag
+                # Inside <thinking>
                 close_tag = f'</{self.context.value}>'
                 if close_tag in self.buffer:
                     idx = self.buffer.index(close_tag)
@@ -100,19 +152,37 @@ class TagStreamParser:
 
         return results
 
-    def flush(self) -> list[ParsedToken]:
+    def flush(self, preserve_partial_tags: bool = False) -> list[ParsedToken]:
         """Call at stream end to emit any remaining buffer.
+
+        Args:
+            preserve_partial_tags: If True, keep partial tag content (like '<' or '<answer')
+                                   in buffer instead of emitting it
 
         Returns:
             List of remaining ParsedToken
         """
         results = []
+
+        if preserve_partial_tags and self.context == StreamContext.NONE:
+            # Check if buffer looks like start of a tag (partial tag)
+            # Pattern: ends with '<' or '<' followed by partial tag name
+            import re
+            partial_tag_pattern = r'<(thinking|answer)?$'
+            if re.search(partial_tag_pattern, self.buffer):
+                # Keep the partial tag in buffer, don't flush it
+                return results
+
         if self.buffer.strip():
             # Default to thinking if outside tags, otherwise use current context
-            emit_type = self.context.value if self.context != StreamContext.NONE else "thinking"
+            if self.context == StreamContext.NONE:
+                emit_type = "thinking"
+            else:
+                emit_type = self.context.value
             results.append(ParsedToken(self.buffer, emit_type))
         self.buffer = ""
         self.context = StreamContext.NONE
+        self.in_answer = False
         return results
 
 
@@ -235,6 +305,10 @@ class AutonomousAgentService:
         self._in_final_answer = False
         # Tag-based streaming parser for thinking/answer differentiation
         self._tag_parser = TagStreamParser()
+        # Track consecutive empty SQL results to detect "no data found" loops
+        self._consecutive_empty_sql_count = 0
+        self._max_empty_sql_before_stop = 5  # Stop after 5 consecutive empty results
+        self._no_data_stop_triggered = False
 
     def _get_session_results_dir(self, session_id: str) -> str:
         """Get results directory for a specific session.
@@ -505,7 +579,15 @@ class AutonomousAgentService:
             logger.info(f"Loaded relevant skills for task: {skill_names}")
 
         if context_parts:
-            augmented_prompt = "\n\n".join(context_parts) + f"\n\n## User Question\n{task.prompt}"
+            # Add clear instruction that memory is context, not the current request
+            memory_instruction = (
+                "## Background Context (FROM PAST SESSIONS - NOT THE CURRENT REQUEST)\n\n"
+                "The following is memory/context from previous conversations. "
+                "Use this as HINTS only - it is NOT the user's current question.\n\n"
+                "IMPORTANT: If the user's current question is a simple greeting (halo, hello, hi), "
+                "respond conversationally WITHOUT using this context.\n\n"
+            )
+            augmented_prompt = memory_instruction + "\n\n".join(context_parts) + f"\n\n## User's CURRENT Question (ANSWER THIS)\n{task.prompt}"
         else:
             augmented_prompt = task.prompt
 
@@ -582,6 +664,9 @@ class AutonomousAgentService:
         self._last_streamed_content = ""
         self._response_buffer = ""
         self._in_final_answer = False
+        # Reset empty SQL result tracking for new request
+        self._consecutive_empty_sql_count = 0
+        self._no_data_stop_triggered = False
 
         # Create session-specific results directory
         session_results_dir = self._get_session_results_dir(task.session_id)
@@ -678,7 +763,15 @@ class AutonomousAgentService:
             }
 
         if context_parts:
-            augmented_prompt = "\n\n".join(context_parts) + f"\n\n## User Question\n{task.prompt}"
+            # Add clear instruction that memory is context, not the current request
+            memory_instruction = (
+                "## Background Context (FROM PAST SESSIONS - NOT THE CURRENT REQUEST)\n\n"
+                "The following is memory/context from previous conversations. "
+                "Use this as HINTS only - it is NOT the user's current question.\n\n"
+                "IMPORTANT: If the user's current question is a simple greeting (halo, hello, hi), "
+                "respond conversationally WITHOUT using this context.\n\n"
+            )
+            augmented_prompt = memory_instruction + "\n\n".join(context_parts) + f"\n\n## User's CURRENT Question (ANSWER THIS)\n{task.prompt}"
         else:
             augmented_prompt = task.prompt
 
@@ -709,6 +802,28 @@ class AutonomousAgentService:
                         if processed.get("type") == "token":
                             final_answer_parts.append(processed.get("content", ""))
                         yield processed
+
+                    # Check if we should stop due to too many consecutive empty SQL results
+                    if self._no_data_stop_triggered:
+                        logger.warning(f"Stopping stream due to {self._consecutive_empty_sql_count} consecutive empty SQL results")
+                        # Emit a helpful answer for the user
+                        no_data_answer = (
+                            "Maaf, saya tidak dapat menemukan data yang sesuai dengan permintaan Anda. "
+                            f"Setelah mencoba {self._consecutive_empty_sql_count} query berbeda, "
+                            "semua hasilnya kosong. Kemungkinan penyebab:\n\n"
+                            "1. **Data tidak tersedia** - Data yang Anda cari mungkin tidak ada dalam database\n"
+                            "2. **Filter terlalu spesifik** - Coba gunakan kriteria yang lebih luas\n"
+                            "3. **Nama/istilah berbeda** - Coba gunakan istilah atau nama alternatif\n\n"
+                            "**Saran**: Coba tanyakan data apa saja yang tersedia, misalnya:\n"
+                            "- \"Tampilkan daftar provinsi yang tersedia\"\n"
+                            "- \"Data apa saja yang ada dalam database?\""
+                        )
+                        yield {
+                            "type": "answer",
+                            "content": no_data_answer,
+                        }
+                        final_answer_parts.append(no_data_answer)
+                        break  # Exit the streaming loop
 
             # Reconstruct final answer from streamed tokens
             final_answer = "".join(final_answer_parts)
@@ -998,6 +1113,14 @@ class AutonomousAgentService:
                     # Feed token to tag parser
                     parsed_tokens = self._tag_parser.feed(content)
 
+                    # DEBUG: Log parsing activity
+                    import logging
+                    _logger = logging.getLogger(__name__)
+                    if '<' in content or '>' in content:
+                        _logger.info(f"[TAG_PARSE] Content with tags: {content[:100]}")
+                    if parsed_tokens:
+                        _logger.info(f"[TAG_PARSE] Parsed {len(parsed_tokens)} tokens: {[(p.type, p.content[:30]) for p in parsed_tokens]}")
+
                     if parsed_tokens:
                         results = []
                         for parsed in parsed_tokens:
@@ -1009,6 +1132,11 @@ class AutonomousAgentService:
                             elif parsed.type == "answer":
                                 results.append({
                                     "type": "token",  # User-visible answer
+                                    "content": parsed.content
+                                })
+                            elif parsed.type == "suggestions":
+                                results.append({
+                                    "type": "suggestions",
                                     "content": parsed.content
                                 })
                         return results if len(results) > 1 else results[0] if results else {"type": "other", "event": "buffering"}
@@ -1026,18 +1154,25 @@ class AutonomousAgentService:
                         results.append({"type": "thinking", "content": parsed.content})
                     elif parsed.type == "answer":
                         results.append({"type": "token", "content": parsed.content})
+                    elif parsed.type == "suggestions":
+                        results.append({"type": "suggestions", "content": parsed.content})
                 if results:
                     return results if len(results) > 1 else results[0]
 
             return {"type": "other", "event": "chat_model_end"}
 
         elif event_type == "on_tool_start":
-            # Flush tag parser before tool call and reset tracking
+            # Flush tag parser before tool call, but preserve partial tags
+            # to avoid breaking tags that span across tool calls
             events = []
-            flushed = self._tag_parser.flush()
+            flushed = self._tag_parser.flush(preserve_partial_tags=True)
             for parsed in flushed:
-                event_type_out = "token" if parsed.type == "answer" else "thinking"
-                events.append({"type": event_type_out, "content": parsed.content})
+                if parsed.type == "answer":
+                    events.append({"type": "token", "content": parsed.content})
+                elif parsed.type == "suggestions":
+                    events.append({"type": "suggestions", "content": parsed.content})
+                else:
+                    events.append({"type": "thinking", "content": parsed.content})
 
             self._last_streamed_content = ""
             self._in_final_answer = False
@@ -1049,6 +1184,10 @@ class AutonomousAgentService:
                     "todos": event.get("data", {}).get("input", {}).get("todos", [])
                 })
             else:
+                # Track SQL query for later use in tool_end
+                if event.get("name") == "sql_query":
+                    self._last_sql_query = event.get("data", {}).get("input", {}).get("sql", "")
+
                 events.append({
                     "type": "tool_start",
                     "tool": event.get("name"),
@@ -1062,14 +1201,159 @@ class AutonomousAgentService:
             self._last_streamed_content = ""
 
             # Capture tool output (not shown in answer, but for tracing)
-            output = str(event.get("data", {}).get("output", ""))
-            return {
+            # Handle both raw string and ToolMessage object formats
+            raw_output = event.get("data", {}).get("output", "")
+            if hasattr(raw_output, "content"):
+                # LangChain ToolMessage object - extract content
+                output = str(raw_output.content)
+            else:
+                output = str(raw_output)
+            tool_name = event.get("name")
+
+            # DEBUG: Log tool_name to verify chart_tool detection
+            logger.info(f"[TOOL_END] tool_name={tool_name}, output_preview={output[:200] if output else 'empty'}")
+
+            events = [{
                 "type": "tool_end",
-                "tool": event.get("name"),
+                "tool": tool_name,
                 "output": output,
-            }
+            }]
+
+            # Special handling for sql_query tool - emit structured visualization events
+            if tool_name == "sql_query":
+                try:
+                    import json
+                    result = json.loads(output)
+                    row_count = result.get("row_count", 0)
+
+                    # Track consecutive empty SQL results to detect "no data found" loops
+                    if result.get("success") and row_count == 0:
+                        self._consecutive_empty_sql_count += 1
+                        logger.info(f"[SQL_QUERY] Empty result #{self._consecutive_empty_sql_count} (threshold: {self._max_empty_sql_before_stop})")
+
+                        # Check if we should stop due to too many empty results
+                        if self._consecutive_empty_sql_count >= self._max_empty_sql_before_stop:
+                            self._no_data_stop_triggered = True
+                            logger.warning(f"[SQL_QUERY] Stopping due to {self._consecutive_empty_sql_count} consecutive empty results")
+                            events.append({
+                                "type": "no_data_warning",
+                                "message": f"Query tidak menemukan data yang sesuai setelah {self._consecutive_empty_sql_count} percobaan. Kemungkinan data yang diminta tidak ada dalam database.",
+                                "consecutive_empty_count": self._consecutive_empty_sql_count,
+                            })
+                    elif result.get("success") and row_count > 0:
+                        # Reset counter when data is found
+                        self._consecutive_empty_sql_count = 0
+
+                    if result.get("success") and result.get("data"):
+                        # Emit sql_result event with structured data
+                        events.append({
+                            "type": "sql_result",
+                            "sql": getattr(self, "_last_sql_query", ""),
+                            "columns": result.get("columns", []),
+                            "data": result.get("data", []),
+                            "row_count": row_count,
+                            "truncated": result.get("truncated", False),
+                        })
+
+                        # Auto-detect chart type and emit chart_config
+                        chart_type = self._detect_chart_type(result)
+                        if chart_type:
+                            events.append({
+                                "type": "chart_config",
+                                "widget_type": chart_type,
+                                "widget_data": result["data"],
+                                "x_axis_key": result["columns"][0] if result["columns"] else None,
+                                "y_axis_key": result["columns"][1] if len(result["columns"]) > 1 else None,
+                            })
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            # Special handling for chart_tool - emit chart_config event for frontend rendering
+            elif tool_name == "chart_tool":
+                logger.info(f"[CHART_TOOL] Detected chart_tool, parsing output...")
+                try:
+                    import json
+                    result = json.loads(output)
+                    logger.info(f"[CHART_TOOL] Parsed result: success={result.get('success')}, render_type={result.get('render_type')}")
+                    if result.get("success") and result.get("render_type") == "recharts":
+                        # Emit chart_config event with frontend-compatible configuration
+                        events.append({
+                            "type": "chart_config",
+                            "widget_type": result.get("chart_type", "bar"),
+                            "widget_data": result.get("data", []),
+                            "widget_title": result.get("title", ""),
+                            "x_axis_key": result.get("x_axis_key"),
+                            "y_axis_key": result.get("y_axis_key"),
+                            "x_axis_label": result.get("x_axis_label"),
+                            "y_axis_label": result.get("y_axis_label"),
+                        })
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            return events if len(events) > 1 else events[0]
 
         return {"type": "other", "event": event_type}
+
+    def _detect_chart_type(self, sql_result: dict) -> str | None:
+        """Auto-detect appropriate chart type based on data shape.
+
+        Args:
+            sql_result: SQL query result with columns, data, and row_count
+
+        Returns:
+            Chart type string: 'bar', 'line', 'pie', 'kpi', 'table', or None
+        """
+        data = sql_result.get("data", [])
+        columns = sql_result.get("columns", [])
+        row_count = sql_result.get("row_count", 0)
+
+        if not data or not columns:
+            return None
+
+        # Single row with 1-2 columns = KPI display
+        if row_count == 1 and len(columns) <= 2:
+            return "kpi"
+
+        # Analyze column types from first row
+        first_row = data[0] if data else {}
+        numeric_cols = []
+        text_cols = []
+
+        for col in columns:
+            val = first_row.get(col)
+            if isinstance(val, (int, float)):
+                numeric_cols.append(col)
+            else:
+                text_cols.append(col)
+
+        # Check for date-like columns by name
+        date_keywords = ["date", "time", "period", "month", "year", "tanggal", "bulan", "tahun"]
+        has_date = any(
+            any(kw in col.lower() for kw in date_keywords)
+            for col in columns
+        )
+
+        # Time series: date column + numeric = line chart
+        if has_date and numeric_cols:
+            return "line"
+
+        # Categorical: one text + one or more numeric = bar or pie
+        if len(text_cols) == 1 and len(numeric_cols) >= 1:
+            # Small number of categories = pie chart
+            if row_count <= 6:
+                return "pie"
+            return "bar"
+
+        # Multiple numeric columns = grouped bar
+        if len(numeric_cols) >= 2:
+            return "bar"
+
+        # Many rows = table is more appropriate
+        if row_count > 10:
+            return "table"
+
+        # Default to bar chart if we have numeric data
+        return "bar" if numeric_cols else None
 
     async def _save_session_to_memory(
         self,

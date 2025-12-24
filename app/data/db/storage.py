@@ -3,23 +3,13 @@ import uuid
 from app.data.db import TypeSenseDB
 # from app.server.config import Settings
 
-# Typesense has a 4000 character limit for query strings
-MAX_TYPESENSE_QUERY_LENGTH = 3900
-# Max length for individual filter values to stay under query limit
-MAX_FILTER_VALUE_LENGTH = 500
-
 
 class Storage(TypeSenseDB):
     def __init__(self, setting) -> None:
         super().__init__(setting)
 
-    def _escape_filter_value(self, value, truncate: bool = True) -> str:
-        """Escape filter values for Typesense - wrap strings in backticks.
-
-        Args:
-            value: The value to escape
-            truncate: If True, truncate long strings to avoid 4000 char limit
-        """
+    def _escape_filter_value(self, value) -> str:
+        """Escape filter values for Typesense - wrap strings in backticks."""
         if isinstance(value, bool):
             # Booleans must be lowercase true/false without quotes
             return "true" if value else "false"
@@ -27,19 +17,10 @@ class Storage(TypeSenseDB):
             # Check if it's a string representation of a boolean
             if value.lower() in ("true", "false"):
                 return value.lower()
-            # Truncate long strings to avoid Typesense 4000 char limit
-            if truncate and len(value) > MAX_FILTER_VALUE_LENGTH:
-                value = value[:MAX_FILTER_VALUE_LENGTH]
             # Escape backticks within the value and wrap in backticks
             escaped = value.replace('`', '\\`')
             return f"`{escaped}`"
         return str(value)
-
-    def _truncate_query(self, query: str) -> str:
-        """Truncate query to avoid Typesense 4000 char limit."""
-        if len(query) > MAX_TYPESENSE_QUERY_LENGTH:
-            return query[:MAX_TYPESENSE_QUERY_LENGTH]
-        return query
 
     def find_one(self, collection: str, filter: dict) -> dict:
         self.ensure_collection_exists(collection)
@@ -74,20 +55,6 @@ class Storage(TypeSenseDB):
         doc["id"] = str(uuid.uuid4())
         created_id = self.client.collections[collection].documents.create(doc)["id"]
         return created_id
-
-    def upsert(self, collection: str, doc: dict) -> str:
-        """Insert or update a document by its ID.
-
-        Args:
-            collection: Collection name
-            doc: Document to upsert (must contain 'id' field)
-
-        Returns:
-            Document ID
-        """
-        self.ensure_collection_exists(collection)
-        result = self.client.collections[collection].documents.upsert(doc)
-        return result["id"]
 
     def update_or_create(self, collection: str, filter: dict, doc: dict) -> dict:
         self.ensure_collection_exists(collection)
@@ -172,10 +139,7 @@ class Storage(TypeSenseDB):
         self.ensure_collection_exists(collection)
         query_by = ",".join(columns)
 
-        # Truncate query to avoid Typesense 4000 char limit
-        truncated_query = self._truncate_query(query)
-
-        search_params = {"q": truncated_query, "query_by": query_by}
+        search_params = {"q": query, "query_by": query_by}
 
         results = self.client.collections[collection].documents.search(search_params)
         return [hit["document"] for hit in results["hits"]]
@@ -186,11 +150,8 @@ class Storage(TypeSenseDB):
         self.ensure_collection_exists(collection)
         query_by = ",".join(columns)
 
-        # Truncate query to avoid Typesense 4000 char limit
-        truncated_query = self._truncate_query(query)
-
         search_params = {
-            "q": truncated_query,
+            "q": query,
             "query_by": query_by,
             "filter_by": f"db_connection_id:={db_connection_id}",
         }
@@ -210,14 +171,11 @@ class Storage(TypeSenseDB):
     ) -> list | None:
         self.ensure_collection_exists(collection)
 
-        # Truncate query to avoid Typesense 4000 char limit
-        truncated_query = self._truncate_query(query)
-
         search_requests = {
             "searches": [
                 {
                     "collection": collection,
-                    "q": truncated_query,
+                    "q": query,
                     "query_by": query_by,
                     "vector_query": vector_query,
                     "exclude_fields": exclude_fields,
@@ -279,48 +237,3 @@ class Storage(TypeSenseDB):
         deleted = self.client.collections[collection].documents[id].delete()
 
         return deleted
-
-    def delete_by_filter(self, collection: str, filter: dict) -> int:
-        """Delete all documents matching a filter.
-
-        Args:
-            collection: Collection name.
-            filter: Filter dict with field:value pairs.
-
-        Returns:
-            Number of deleted documents.
-        """
-        self.ensure_collection_exists(collection)
-
-        filter_by = " && ".join(
-            [f"{k}:={self._escape_filter_value(v)}" for k, v in filter.items()]
-        )
-
-        result = self.client.collections[collection].documents.delete(
-            {"filter_by": filter_by}
-        )
-
-        return result.get("num_deleted", 0)
-
-    def bulk_update(self, collection: str, documents: list[dict]) -> int:
-        """Bulk update documents.
-
-        Args:
-            collection: Collection name.
-            documents: List of document dicts with 'id' field.
-
-        Returns:
-            Number of updated documents.
-        """
-        self.ensure_collection_exists(collection)
-
-        count = 0
-        for doc in documents:
-            if "id" in doc:
-                doc_id = doc["id"]
-                update_data = {k: v for k, v in doc.items() if k != "id"}
-                self.client.collections[collection].documents[doc_id].update(
-                    update_data
-                )
-                count += 1
-        return count

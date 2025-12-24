@@ -37,16 +37,10 @@ async def create_session(
     """
     Create a new session.
 
-    Args:
-        body.db_connection_id: Database connection ID
-        body.language: Response language ('id' for Bahasa Indonesia, 'en' for English)
-        body.metadata: Optional custom metadata
-
     Returns the created session ID.
     """
     session_id = await service.create_session(
         db_connection_id=body.db_connection_id,
-        language=body.language,
         metadata=body.metadata
     )
     return {"session_id": session_id}
@@ -140,12 +134,10 @@ async def query_session_stream(
     Send a query to the session and stream the response via SSE.
 
     Returns a stream of Server-Sent Events with:
-    - status: Processing step updates (step name + message)
-    - thinking: TODO-style reasoning traces showing what's happening
-    - answer: Direct text answer to the user's question
-    - metadata: Structured data (SQL, insights, chart_recommendations) for frontend use
-    - done: Final completion signal with session_id and status
-    - error: Error information if processing failed
+    - status events: Processing step updates
+    - chunk events: SQL, results, and analysis chunks
+    - done event: Final completion signal
+    - error event: Error information if failed
     """
     return StreamingResponse(
         service.stream_query(session_id, body.query),

@@ -49,9 +49,7 @@ class BusinessGlossaryService:
         return business_glossary
 
     def retrieve_business_metrics_for_question(self, prompt: Prompt) -> list:
-        # Use search_text (original query) for Typesense searches
-        search_text = prompt.get_search_text()
-        result = self.repository.find_by_metric(search_text)
+        result = self.repository.find_by_metric(prompt.text)
         return result
 
     def update_business_glossary(

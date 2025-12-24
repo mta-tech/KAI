@@ -34,8 +34,8 @@ class DocumentRepository:
         return result
     
     def delete_by_id(self, id: str) -> bool:
-        deleted = self.storage.delete_by_id(DB_COLLECTION, id)
-        return deleted is not None and bool(deleted)
+        deleted_count = self.storage.delete_by_id(DB_COLLECTION, id)
+        return deleted_count > 0 
 
     def update(self, document: DocumentStore) -> DocumentStore:
         self.storage.update_or_create(
@@ -77,8 +77,8 @@ class KnowledgeRepository:
         return result
     
     def delete_by_id(self, id: str) -> bool:
-        deleted = self.storage.delete_by_id(DB_COLLECTION, id)
-        return deleted is not None and bool(deleted)
+        deleted_count = self.storage.delete_by_id(DB_COLLECTION, id)
+        return deleted_count > 0 
 
     def update(self, document: DocumentStore) -> DocumentStore:
         self.storage.update_or_create(
