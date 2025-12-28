@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from app.modules.analytics import (
@@ -13,6 +13,14 @@ from app.modules.analytics import (
     ForecastingService,
     StatisticalService,
 )
+from app.modules.analytics.exceptions import (
+    AnomalyDetectionError,
+    CorrelationAnalysisError,
+    ForecastingError,
+    InvalidMethodError,
+    StatisticalCalculationError,
+)
+from app.server.errors import error_response
 
 
 router = APIRouter(prefix="/api/v2/analytics", tags=["Analytics"])
@@ -165,8 +173,13 @@ async def descriptive_statistics(
             skewness=result.skewness,
             kurtosis=result.kurtosis,
         )
+    except StatisticalCalculationError as e:
+        return error_response(e, {"column_name": request.column_name})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Statistics calculation failed: {e}")
+        wrapped_error = StatisticalCalculationError(
+            f"Statistics calculation failed: {e}"
+        )
+        return error_response(wrapped_error, {"column_name": request.column_name})
 
 
 @router.post("/t-test", response_model=StatisticalTestResponse)
@@ -188,8 +201,11 @@ async def t_test(request: TTestRequest) -> StatisticalTestResponse:
             effect_size=result.effect_size,
             details=result.details,
         )
+    except StatisticalCalculationError as e:
+        return error_response(e, {"alpha": request.alpha})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"T-test failed: {e}")
+        wrapped_error = StatisticalCalculationError(f"T-test failed: {e}")
+        return error_response(wrapped_error, {"alpha": request.alpha})
 
 
 @router.post("/correlation", response_model=CorrelationResponse)
@@ -210,8 +226,13 @@ async def correlation(request: CorrelationRequest) -> CorrelationResponse:
             interpretation=result.interpretation,
             sample_size=result.sample_size,
         )
+    except CorrelationAnalysisError as e:
+        return error_response(e, {"method": request.method, "alpha": request.alpha})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Correlation analysis failed: {e}")
+        wrapped_error = CorrelationAnalysisError(f"Correlation analysis failed: {e}")
+        return error_response(
+            wrapped_error, {"method": request.method, "alpha": request.alpha}
+        )
 
 
 @router.post("/correlation-matrix", response_model=CorrelationMatrixResponse)
@@ -228,8 +249,11 @@ async def correlation_matrix(
             matrix=result.matrix,
             columns=result.columns,
         )
+    except CorrelationAnalysisError as e:
+        return error_response(e, {"method": request.method})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Correlation matrix failed: {e}")
+        wrapped_error = CorrelationAnalysisError(f"Correlation matrix failed: {e}")
+        return error_response(wrapped_error, {"method": request.method})
 
 
 @router.post("/anomalies", response_model=AnomalyResponse)
@@ -243,7 +267,7 @@ async def detect_anomalies(request: AnomalyRequest) -> AnomalyResponse:
         elif request.method == "iqr":
             result = _anomaly_service.detect_iqr(series, multiplier=request.threshold)
         else:
-            raise ValueError(f"Unknown method: {request.method}")
+            raise InvalidMethodError(f"Unknown method: {request.method}")
 
         return AnomalyResponse(
             method=result.method,
@@ -254,10 +278,19 @@ async def detect_anomalies(request: AnomalyRequest) -> AnomalyResponse:
             threshold=result.threshold,
             interpretation=result.interpretation,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except InvalidMethodError as e:
+        return error_response(
+            e, {"method": request.method, "threshold": request.threshold}
+        )
+    except AnomalyDetectionError as e:
+        return error_response(
+            e, {"method": request.method, "threshold": request.threshold}
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Anomaly detection failed: {e}")
+        wrapped_error = AnomalyDetectionError(f"Anomaly detection failed: {e}")
+        return error_response(
+            wrapped_error, {"method": request.method, "threshold": request.threshold}
+        )
 
 
 @router.post("/forecast", response_model=ForecastResponse)
@@ -277,5 +310,8 @@ async def forecast(request: ForecastRequest) -> ForecastResponse:
             trend=result.trend,
             interpretation=result.interpretation,
         )
+    except ForecastingError as e:
+        return error_response(e, {"periods": request.periods})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Forecast failed: {e}")
+        wrapped_error = ForecastingError(f"Forecast failed: {e}")
+        return error_response(wrapped_error, {"periods": request.periods})
