@@ -19,6 +19,9 @@ from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.analysis.services import AnalysisService
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+# Analytics module imports
+from app.modules.analytics import analytics_router, batch_analytics_router
+
 
 class FastAPI:
     def __init__(self, settings: Settings):
@@ -48,6 +51,10 @@ class FastAPI:
 
         # Configure and register session module
         self._setup_session_module()
+
+        # Register analytics routers
+        self._app.include_router(analytics_router)
+        self._app.include_router(batch_analytics_router)
 
         @self._app.on_event("shutdown")
         async def shutdown_event():

@@ -15,8 +15,9 @@ from app.modules.analytics.services import (
     StatisticalService,
 )
 
-# Import router after services to avoid circular imports
+# Import routers after services to avoid circular imports
 from app.modules.analytics.api import router as analytics_router
+from app.modules.analytics.batch_api import router as batch_analytics_router
 
 __all__ = [
     "AnomalyResult",
@@ -30,4 +31,5 @@ __all__ = [
     "StatisticalTestResult",
     "StatisticalTestType",
     "analytics_router",
+    "batch_analytics_router",
 ]
