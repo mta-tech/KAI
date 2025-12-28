@@ -39,6 +39,15 @@ ERROR_MAPPING = {
     "ThemeNotFoundError": "theme_not_found",
     "MissingColumnError": "missing_column",
     "ChartExportError": "chart_export_failed",
+    # Dashboard module errors
+    "DashboardNotFoundError": "dashboard_not_found",
+    "WidgetNotFoundError": "widget_not_found",
+    "DashboardCreationError": "dashboard_creation_failed",
+    "DashboardExecutionError": "dashboard_execution_failed",
+    "WidgetQueryGenerationError": "widget_query_generation_failed",
+    "WidgetExecutionError": "widget_execution_failed",
+    "DashboardRenderError": "dashboard_render_failed",
+    "ShareTokenError": "share_token_error",
 }
 
 
