@@ -9,6 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 logger = logging.getLogger(__name__)
 
 ERROR_MAPPING = {
+    # Database/SQL errors
     "InvalidId": "invalid_object_id",
     "InvalidDBConnectionError": "invalid_database_connection",
     "InvalidURIFormatError": "invalid_database_uri_format",
@@ -24,6 +25,13 @@ ERROR_MAPPING = {
     "NLGenerationError": "nl_generation_not_created",
     "MalformedGoldenSQLError": "invalid_golden_sql",
     "SchemaNotSupportedError": "schema_not_supported",
+    # Analytics module errors
+    "InsufficientDataError": "insufficient_data",
+    "StatisticalCalculationError": "statistical_calculation_failed",
+    "CorrelationAnalysisError": "correlation_analysis_failed",
+    "AnomalyDetectionError": "anomaly_detection_failed",
+    "ForecastingError": "forecasting_failed",
+    "InvalidMethodError": "invalid_method",
 }
 
 
