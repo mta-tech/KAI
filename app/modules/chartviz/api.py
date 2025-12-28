@@ -4,8 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
+from app.modules.chartviz.exceptions import (
+    AnalysisDataExtractionError,
+    AutoChartGenerationError,
+    ChartVizGenerationError,
+    ChartVizRecommendationError,
+    InvalidChartTypeError,
+)
 from app.modules.chartviz.models import (
     ChartType,
     ChartWidget,
@@ -15,6 +22,7 @@ from app.modules.chartviz.models import (
     AutoChartRequest,
 )
 from app.modules.chartviz.service import ChartVizService
+from app.server.errors import error_response
 
 
 router = APIRouter(prefix="/api/v2/chartviz", tags=["Chart Visualization"])
@@ -53,12 +61,25 @@ async def generate_chart(request: GenerateChartRequest) -> ChartWidget:
             user_prompt=request.user_prompt,
             language=request.language,
         )
+    except ChartVizGenerationError as e:
+        return error_response(
+            e, {"chart_type": request.chart_type.value if request.chart_type else None}
+        )
+    except InvalidChartTypeError as e:
+        return error_response(
+            e, {"chart_type": request.chart_type.value if request.chart_type else None}
+        )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        wrapped_error = InvalidChartTypeError(str(e))
+        return error_response(
+            wrapped_error,
+            {"chart_type": request.chart_type.value if request.chart_type else None},
+        )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Chart generation failed: {e}",
+        wrapped_error = ChartVizGenerationError(f"Chart generation failed: {e}")
+        return error_response(
+            wrapped_error,
+            {"chart_type": request.chart_type.value if request.chart_type else None},
         )
 
 
@@ -82,13 +103,14 @@ async def recommend_chart(request: RecommendChartRequest) -> ChartRecommendation
             user_prompt=request.user_prompt,
             language=request.language,
         )
+    except ChartVizRecommendationError as e:
+        return error_response(e, {"user_prompt": request.user_prompt})
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        wrapped_error = ChartVizRecommendationError(str(e))
+        return error_response(wrapped_error, {"user_prompt": request.user_prompt})
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Chart recommendation failed: {e}",
-        )
+        wrapped_error = ChartVizRecommendationError(f"Chart recommendation failed: {e}")
+        return error_response(wrapped_error, {"user_prompt": request.user_prompt})
 
 
 @router.post("/auto", response_model=ChartWidget)
@@ -111,13 +133,14 @@ async def auto_generate_chart(request: AutoChartRequest) -> ChartWidget:
             user_prompt=request.user_prompt,
             language=request.language,
         )
+    except AutoChartGenerationError as e:
+        return error_response(e, {"user_prompt": request.user_prompt})
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        wrapped_error = AutoChartGenerationError(str(e))
+        return error_response(wrapped_error, {"user_prompt": request.user_prompt})
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Auto chart generation failed: {e}",
-        )
+        wrapped_error = AutoChartGenerationError(f"Auto chart generation failed: {e}")
+        return error_response(wrapped_error, {"user_prompt": request.user_prompt})
 
 
 @router.get("/types")
@@ -167,12 +190,25 @@ async def generate_from_analysis(
             chart_type=chart_type,
             language=language,
         )
+    except AnalysisDataExtractionError as e:
+        return error_response(
+            e, {"chart_type": chart_type.value if chart_type else None}
+        )
+    except ChartVizGenerationError as e:
+        return error_response(
+            e, {"chart_type": chart_type.value if chart_type else None}
+        )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        wrapped_error = AnalysisDataExtractionError(str(e))
+        return error_response(
+            wrapped_error, {"chart_type": chart_type.value if chart_type else None}
+        )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Chart generation from analysis failed: {e}",
+        wrapped_error = AnalysisDataExtractionError(
+            f"Chart generation from analysis failed: {e}"
+        )
+        return error_response(
+            wrapped_error, {"chart_type": chart_type.value if chart_type else None}
         )
 
 
