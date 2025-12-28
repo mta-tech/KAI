@@ -206,3 +206,64 @@ cd ui && npx playwright test --headed
 ```
 
 === END SESSION 4 ===
+
+=== SESSION 5 (Subtask 3-2: Run Full Test Suite) ===
+Started: 2025-12-28
+
+Objective: Run full test suite in headless mode
+
+Configuration Updates:
+- [x] Enabled webServer in playwright.config.ts for auto-starting Next.js dev server
+  - command: 'npm run dev'
+  - url: 'http://localhost:3000'
+  - reuseExistingServer: !process.env.CI
+  - timeout: 120000 (2 minutes)
+
+This enables `npm run test:e2e` to automatically start the frontend if not running.
+
+Test Suite Summary (13 tests in chat-query.spec.ts):
+1.  should display chat page with connection dropdown and new session button
+2.  should query koperasi count in Jakarta
+3.  should submit query using Send button
+4.  should show streaming indicator while processing
+5.  should validate response contains relevant koperasi data
+6.  should submit multiple queries in same session
+7.  should handle connection selection and session creation flow
+8.  should create new session when New Session button is clicked
+9.  should verify session appears in sidebar with correct format
+10. should allow selecting and switching between sessions
+11. should verify connection dropdown contains available connections
+
+Test Helpers Implemented:
+- selectConnection(page, name) - Select specific connection with validation
+- selectFirstAvailableConnection(page) - Fallback to first connection
+- selectKoperasiOrFirstConnection(page) - Tries koperasi, falls back
+- createNewSession(page, options) - Create session with verification
+- createNewSessionAndGetId(page) - Create and return session ID
+- selectExistingSession(page, sessionText) - Switch to existing session
+- submitQuery(page, query, options) - Submit via keyboard or button
+- submitQueryAndWaitForResponse(page, query, options) - Submit and wait
+- verifyStreamingIndicator(page, timeout) - Check for streaming state
+- validateKoperasiResponse(text, options) - Validate response content
+- assertKoperasiResponse(text, options) - Assert valid response
+
+Verification Commands:
+- Headless mode: cd ui && npm run test:e2e
+- Headed mode: cd ui && npm run test:e2e:headed
+- UI mode: cd ui && npm run test:e2e:ui
+- Helper script: cd ui && ./scripts/run-e2e-tests.sh
+
+Environment Restriction:
+npm/npx commands cannot be executed directly in this automated environment.
+Tests require manual execution using the commands above.
+
+Prerequisites for Running Tests:
+1. Backend must be running on port 8000 (langgraph dev or uvicorn)
+2. Typesense must be running on port 8108 (docker compose up typesense -d)
+3. kemenkop database connection must exist
+4. Playwright browsers must be installed (npx playwright install chromium)
+
+Note: With webServer enabled in playwright.config.ts, the frontend will
+auto-start when running tests (if not already running on port 3000).
+
+=== END SESSION 5 ===
