@@ -168,6 +168,29 @@ class AnomalyRequest(BaseModel):
     threshold: float = 3.0
 
 
+class AnomalyExportRequest(BaseModel):
+    """Request for exporting anomaly detection results."""
+
+    data: list[float | int] = Field(description="The numeric data to analyze for anomalies")
+    method: str = Field(default="zscore", description="Detection method (zscore or iqr)")
+    threshold: float = Field(
+        default=3.0,
+        description="Threshold for anomaly detection (z-score threshold or IQR multiplier)",
+    )
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="Export format (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
+
+
 class AnomalyResponse(BaseModel):
     """Response for anomaly detection."""
 
@@ -484,6 +507,62 @@ async def detect_anomalies(request: AnomalyRequest) -> AnomalyResponse:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Anomaly detection failed: {e}")
+
+
+@router.post("/anomalies/export")
+async def export_anomalies(
+    request: AnomalyExportRequest,
+) -> Response:
+    """Export anomaly detection results in specified format.
+
+    Detect anomalies in a dataset and return as a downloadable file
+    in JSON, CSV, or PDF format. The export includes detected anomalies,
+    summary statistics, and interpretation.
+    """
+    try:
+        # Detect anomalies
+        series = pd.Series(request.data)
+
+        if request.method == "zscore":
+            result = _anomaly_service.detect_zscore(series, threshold=request.threshold)
+        elif request.method == "iqr":
+            result = _anomaly_service.detect_iqr(series, multiplier=request.threshold)
+        else:
+            raise ValueError(f"Unknown method: {request.method}")
+
+        # Export to requested format
+        export_data = _export_service.export_anomalies(
+            result,
+            format=request.format,
+            include_metadata=request.include_metadata,
+        )
+
+        # Generate filename
+        filename = _export_service.generate_filename(
+            base_name="anomaly_detection",
+            format=request.format,
+            custom_filename=request.filename,
+        )
+
+        # Get content type
+        content_type = _export_service.get_content_type(request.format)
+
+        # Return file response with appropriate headers
+        return Response(
+            content=export_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(export_data)),
+            },
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {e}",
+        )
 
 
 @router.post("/forecast", response_model=ForecastResponse)
