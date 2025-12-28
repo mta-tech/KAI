@@ -410,6 +410,78 @@ test.describe('Chat UI Capabilities', () => {
     await expect(page.getByText('No sessions yet')).not.toBeVisible();
   });
 
+  test('should verify session appears in sidebar with correct format', async ({ page }) => {
+    // This test verifies the session display format in the sidebar
+    // Pattern from: ui/src/components/chat/session-sidebar.tsx
+    // Session display format: session.title || `Session ${session.id.slice(0, 8)}`
+
+    // Step 1: Select a connection
+    const selectedConnection = await selectKoperasiOrFirstConnection(page);
+    test.info().annotations.push({
+      type: 'selected-connection',
+      description: selectedConnection,
+    });
+
+    // Step 2: Use createNewSessionAndGetId to create session and capture ID
+    const sessionText = await createNewSessionAndGetId(page);
+
+    // Step 3: Verify session text format matches expected pattern
+    // Should be "Session" followed by 8 hex characters (truncated UUID)
+    expect(sessionText).toBeTruthy();
+    expect(sessionText).toMatch(/Session [a-f0-9]{8}/i);
+
+    // Log the captured session ID for debugging
+    test.info().annotations.push({
+      type: 'created-session',
+      description: sessionText,
+    });
+
+    // Step 4: Verify the session entry is visible in the sidebar
+    const sessionEntry = page.locator('button').filter({
+      hasText: new RegExp(sessionText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
+    }).first();
+    await expect(sessionEntry).toBeVisible();
+
+    // Step 5: Verify clicking the session entry keeps the chat active
+    await sessionEntry.click();
+    const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
+    await expect(chatInput).toBeVisible();
+    await expect(chatInput).toBeEnabled();
+  });
+
+  test('should allow selecting and switching between sessions', async ({ page }) => {
+    // This test verifies session selection functionality
+    // Pattern from: ui/src/components/chat/session-sidebar.tsx
+
+    // Step 1: Select a connection
+    await selectKoperasiOrFirstConnection(page);
+
+    // Step 2: Create first session and capture its ID
+    const firstSessionText = await createNewSessionAndGetId(page);
+    test.info().annotations.push({
+      type: 'first-session',
+      description: firstSessionText,
+    });
+
+    // Step 3: Create a second session
+    // First, we need to click New Session button again
+    const newSessionButton = page.getByRole('button', { name: /New Session/i });
+    await newSessionButton.click();
+
+    // Wait for the second session to be created
+    await expect(
+      page.getByText('Select or create a session to start chatting')
+    ).not.toBeVisible({ timeout: 15000 });
+
+    // Step 4: Use selectExistingSession helper to switch to the first session
+    await selectExistingSession(page, firstSessionText);
+
+    // Step 5: Verify we're back to the first session
+    // The chat input should be visible and the session should be selected
+    const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
+    await expect(chatInput).toBeVisible();
+  });
+
   test('should verify connection dropdown contains available connections', async ({ page }) => {
     // Open connection dropdown
     const connectionDropdown = page.getByRole('combobox');
