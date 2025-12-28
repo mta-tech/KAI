@@ -1,4 +1,5 @@
 import fastapi
+from fastapi.middleware.cors import CORSMiddleware
 from app.api import API
 
 from app.data.db.storage import Storage
@@ -30,6 +31,18 @@ class FastAPI:
             version=settings.APP_VERSION,
         )
 
+        self._app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "http://localhost:3002",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
         self._api = API(self._storage)
         self._app.include_router(self._api.get_router())
 
@@ -52,8 +65,7 @@ class FastAPI:
 
         # Get LLM for summarization (using Gemini)
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
-            google_api_key=self._settings.GOOGLE_API_KEY
+            model="gemini-2.0-flash", google_api_key=self._settings.GOOGLE_API_KEY
         )
 
         # Build graph
@@ -61,7 +73,7 @@ class FastAPI:
             sql_generation_service=sql_generation_service,
             analysis_service=analysis_service,
             llm=llm,
-            checkpointer=checkpointer
+            checkpointer=checkpointer,
         )
 
         # Create and configure service

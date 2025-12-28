@@ -151,13 +151,20 @@ class DatabaseConnectionService:
 
     def remove_schema_in_uri(self, connection_uri: str, dialect: str) -> str:
         if dialect in ["postgresql"]:
-            pattern = r"\?options=-csearch_path" r"=[^&]*"
-            return re.sub(pattern, "", connection_uri)
+            # Handle both ?options= and &options= cases
+            pattern = r"[?&]options=-csearch_path=[^&]*"
+            result = re.sub(pattern, "", connection_uri)
+            # Clean up any leftover ? or & at the end
+            result = re.sub(r"\?&", "?", result)
+            result = re.sub(r"\?$", "", result)
+            return result
         return connection_uri
 
     def add_schema_in_uri(self, connection_uri: str, schema: str, dialect: str) -> str:
         if dialect in ["postgresql"]:
-            return f"{connection_uri}?options=-csearch_path={schema}"
+            # Check if URI already has query parameters
+            separator = "&" if "?" in connection_uri else "?"
+            return f"{connection_uri}{separator}options=-csearch_path={schema}"
         return connection_uri
 
     def get_sql_database(
