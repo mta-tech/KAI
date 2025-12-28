@@ -6,10 +6,13 @@ from typing import Any
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.modules.analytics import (
     AnomalyService,
+    ExportFormat,
+    ExportService,
     ForecastingService,
     StatisticalService,
 )
@@ -23,6 +26,25 @@ class DescriptiveStatsRequest(BaseModel):
 
     data: list[float | int]
     column_name: str = "value"
+
+
+class DescriptiveStatsExportRequest(BaseModel):
+    """Request for exporting descriptive statistics."""
+
+    data: list[float | int] = Field(description="The numeric data to analyze")
+    column_name: str = Field(default="value", description="Name of the data column")
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="Export format (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
 
 
 class DescriptiveStatsResponse(BaseModel):
@@ -141,6 +163,7 @@ class ForecastResponse(BaseModel):
 _stat_service = StatisticalService()
 _anomaly_service = AnomalyService()
 _forecast_service = ForecastingService()
+_export_service = ExportService()
 
 
 @router.post("/descriptive", response_model=DescriptiveStatsResponse)
@@ -167,6 +190,53 @@ async def descriptive_statistics(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Statistics calculation failed: {e}")
+
+
+@router.post("/descriptive/export")
+async def export_descriptive_statistics(
+    request: DescriptiveStatsExportRequest,
+) -> Response:
+    """Export descriptive statistics for a dataset in specified format.
+
+    Calculate descriptive statistics and return as a downloadable file
+    in JSON, CSV, or PDF format.
+    """
+    try:
+        # Calculate descriptive statistics
+        series = pd.Series(request.data, name=request.column_name)
+        result = _stat_service.descriptive_stats(series)
+
+        # Export to requested format
+        export_data = _export_service.export_descriptive_stats(
+            result,
+            format=request.format,
+            include_metadata=request.include_metadata,
+        )
+
+        # Generate filename
+        filename = _export_service.generate_filename(
+            base_name="descriptive_stats",
+            format=request.format,
+            custom_filename=request.filename,
+        )
+
+        # Get content type
+        content_type = _export_service.get_content_type(request.format)
+
+        # Return file response with appropriate headers
+        return Response(
+            content=export_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(export_data)),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {e}",
+        )
 
 
 @router.post("/t-test", response_model=StatisticalTestResponse)
