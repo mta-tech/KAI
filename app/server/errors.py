@@ -32,6 +32,13 @@ ERROR_MAPPING = {
     "AnomalyDetectionError": "anomaly_detection_failed",
     "ForecastingError": "forecasting_failed",
     "InvalidMethodError": "invalid_method",
+    # Visualization module errors
+    "ChartGenerationError": "chart_generation_failed",
+    "InvalidChartTypeError": "invalid_chart_type",
+    "ChartRecommendationError": "chart_recommendation_failed",
+    "ThemeNotFoundError": "theme_not_found",
+    "MissingColumnError": "missing_column",
+    "ChartExportError": "chart_export_failed",
 }
 
 
