@@ -9,6 +9,10 @@ from typing import Optional
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.data.db.storage import Storage
+from app.modules.dashboard.exceptions import (
+    WidgetExecutionError,
+    WidgetQueryGenerationError,
+)
 from app.modules.dashboard.models import (
     Widget,
     WidgetResult,
@@ -58,7 +62,9 @@ class WidgetService:
             return widget.query
 
         if not widget.query_description:
-            raise ValueError(f"Widget {widget.name} has no query or query_description")
+            raise WidgetQueryGenerationError(
+                f"Widget '{widget.name}' has no query or query_description"
+            )
 
         # Get database dialect
         db_connection = self.db_conn_repo.find_by_id(db_connection_id)
@@ -88,9 +94,13 @@ class WidgetService:
             response = await llm.ainvoke(messages)
             query = self._extract_sql(response.content)
             return query
+        except WidgetQueryGenerationError:
+            raise
         except Exception as e:
             logger.error(f"Query generation failed for widget {widget.name}: {e}")
-            raise
+            raise WidgetQueryGenerationError(
+                f"Failed to generate query for widget '{widget.name}': {e}"
+            ) from e
 
     async def generate_and_validate_query(
         self,
@@ -235,7 +245,7 @@ class WidgetService:
 
         try:
             if not widget.query:
-                raise ValueError(f"Widget {widget.name} has no query")
+                raise WidgetExecutionError(f"Widget '{widget.name}' has no query")
 
             # Execute query - run_sql returns (str_repr, result_dict)
             # Note: str_repr is Python str() not JSON, use result_dict instead
@@ -277,10 +287,16 @@ class WidgetService:
 
             result.status = "completed"
 
-        except Exception as e:
+        except WidgetExecutionError as e:
             logger.error(f"Widget execution failed for {widget.name}: {e}")
             result.status = "failed"
             result.error = str(e)
+        except Exception as e:
+            logger.error(f"Widget execution failed for {widget.name}: {e}")
+            result.status = "failed"
+            result.error = str(WidgetExecutionError(
+                f"Widget '{widget.name}' execution failed: {e}"
+            ))
 
         result.execution_time_ms = int((time.time() - start_time) * 1000)
         return result

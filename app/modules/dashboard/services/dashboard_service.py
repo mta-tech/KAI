@@ -8,6 +8,13 @@ from datetime import datetime
 from typing import AsyncIterator, Optional
 
 from app.data.db.storage import Storage
+from app.modules.dashboard.exceptions import (
+    DashboardCreationError,
+    DashboardExecutionError,
+    DashboardNotFoundError,
+    DashboardRenderError,
+    ShareTokenError,
+)
 from app.modules.dashboard.models import (
     CreateDashboardRequest,
     Dashboard,
@@ -302,7 +309,7 @@ class DashboardService:
         """
         dashboard = self.repository.get(dashboard_id)
         if not dashboard:
-            raise ValueError(f"Dashboard not found: {dashboard_id}")
+            raise DashboardNotFoundError(f"Dashboard not found: {dashboard_id}")
 
         start_time = time.time()
 
@@ -315,7 +322,9 @@ class DashboardService:
             # Get database connection
             db_connection = self.db_conn_repo.find_by_id(dashboard.db_connection_id)
             if not db_connection:
-                raise ValueError(f"Database connection not found: {dashboard.db_connection_id}")
+                raise DashboardExecutionError(
+                    f"Database connection not found: {dashboard.db_connection_id}"
+                )
 
             # Create SQLDatabase instance
             database = SQLDatabase.get_sql_engine(db_connection)
@@ -445,20 +454,25 @@ class DashboardService:
         """
         dashboard = self.repository.get(dashboard_id)
         if not dashboard:
-            raise ValueError(f"Dashboard not found: {dashboard_id}")
+            raise DashboardNotFoundError(f"Dashboard not found: {dashboard_id}")
 
-        # Execute if needed
-        if execute:
-            run = await self.execute(dashboard_id)
-            widget_results = run.widget_results
-        else:
-            widget_results = {}
+        try:
+            # Execute if needed
+            if execute:
+                run = await self.execute(dashboard_id)
+                widget_results = run.widget_results
+            else:
+                widget_results = {}
 
-        # Render
-        if format == "json":
-            return await self.renderer.render_to_json(dashboard, widget_results)
-        else:
-            return await self.renderer.render_to_html(dashboard, widget_results)
+            # Render
+            if format == "json":
+                return await self.renderer.render_to_json(dashboard, widget_results)
+            else:
+                return await self.renderer.render_to_html(dashboard, widget_results)
+        except DashboardNotFoundError:
+            raise
+        except Exception as e:
+            raise DashboardRenderError(f"Failed to render dashboard: {e}") from e
 
     # =========================================================================
     # Widget Management
@@ -511,24 +525,33 @@ class DashboardService:
 
     def share(self, dashboard_id: str, base_url: str = "") -> Optional[ShareResponse]:
         """Generate a shareable link for a dashboard."""
-        token = self.repository.generate_share_token(dashboard_id)
-        if not token:
-            return None
+        try:
+            token = self.repository.generate_share_token(dashboard_id)
+            if not token:
+                return None
 
-        share_url = f"{base_url}/dashboards/shared/{token}"
+            share_url = f"{base_url}/dashboards/shared/{token}"
 
-        return ShareResponse(
-            share_url=share_url,
-            share_token=token,
-        )
+            return ShareResponse(
+                share_url=share_url,
+                share_token=token,
+            )
+        except Exception as e:
+            raise ShareTokenError(f"Failed to generate share token: {e}") from e
 
     def get_by_share_token(self, token: str) -> Optional[Dashboard]:
         """Get a dashboard by its share token."""
-        return self.repository.get_by_share_token(token)
+        try:
+            return self.repository.get_by_share_token(token)
+        except Exception as e:
+            raise ShareTokenError(f"Failed to retrieve dashboard by share token: {e}") from e
 
     def revoke_share(self, dashboard_id: str) -> bool:
         """Revoke sharing for a dashboard."""
-        return self.repository.revoke_share(dashboard_id)
+        try:
+            return self.repository.revoke_share(dashboard_id)
+        except Exception as e:
+            raise ShareTokenError(f"Failed to revoke share token: {e}") from e
 
     # =========================================================================
     # Refinement
