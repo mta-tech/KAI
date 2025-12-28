@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime
 from typing import Any
@@ -128,6 +129,128 @@ class AnalyticsBatchService:
         job.status = BatchJobStatus.CANCELLED
         job.updated_at = datetime.utcnow()
         job.completed_at = datetime.utcnow()
+        return job
+
+    async def process_batch(
+        self,
+        batch_id: str,
+        operations: list[SingleAnalyticsRequest],
+        max_concurrency: int = 5,
+    ) -> AnalyticsBatchStatus:
+        """Process a batch of analytics operations with concurrency control.
+
+        Uses asyncio.Semaphore to limit concurrent operations and tracks
+        progress by updating completed/failed counts as operations finish.
+
+        Args:
+            batch_id: The unique identifier of the batch job.
+            operations: List of analytics operations to process.
+            max_concurrency: Maximum number of operations to run concurrently.
+                Defaults to 5.
+
+        Returns:
+            The final AnalyticsBatchStatus with all results.
+
+        Raises:
+            ValueError: If the batch_id is not found in the job storage.
+        """
+        job = self._batch_jobs.get(batch_id)
+        if job is None:
+            raise ValueError(f"Batch job not found: {batch_id}")
+
+        # Check if job was cancelled before starting
+        if job.status == BatchJobStatus.CANCELLED:
+            return job
+
+        # Mark job as running
+        job.status = BatchJobStatus.RUNNING
+        job.started_at = datetime.utcnow()
+        job.updated_at = datetime.utcnow()
+
+        # Create semaphore for concurrency control
+        semaphore = asyncio.Semaphore(max_concurrency)
+
+        async def process_operation_with_semaphore(
+            operation: SingleAnalyticsRequest,
+        ) -> AnalyticsBatchResult:
+            """Process a single operation with semaphore-based concurrency control."""
+            async with semaphore:
+                # Check if job was cancelled during processing
+                if job.status == BatchJobStatus.CANCELLED:
+                    operation_id = operation.operation_id or "unknown"
+                    return AnalyticsBatchResult(
+                        operation_id=operation_id,
+                        operation_type=operation.operation_type,
+                        status="failed",
+                        result=None,
+                        error="Batch job was cancelled",
+                        started_at=datetime.utcnow(),
+                        completed_at=datetime.utcnow(),
+                    )
+
+                # Run the synchronous operation in a thread pool to avoid blocking
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None, self.execute_single_operation, operation
+                )
+                return result
+
+        # Create tasks for all operations
+        tasks = [
+            asyncio.create_task(process_operation_with_semaphore(op))
+            for op in operations
+        ]
+
+        # Process results as they complete
+        for completed_task in asyncio.as_completed(tasks):
+            try:
+                result = await completed_task
+
+                # Check if job was cancelled
+                if job.status == BatchJobStatus.CANCELLED:
+                    # Cancel remaining tasks
+                    for task in tasks:
+                        if not task.done():
+                            task.cancel()
+                    break
+
+                # Update job progress
+                operation_id = result.operation_id
+                job.results[operation_id] = result
+
+                if result.is_successful:
+                    job.completed += 1
+                else:
+                    job.failed += 1
+
+                job.updated_at = datetime.utcnow()
+
+            except asyncio.CancelledError:
+                # Task was cancelled, don't count as failure
+                pass
+            except Exception as e:
+                # Unexpected error - this shouldn't normally happen since
+                # execute_single_operation handles errors internally
+                job.failed += 1
+                job.updated_at = datetime.utcnow()
+                # Log the unexpected error but continue processing other operations
+                # In production, you'd want proper logging here
+
+        # Determine final status
+        now = datetime.utcnow()
+        job.completed_at = now
+        job.updated_at = now
+
+        if job.status == BatchJobStatus.CANCELLED:
+            # Status already set, keep it
+            pass
+        elif job.failed == job.total:
+            job.status = BatchJobStatus.FAILED
+        elif job.failed > 0:
+            job.status = BatchJobStatus.PARTIAL
+        else:
+            job.status = BatchJobStatus.COMPLETED
+
         return job
 
     def execute_single_operation(
