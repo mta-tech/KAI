@@ -5,6 +5,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.modules.chartviz.exceptions import (
+    AnalysisDataExtractionError,
+    AutoChartGenerationError,
+    ChartVizGenerationError,
+    ChartVizRecommendationError,
+)
 from app.modules.chartviz.models import (
     ChartType,
     ChartWidget,
@@ -56,16 +62,26 @@ class ChartVizService:
 
         Returns:
             ChartWidget configuration
+
+        Raises:
+            ChartVizGenerationError: If chart generation fails
         """
-        widget = await self.generation_agent.generate(
-            data, chart_type, user_prompt, language
-        )
+        try:
+            widget = await self.generation_agent.generate(
+                data, chart_type, user_prompt, language
+            )
 
-        # Post-process: calculate delta if applicable
-        if chart_type in (ChartType.KPI, ChartType.LINE, ChartType.AREA):
-            widget = self._calculate_delta(widget, data)
+            # Post-process: calculate delta if applicable
+            if chart_type in (ChartType.KPI, ChartType.LINE, ChartType.AREA):
+                widget = self._calculate_delta(widget, data)
 
-        return widget
+            return widget
+        except ChartVizGenerationError:
+            raise
+        except Exception as e:
+            raise ChartVizGenerationError(
+                f"Failed to generate chart: {e}"
+            ) from e
 
     async def recommend_chart(
         self,
@@ -82,8 +98,18 @@ class ChartVizService:
 
         Returns:
             ChartRecommendation with type, confidence, and rationale
+
+        Raises:
+            ChartVizRecommendationError: If chart recommendation fails
         """
-        return await self.recommendation_agent.recommend(data, user_prompt, language)
+        try:
+            return await self.recommendation_agent.recommend(data, user_prompt, language)
+        except ChartVizRecommendationError:
+            raise
+        except Exception as e:
+            raise ChartVizRecommendationError(
+                f"Failed to recommend chart type: {e}"
+            ) from e
 
     async def auto_generate(
         self,
@@ -102,18 +128,32 @@ class ChartVizService:
 
         Returns:
             ChartWidget with auto-selected type
-        """
-        # Get recommendation
-        recommendation = await self.recommend_chart(data, user_prompt, language)
-        logger.info(
-            f"Recommended chart: {recommendation.chart_type.value} "
-            f"(confidence: {recommendation.confidence:.2f})"
-        )
 
-        # Generate with recommended type
-        return await self.generate_chart(
-            data, recommendation.chart_type, user_prompt, language
-        )
+        Raises:
+            AutoChartGenerationError: If automatic chart generation fails
+        """
+        try:
+            # Get recommendation
+            recommendation = await self.recommend_chart(data, user_prompt, language)
+            logger.info(
+                f"Recommended chart: {recommendation.chart_type.value} "
+                f"(confidence: {recommendation.confidence:.2f})"
+            )
+
+            # Generate with recommended type
+            return await self.generate_chart(
+                data, recommendation.chart_type, user_prompt, language
+            )
+        except (ChartVizGenerationError, ChartVizRecommendationError) as e:
+            raise AutoChartGenerationError(
+                f"Automatic chart generation failed: {e}"
+            ) from e
+        except AutoChartGenerationError:
+            raise
+        except Exception as e:
+            raise AutoChartGenerationError(
+                f"Automatic chart generation failed: {e}"
+            ) from e
 
     async def generate_from_analysis(
         self,
@@ -132,26 +172,45 @@ class ChartVizService:
 
         Returns:
             ChartWidget configuration
+
+        Raises:
+            AnalysisDataExtractionError: If no data found in analysis result
+            ChartVizGenerationError: If chart generation fails
+            AutoChartGenerationError: If automatic chart generation fails
         """
-        # Extract data from analysis result
-        # Analysis result may have 'data', 'results', or nested structure
-        data = (
-            analysis_result.get("data")
-            or analysis_result.get("results")
-            or analysis_result.get("rows")
-            or []
-        )
+        try:
+            # Extract data from analysis result
+            # Analysis result may have 'data', 'results', or nested structure
+            data = (
+                analysis_result.get("data")
+                or analysis_result.get("results")
+                or analysis_result.get("rows")
+                or []
+            )
 
-        if not data:
-            raise ValueError("No data found in analysis result")
+            if not data:
+                raise AnalysisDataExtractionError(
+                    "No data found in analysis result. "
+                    "Expected 'data', 'results', or 'rows' field with non-empty data."
+                )
 
-        # Extract user question for context
-        user_prompt = analysis_result.get("prompt") or analysis_result.get("query")
+            # Extract user question for context
+            user_prompt = analysis_result.get("prompt") or analysis_result.get("query")
 
-        if chart_type:
-            return await self.generate_chart(data, chart_type, user_prompt, language)
-        else:
-            return await self.auto_generate(data, user_prompt, language)
+            if chart_type:
+                return await self.generate_chart(data, chart_type, user_prompt, language)
+            else:
+                return await self.auto_generate(data, user_prompt, language)
+        except (
+            AnalysisDataExtractionError,
+            ChartVizGenerationError,
+            AutoChartGenerationError,
+        ):
+            raise
+        except Exception as e:
+            raise AnalysisDataExtractionError(
+                f"Failed to extract data from analysis result: {e}"
+            ) from e
 
     def _calculate_delta(
         self,
