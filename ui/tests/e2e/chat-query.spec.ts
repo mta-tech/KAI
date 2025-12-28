@@ -14,6 +14,145 @@ import { test, expect, Page } from '@playwright/test';
  */
 
 // ============================================================================
+// Response Validation Helpers
+// Pattern: Verify agent responses contain expected koperasi data
+//
+// Response validation ensures that the agent's response:
+// 1. Contains numeric data (cooperative counts)
+// 2. Contains relevant keywords (koperasi, Jakarta, etc.)
+// 3. Is formatted properly for the user's query
+// ============================================================================
+
+/**
+ * Keywords that indicate a valid koperasi response.
+ * The response should contain at least some of these keywords.
+ * Supports both Indonesian and English language responses.
+ */
+const KOPERASI_RESPONSE_KEYWORDS = [
+  // Indonesian keywords
+  'koperasi',
+  'jakarta',
+  'jumlah',
+  'total',
+  'terdaftar',
+  // English keywords
+  'cooperative',
+  'cooperatives',
+  'count',
+  'number',
+  'registered',
+  // Location-related
+  'dki',
+  'provinsi',
+  'province',
+  // Data-related
+  'data',
+  'hasil',
+  'result',
+];
+
+/**
+ * Validates that a response contains relevant koperasi data.
+ *
+ * This function checks:
+ * 1. The response contains at least one numeric value (cooperative count)
+ * 2. The response contains relevant keywords from the expected keyword list
+ * 3. The response has sufficient length to be meaningful
+ *
+ * @param responseText - The text content of the agent's response
+ * @param options - Optional configuration for validation
+ * @returns An object with validation results
+ */
+function validateKoperasiResponse(
+  responseText: string,
+  options: {
+    /** Minimum number of keywords that must be present. Default: 2 */
+    minKeywords?: number;
+    /** Whether the response must contain a number. Default: true */
+    requireNumber?: boolean;
+    /** Minimum response length in characters. Default: 20 */
+    minLength?: number;
+  } = {}
+): {
+  isValid: boolean;
+  hasNumber: boolean;
+  keywordsFound: string[];
+  keywordCount: number;
+  errorMessage?: string;
+} {
+  const { minKeywords = 2, requireNumber = true, minLength = 20 } = options;
+
+  const lowerResponse = responseText.toLowerCase();
+
+  // Check for numeric values (cooperative counts)
+  // Match patterns like: 123, 1.234, 1,234, 1234
+  const numberPattern = /\d+([.,]\d+)*/g;
+  const numbers = responseText.match(numberPattern) || [];
+  const hasNumber = numbers.length > 0;
+
+  // Check for relevant keywords
+  const keywordsFound = KOPERASI_RESPONSE_KEYWORDS.filter((keyword) =>
+    lowerResponse.includes(keyword.toLowerCase())
+  );
+  const keywordCount = keywordsFound.length;
+
+  // Build validation result
+  const errors: string[] = [];
+
+  if (responseText.length < minLength) {
+    errors.push(`Response too short (${responseText.length} chars, minimum ${minLength})`);
+  }
+
+  if (requireNumber && !hasNumber) {
+    errors.push('Response does not contain any numeric data');
+  }
+
+  if (keywordCount < minKeywords) {
+    errors.push(
+      `Response contains only ${keywordCount} keywords (minimum ${minKeywords}). Found: [${keywordsFound.join(', ')}]`
+    );
+  }
+
+  const isValid = errors.length === 0;
+
+  return {
+    isValid,
+    hasNumber,
+    keywordsFound,
+    keywordCount,
+    errorMessage: errors.length > 0 ? errors.join('; ') : undefined,
+  };
+}
+
+/**
+ * Validates that a response contains relevant koperasi data and throws if invalid.
+ *
+ * This is a convenience wrapper around validateKoperasiResponse that throws
+ * an assertion error if the validation fails.
+ *
+ * @param responseText - The text content of the agent's response
+ * @param options - Optional configuration for validation
+ * @throws Will throw an assertion error if validation fails
+ */
+function assertKoperasiResponse(
+  responseText: string,
+  options: {
+    minKeywords?: number;
+    requireNumber?: boolean;
+    minLength?: number;
+  } = {}
+): void {
+  const result = validateKoperasiResponse(responseText, options);
+
+  if (!result.isValid) {
+    throw new Error(
+      `Response validation failed: ${result.errorMessage}\n` +
+        `Response excerpt: "${responseText.substring(0, 200)}..."`
+    );
+  }
+}
+
+// ============================================================================
 // Connection Selection Helpers
 // Pattern from: ui/src/components/chat/session-sidebar.tsx
 //
@@ -459,7 +598,31 @@ test.describe('Chat UI Capabilities', () => {
       minResponseLength: 10,
     });
 
-    // Step 7: Log response for debugging (visible in test output)
+    // Step 7: Validate that the response contains relevant koperasi data
+    // This verifies:
+    // - The response contains numeric data (cooperative count)
+    // - The response contains relevant keywords (koperasi, Jakarta, etc.)
+    const validationResult = validateKoperasiResponse(responseText, {
+      minKeywords: 2,
+      requireNumber: true,
+      minLength: 20,
+    });
+
+    // Log validation details for debugging
+    test.info().annotations.push({
+      type: 'validation-result',
+      description: `Valid: ${validationResult.isValid}, Keywords: [${validationResult.keywordsFound.join(', ')}], Has Number: ${validationResult.hasNumber}`,
+    });
+
+    // Step 8: Assert the response is valid koperasi data
+    // Use assertKoperasiResponse to throw a clear error if validation fails
+    assertKoperasiResponse(responseText, {
+      minKeywords: 2,
+      requireNumber: true,
+      minLength: 20,
+    });
+
+    // Step 9: Log response excerpt for debugging (visible in test output)
     test.info().annotations.push({
       type: 'agent-response',
       description: responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''),
@@ -481,9 +644,29 @@ test.describe('Chat UI Capabilities', () => {
       responseTimeout: 60000,
     });
 
-    // Step 3: Verify response was received
+    // Step 3: Verify response was received with basic checks
     expect(responseText).toBeTruthy();
     expect(responseText.length).toBeGreaterThan(10);
+
+    // Step 4: Validate koperasi response content
+    // Using relaxed validation for this test as it focuses on the button submission method
+    const validationResult = validateKoperasiResponse(responseText, {
+      minKeywords: 1, // Relaxed: at least 1 keyword
+      requireNumber: false, // Relaxed: number not strictly required for button test
+      minLength: 10,
+    });
+
+    // Log validation details for debugging
+    test.info().annotations.push({
+      type: 'validation-result',
+      description: `Valid: ${validationResult.isValid}, Keywords: [${validationResult.keywordsFound.join(', ')}], Has Number: ${validationResult.hasNumber}`,
+    });
+
+    // Step 5: Log response excerpt for debugging
+    test.info().annotations.push({
+      type: 'agent-response',
+      description: responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''),
+    });
   });
 
   test('should show streaming indicator while processing', async ({ page }) => {
@@ -509,6 +692,75 @@ test.describe('Chat UI Capabilities', () => {
     // Verify the input is re-enabled after streaming completes
     const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
     await expect(chatInput).toBeEnabled({ timeout: 5000 });
+  });
+
+  test('should validate response contains relevant koperasi data', async ({ page }) => {
+    // This test specifically validates that the agent's response contains
+    // relevant koperasi data including numeric counts and appropriate keywords.
+    // Requirement: Response Validation Test (spec.md requirement #5)
+
+    // Step 1: Select the koperasi connection
+    await selectConnection(page, 'koperasi');
+
+    // Step 2: Create a new session
+    await createNewSession(page);
+
+    // Step 3: Submit the Indonesian language query about cooperatives in Jakarta
+    const query = 'berapa jumlah koperasi di jakarta';
+    const { responseText, responseElement } = await submitQueryAndWaitForResponse(page, query, {
+      responseTimeout: 60000,
+      minResponseLength: 10,
+    });
+
+    // Step 4: Perform comprehensive response validation
+    const validationResult = validateKoperasiResponse(responseText, {
+      minKeywords: 2, // Must contain at least 2 relevant keywords
+      requireNumber: true, // Must contain numeric data (cooperative count)
+      minLength: 20, // Response should be meaningful
+    });
+
+    // Step 5: Log detailed validation results for debugging
+    test.info().annotations.push({
+      type: 'response-validation',
+      description: JSON.stringify({
+        isValid: validationResult.isValid,
+        hasNumber: validationResult.hasNumber,
+        keywordsFound: validationResult.keywordsFound,
+        keywordCount: validationResult.keywordCount,
+        errorMessage: validationResult.errorMessage,
+      }),
+    });
+
+    // Step 6: Assert the validation passes
+    expect(validationResult.isValid).toBe(true);
+
+    // Step 7: Additional specific assertions for koperasi data
+    // The response should mention either "koperasi" or "cooperative"
+    expect(
+      validationResult.keywordsFound.includes('koperasi') ||
+        validationResult.keywordsFound.includes('cooperative') ||
+        validationResult.keywordsFound.includes('cooperatives')
+    ).toBe(true);
+
+    // The response should mention Jakarta or DKI
+    expect(
+      validationResult.keywordsFound.includes('jakarta') ||
+        validationResult.keywordsFound.includes('dki')
+    ).toBe(true);
+
+    // The response should contain a number (the count)
+    expect(validationResult.hasNumber).toBe(true);
+
+    // Step 8: Verify the response is displayed correctly in the UI
+    // The response should be rendered with markdown formatting (prose class)
+    await expect(responseElement).toBeVisible();
+    await expect(responseElement).toHaveClass(/prose/);
+
+    // Step 9: Log the response excerpt for debugging
+    test.info().annotations.push({
+      type: 'agent-response',
+      description: responseText.substring(0, 300) + (responseText.length > 300 ? '...' : ''),
+    });
   });
 
   test('should submit multiple queries in same session', async ({ page }) => {
