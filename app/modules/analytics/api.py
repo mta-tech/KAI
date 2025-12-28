@@ -187,6 +187,25 @@ class ForecastRequest(BaseModel):
     periods: int = 30
 
 
+class ForecastExportRequest(BaseModel):
+    """Request for exporting forecast results."""
+
+    values: list[float | int] = Field(description="Time series values to forecast")
+    periods: int = Field(default=30, description="Number of periods to forecast")
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="Export format (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
+
+
 class ForecastResponse(BaseModel):
     """Response for forecasting."""
 
@@ -486,3 +505,51 @@ async def forecast(request: ForecastRequest) -> ForecastResponse:
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Forecast failed: {e}")
+
+
+@router.post("/forecast/export")
+async def export_forecast(
+    request: ForecastExportRequest,
+) -> Response:
+    """Export forecast results in specified format.
+
+    Generate a time series forecast and return as a downloadable file
+    in JSON, CSV, or PDF format. The export includes predictions,
+    confidence bounds, and trend analysis.
+    """
+    try:
+        # Generate forecast
+        series = pd.Series(request.values)
+        result = _forecast_service.forecast_simple(series, periods=request.periods)
+
+        # Export to requested format
+        export_data = _export_service.export_forecast(
+            result,
+            format=request.format,
+            include_metadata=request.include_metadata,
+        )
+
+        # Generate filename
+        filename = _export_service.generate_filename(
+            base_name="forecast",
+            format=request.format,
+            custom_filename=request.filename,
+        )
+
+        # Get content type
+        content_type = _export_service.get_content_type(request.format)
+
+        # Return file response with appropriate headers
+        return Response(
+            content=export_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(export_data)),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {e}",
+        )
