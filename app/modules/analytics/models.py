@@ -8,6 +8,48 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class ExportFormat(str, Enum):
+    """Supported export formats for analytics results."""
+
+    JSON = "json"
+    CSV = "csv"
+    PDF = "pdf"
+
+
+class ExportRequest(BaseModel):
+    """Request model for exporting analytics results."""
+
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="The format to export the data in (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename for the export (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
+
+
+class ExportResponse(BaseModel):
+    """Response model for export operations."""
+
+    success: bool = Field(description="Whether the export was successful")
+    format: ExportFormat = Field(description="The format of the exported data")
+    filename: str = Field(description="The filename of the exported data")
+    content_type: str = Field(description="The MIME type of the exported data")
+    size_bytes: int | None = Field(
+        default=None,
+        description="Size of the exported data in bytes",
+    )
+    message: str | None = Field(
+        default=None,
+        description="Optional message about the export",
+    )
+
+
 class StatisticalTestType(str, Enum):
     """Types of statistical tests."""
 
