@@ -65,14 +65,13 @@ export default defineConfig({
   ],
 
   // Run your local dev server before starting the tests
-  // Note: Uncomment this block to auto-start the dev server
-  // For CI or when services are managed separately, keep it commented
-  // webServer: {
-  //   command: 'npm run dev',
-  //   url: 'http://localhost:3000',
-  //   reuseExistingServer: !process.env.CI,
-  //   timeout: 120000,
-  // },
+  // Automatically starts the Next.js dev server when running tests
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120000, // 2 minutes to start the dev server
+  },
 
   // Output folder for test artifacts
   outputDir: 'test-results/',
