@@ -48,6 +48,11 @@ ERROR_MAPPING = {
     "WidgetExecutionError": "widget_execution_failed",
     "DashboardRenderError": "dashboard_render_failed",
     "ShareTokenError": "share_token_error",
+    # ChartViz module errors
+    "ChartVizGenerationError": "chartviz_generation_failed",
+    "ChartVizRecommendationError": "chartviz_recommendation_failed",
+    "AutoChartGenerationError": "auto_chart_generation_failed",
+    "AnalysisDataExtractionError": "analysis_data_extraction_failed",
 }
 
 
