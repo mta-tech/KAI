@@ -160,6 +160,153 @@ async function selectExistingSession(page: Page, sessionText: string): Promise<v
   await expect(chatInput).toBeVisible({ timeout: 5000 });
 }
 
+// ============================================================================
+// Query Submission Helpers
+// Pattern from: ui/src/components/chat/chat-input.tsx
+//
+// The chat input component handles message submission with:
+// - Textarea with placeholder "Ask a question about your data... (Cmd+Enter to send)"
+// - Keyboard shortcut: Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux)
+// - Send button (icon button) as alternative submission method
+// - Input is disabled when no session is selected or while streaming
+//
+// Submission flow:
+// 1. User types message in textarea
+// 2. User presses Cmd+Enter or clicks Send button
+// 3. Message appears in chat as user message
+// 4. Agent processes and streams response
+// 5. Response appears with bot icon and markdown rendering
+// ============================================================================
+
+/**
+ * Submits a query to the chat using the keyboard shortcut.
+ *
+ * This function:
+ * 1. Verifies the chat input is visible and enabled
+ * 2. Clears any existing input and fills with the new query
+ * 3. Sends the message using Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux)
+ * 4. Verifies the user message appears in the chat
+ *
+ * @param page - Playwright page object
+ * @param query - The query text to submit
+ * @param options - Optional configuration for query submission
+ * @returns Promise that resolves when query is submitted and user message is visible
+ */
+async function submitQuery(
+  page: Page,
+  query: string,
+  options: {
+    /** Use button click instead of keyboard shortcut. Default: false */
+    useButton?: boolean;
+    /** Timeout for user message to appear in milliseconds. Default: 10000 */
+    timeout?: number;
+    /** Whether to verify user message appears. Default: true */
+    verifyUserMessage?: boolean;
+  } = {}
+): Promise<void> {
+  const { useButton = false, timeout = 10000, verifyUserMessage = true } = options;
+
+  // Find and verify the chat input is ready
+  const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
+  await expect(chatInput).toBeVisible();
+  await expect(chatInput).toBeEnabled();
+
+  // Clear any existing input and fill with the query
+  await chatInput.fill('');
+  await chatInput.fill(query);
+
+  // Verify the query text was entered
+  await expect(chatInput).toHaveValue(query);
+
+  if (useButton) {
+    // Submit using the Send button (icon button with Send icon)
+    // The Send button is the last button in the input group when not streaming
+    const sendButton = page.getByRole('button').filter({
+      has: page.locator('svg'),
+    }).last();
+    await expect(sendButton).toBeVisible();
+    await expect(sendButton).toBeEnabled();
+    await sendButton.click();
+  } else {
+    // Submit using keyboard shortcut (Cmd+Enter on Mac, Ctrl+Enter on Windows/Linux)
+    // Playwright's Meta key works as Cmd on Mac and Windows key on Windows
+    await chatInput.press('Meta+Enter');
+  }
+
+  // Verify the user message appears in the chat
+  if (verifyUserMessage) {
+    await expect(page.getByText(query)).toBeVisible({ timeout });
+  }
+
+  // Input should be cleared after submission
+  await expect(chatInput).toHaveValue('');
+}
+
+/**
+ * Submits a query and waits for the agent response.
+ *
+ * This function extends submitQuery to also wait for and validate the agent response.
+ *
+ * @param page - Playwright page object
+ * @param query - The query text to submit
+ * @param options - Optional configuration for query and response handling
+ * @returns Promise that resolves with the response element
+ */
+async function submitQueryAndWaitForResponse(
+  page: Page,
+  query: string,
+  options: {
+    /** Use button click instead of keyboard shortcut. Default: false */
+    useButton?: boolean;
+    /** Timeout for response to appear in milliseconds. Default: 60000 */
+    responseTimeout?: number;
+    /** Minimum expected response length in characters. Default: 10 */
+    minResponseLength?: number;
+  } = {}
+): Promise<{ responseText: string; responseElement: ReturnType<typeof page.locator> }> {
+  const { useButton = false, responseTimeout = 60000, minResponseLength = 10 } = options;
+
+  // Submit the query
+  await submitQuery(page, query, { useButton });
+
+  // Wait for agent response - look for the prose class which indicates markdown-rendered response
+  // The response may take time due to LLM processing and streaming
+  const agentResponse = page.locator('.prose').first();
+  await expect(agentResponse).toBeVisible({ timeout: responseTimeout });
+
+  // Get the response text and verify it has content
+  const responseText = (await agentResponse.textContent()) || '';
+  expect(responseText).toBeTruthy();
+  expect(responseText.length).toBeGreaterThan(minResponseLength);
+
+  return { responseText, responseElement: agentResponse };
+}
+
+/**
+ * Verifies that a stop button appears during streaming.
+ *
+ * Pattern from: ui/src/components/chat/chat-input.tsx
+ * During streaming, the Send button is replaced with a Stop button (destructive variant)
+ *
+ * @param page - Playwright page object
+ * @param timeout - Timeout for stop button to appear in milliseconds. Default: 10000
+ */
+async function verifyStreamingIndicator(
+  page: Page,
+  timeout: number = 10000
+): Promise<void> {
+  // During streaming, either the processing indicator or stop button should appear
+  // The stop button is a destructive button with a Square icon
+  const stopButton = page.getByRole('button').filter({
+    has: page.locator('svg'),
+  }).last();
+
+  // Either the processing indicator text or stop button should be visible
+  await expect(
+    page.getByText(/PROCESSING_REQUEST/i).or(stopButton)
+  ).toBeVisible({ timeout });
+}
+
 /**
  * Selects a specific connection from the connection dropdown.
  *
@@ -303,29 +450,40 @@ test.describe('Chat UI Capabilities', () => {
     // the session to be created (placeholder disappears, chat input visible)
     await createNewSession(page);
 
-    // Step 3: Enter the query in Indonesian
-    const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
-    await expect(chatInput).toBeVisible();
-    await expect(chatInput).toBeEnabled();
+    // Step 3-6: Submit query and wait for response using helper function
+    // This handles: filling input, keyboard submission, verifying user message,
+    // waiting for agent response, and validating response content
+    const query = 'berapa jumlah koperasi di jakarta';
+    const { responseText } = await submitQueryAndWaitForResponse(page, query, {
+      responseTimeout: 60000,
+      minResponseLength: 10,
+    });
 
-    await chatInput.fill('berapa jumlah koperasi di jakarta');
+    // Step 7: Log response for debugging (visible in test output)
+    test.info().annotations.push({
+      type: 'agent-response',
+      description: responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''),
+    });
+  });
 
-    // Step 4: Send the message using Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux)
-    await chatInput.press('Meta+Enter');
+  test('should submit query using Send button', async ({ page }) => {
+    // This test verifies the alternative submission method using the Send button
+    // Pattern from: ui/src/components/chat/chat-input.tsx
 
-    // Step 5: Verify the user message appears
-    await expect(page.getByText('berapa jumlah koperasi di jakarta')).toBeVisible();
+    // Step 1: Select connection and create session
+    await selectKoperasiOrFirstConnection(page);
+    await createNewSession(page);
 
-    // Step 6: Wait for agent response - look for the Bot icon which indicates an agent message
-    // The response may take time due to LLM processing
-    const agentResponse = page.locator('.prose').first();
-    await expect(agentResponse).toBeVisible({ timeout: 60000 });
+    // Step 2: Submit query using button instead of keyboard shortcut
+    const query = 'berapa jumlah koperasi di jakarta';
+    const { responseText } = await submitQueryAndWaitForResponse(page, query, {
+      useButton: true,
+      responseTimeout: 60000,
+    });
 
-    // Step 7: Verify the response contains relevant content
-    // Response should mention Jakarta or contain numeric data about cooperatives
-    const responseText = await agentResponse.textContent();
+    // Step 3: Verify response was received
     expect(responseText).toBeTruthy();
-    expect(responseText!.length).toBeGreaterThan(10);
+    expect(responseText.length).toBeGreaterThan(10);
   });
 
   test('should show streaming indicator while processing', async ({ page }) => {
@@ -335,23 +493,48 @@ test.describe('Chat UI Capabilities', () => {
     // Create new session using helper function
     await createNewSession(page);
 
-    // Send a query
-    const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
-    await chatInput.fill('berapa jumlah koperasi di jakarta');
-    await chatInput.press('Meta+Enter');
+    // Submit query without waiting for response (to catch streaming indicator)
+    const query = 'berapa jumlah koperasi di jakarta';
+    await submitQuery(page, query, { verifyUserMessage: true });
 
-    // Verify streaming indicator appears (the "PROCESSING_REQUEST..." text or Stop button)
-    // The stop button appears during streaming
-    const stopButton = page.getByRole('button').filter({ has: page.locator('svg') }).last();
-
-    // Either the processing indicator or stop button should appear
-    await expect(
-      page.getByText(/PROCESSING_REQUEST/i).or(stopButton)
-    ).toBeVisible({ timeout: 10000 });
+    // Verify streaming indicator appears using helper function
+    // Pattern from: ui/src/components/chat/chat-input.tsx
+    // During streaming, either PROCESSING_REQUEST text or Stop button should appear
+    await verifyStreamingIndicator(page, 10000);
 
     // Wait for response to complete
     const agentResponse = page.locator('.prose').first();
     await expect(agentResponse).toBeVisible({ timeout: 60000 });
+
+    // Verify the input is re-enabled after streaming completes
+    const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
+    await expect(chatInput).toBeEnabled({ timeout: 5000 });
+  });
+
+  test('should submit multiple queries in same session', async ({ page }) => {
+    // This test verifies that multiple queries can be submitted in the same session
+    // Pattern from: ui/src/components/chat/chat-input.tsx
+
+    // Step 1: Setup - select connection and create session
+    await selectKoperasiOrFirstConnection(page);
+    await createNewSession(page);
+
+    // Step 2: Submit first query and wait for response
+    const query1 = 'berapa jumlah koperasi di jakarta';
+    await submitQueryAndWaitForResponse(page, query1, { responseTimeout: 60000 });
+
+    // Step 3: Submit second query (follow-up question)
+    const query2 = 'bagaimana trennya dalam 5 tahun terakhir';
+    await submitQueryAndWaitForResponse(page, query2, { responseTimeout: 60000 });
+
+    // Step 4: Verify both user messages are visible in the chat history
+    await expect(page.getByText(query1)).toBeVisible();
+    await expect(page.getByText(query2)).toBeVisible();
+
+    // Step 5: Verify there are multiple prose elements (multiple responses)
+    const responses = page.locator('.prose');
+    const responseCount = await responses.count();
+    expect(responseCount).toBeGreaterThanOrEqual(2);
   });
 
   test('should handle connection selection and session creation flow', async ({ page }) => {
