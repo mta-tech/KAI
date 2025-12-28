@@ -71,6 +71,26 @@ class TTestRequest(BaseModel):
     alpha: float = 0.05
 
 
+class TTestExportRequest(BaseModel):
+    """Request for exporting t-test results."""
+
+    group1: list[float | int] = Field(description="First group data")
+    group2: list[float | int] = Field(description="Second group data")
+    alpha: float = Field(default=0.05, description="Significance level")
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="Export format (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
+
+
 class StatisticalTestResponse(BaseModel):
     """Response for statistical tests."""
 
@@ -342,6 +362,55 @@ async def t_test(request: TTestRequest) -> StatisticalTestResponse:
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"T-test failed: {e}")
+
+
+@router.post("/t-test/export")
+async def export_t_test(
+    request: TTestExportRequest,
+) -> Response:
+    """Export t-test results in specified format.
+
+    Perform an independent samples t-test and return as a downloadable file
+    in JSON, CSV, or PDF format. The export includes test statistics,
+    p-value, effect size, and interpretation.
+    """
+    try:
+        # Perform t-test
+        group1 = pd.Series(request.group1)
+        group2 = pd.Series(request.group2)
+        result = _stat_service.t_test_independent(group1, group2, alpha=request.alpha)
+
+        # Export to requested format
+        export_data = _export_service.export_statistical_test(
+            result,
+            format=request.format,
+            include_metadata=request.include_metadata,
+        )
+
+        # Generate filename
+        filename = _export_service.generate_filename(
+            base_name="t_test",
+            format=request.format,
+            custom_filename=request.filename,
+        )
+
+        # Get content type
+        content_type = _export_service.get_content_type(request.format)
+
+        # Return file response with appropriate headers
+        return Response(
+            content=export_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(export_data)),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {e}",
+        )
 
 
 @router.post("/correlation", response_model=CorrelationResponse)
