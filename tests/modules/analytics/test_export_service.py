@@ -371,7 +371,10 @@ class TestExportDescriptiveStats:
         export_service: ExportService,
         descriptive_stats: DescriptiveStats,
     ) -> None:
-        """Should export multiple descriptive stats."""
+        """Should export multiple descriptive stats.
+
+        Note: Lists are wrapped in a 'data' key for proper JSON structure.
+        """
         stats_list = [descriptive_stats, descriptive_stats]
         result = export_service.export_descriptive_stats(
             stats_list,
@@ -380,8 +383,10 @@ class TestExportDescriptiveStats:
         )
 
         parsed = json.loads(result.decode("utf-8"))
-        assert isinstance(parsed, list)
-        assert len(parsed) == 2
+        # Lists are wrapped in a 'data' key by export_to_json
+        assert "data" in parsed
+        assert isinstance(parsed["data"], list)
+        assert len(parsed["data"]) == 2
 
 
 class TestExportCorrelation:
