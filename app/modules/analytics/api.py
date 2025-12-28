@@ -94,6 +94,27 @@ class CorrelationRequest(BaseModel):
     alpha: float = 0.05
 
 
+class CorrelationExportRequest(BaseModel):
+    """Request for exporting correlation analysis results."""
+
+    x: list[float | int] = Field(description="First variable data")
+    y: list[float | int] = Field(description="Second variable data")
+    method: str = Field(default="pearson", description="Correlation method (pearson, spearman, kendall)")
+    alpha: float = Field(default=0.05, description="Significance level")
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="Export format (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
+
+
 class CorrelationResponse(BaseModel):
     """Response for correlation analysis."""
 
@@ -110,6 +131,25 @@ class CorrelationMatrixRequest(BaseModel):
 
     data: list[dict[str, Any]]
     method: str = "pearson"
+
+
+class CorrelationMatrixExportRequest(BaseModel):
+    """Request for exporting correlation matrix results."""
+
+    data: list[dict[str, Any]] = Field(description="Data as list of dictionaries (rows)")
+    method: str = Field(default="pearson", description="Correlation method (pearson, spearman, kendall)")
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="Export format (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
 
 
 class CorrelationMatrixResponse(BaseModel):
@@ -284,6 +324,56 @@ async def correlation(request: CorrelationRequest) -> CorrelationResponse:
         raise HTTPException(status_code=500, detail=f"Correlation analysis failed: {e}")
 
 
+@router.post("/correlation/export")
+async def export_correlation(
+    request: CorrelationExportRequest,
+) -> Response:
+    """Export correlation analysis results in specified format.
+
+    Calculate correlation between two variables and return as a downloadable file
+    in JSON, CSV, or PDF format.
+    """
+    try:
+        # Calculate correlation
+        x = pd.Series(request.x)
+        y = pd.Series(request.y)
+        result = _stat_service.correlation(
+            x, y, method=request.method, alpha=request.alpha
+        )
+
+        # Export to requested format
+        export_data = _export_service.export_correlation(
+            result,
+            format=request.format,
+            include_metadata=request.include_metadata,
+        )
+
+        # Generate filename
+        filename = _export_service.generate_filename(
+            base_name="correlation",
+            format=request.format,
+            custom_filename=request.filename,
+        )
+
+        # Get content type
+        content_type = _export_service.get_content_type(request.format)
+
+        # Return file response with appropriate headers
+        return Response(
+            content=export_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(export_data)),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {e}",
+        )
+
+
 @router.post("/correlation-matrix", response_model=CorrelationMatrixResponse)
 async def correlation_matrix(
     request: CorrelationMatrixRequest,
@@ -300,6 +390,53 @@ async def correlation_matrix(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Correlation matrix failed: {e}")
+
+
+@router.post("/correlation-matrix/export")
+async def export_correlation_matrix(
+    request: CorrelationMatrixExportRequest,
+) -> Response:
+    """Export correlation matrix in specified format.
+
+    Calculate correlation matrix for a dataset and return as a downloadable file
+    in JSON, CSV, or PDF format.
+    """
+    try:
+        # Calculate correlation matrix
+        df = pd.DataFrame(request.data)
+        result = _stat_service.correlation_matrix(df, method=request.method)
+
+        # Export to requested format
+        export_data = _export_service.export_correlation_matrix(
+            result,
+            format=request.format,
+            include_metadata=request.include_metadata,
+        )
+
+        # Generate filename
+        filename = _export_service.generate_filename(
+            base_name="correlation_matrix",
+            format=request.format,
+            custom_filename=request.filename,
+        )
+
+        # Get content type
+        content_type = _export_service.get_content_type(request.format)
+
+        # Return file response with appropriate headers
+        return Response(
+            content=export_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(export_data)),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {e}",
+        )
 
 
 @router.post("/anomalies", response_model=AnomalyResponse)
