@@ -1,5 +1,14 @@
 """Analytics module for statistical analysis and forecasting."""
 
+from app.modules.analytics.exceptions import (
+    AnalyticsError,
+    AnomalyDetectionError,
+    CorrelationAnalysisError,
+    ForecastingError,
+    InsufficientDataError,
+    InvalidMethodError,
+    StatisticalCalculationError,
+)
 from app.modules.analytics.models import (
     AnomalyResult,
     CorrelationMatrixResult,
@@ -19,15 +28,26 @@ from app.modules.analytics.services import (
 from app.modules.analytics.api import router as analytics_router
 
 __all__ = [
+    # Exceptions
+    "AnalyticsError",
+    "AnomalyDetectionError",
+    "CorrelationAnalysisError",
+    "ForecastingError",
+    "InsufficientDataError",
+    "InvalidMethodError",
+    "StatisticalCalculationError",
+    # Models
     "AnomalyResult",
-    "AnomalyService",
     "CorrelationMatrixResult",
     "CorrelationResult",
     "DescriptiveStats",
     "ForecastResult",
-    "ForecastingService",
-    "StatisticalService",
     "StatisticalTestResult",
     "StatisticalTestType",
+    # Services
+    "AnomalyService",
+    "ForecastingService",
+    "StatisticalService",
+    # Router
     "analytics_router",
 ]
