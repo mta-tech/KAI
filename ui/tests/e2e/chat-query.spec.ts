@@ -25,6 +25,141 @@ import { test, expect, Page } from '@playwright/test';
 // Connection display format: conn.alias || conn.id.slice(0, 8)
 // ============================================================================
 
+// ============================================================================
+// Session Creation Helpers
+// Pattern from: ui/src/components/chat/session-sidebar.tsx
+//
+// The session creation flow:
+// 1. User selects a connection (required - New Session button is disabled otherwise)
+// 2. User clicks "New Session" button (with Plus icon)
+// 3. Session is created via agentApi and appears in the sidebar
+// 4. The placeholder message disappears and chat input becomes available
+//
+// Session display format: session.title || `Session ${session.id.slice(0, 8)}`
+// ============================================================================
+
+/**
+ * Creates a new chat session by clicking the New Session button.
+ *
+ * Prerequisites:
+ * - A connection must already be selected (New Session button must be enabled)
+ *
+ * This function:
+ * 1. Verifies the New Session button is enabled (connection is selected)
+ * 2. Clicks the New Session button
+ * 3. Waits for the session to be created (placeholder message disappears)
+ * 4. Verifies the chat input is visible and enabled
+ * 5. Optionally verifies the session appears in the sidebar
+ *
+ * @param page - Playwright page object
+ * @param options - Optional configuration for session creation
+ * @throws Will fail if session creation times out or chat input is not available
+ */
+async function createNewSession(
+  page: Page,
+  options: {
+    /** Timeout for session creation in milliseconds. Default: 15000 */
+    timeout?: number;
+    /** Whether to verify the session appears in the sidebar. Default: false */
+    verifySidebar?: boolean;
+  } = {}
+): Promise<void> {
+  const { timeout = 15000, verifySidebar = false } = options;
+
+  // Verify the New Session button is enabled (requires connection to be selected)
+  const newSessionButton = page.getByRole('button', { name: /New Session/i });
+  await expect(newSessionButton).toBeVisible();
+  await expect(newSessionButton).toBeEnabled();
+
+  // Click the New Session button to create a session
+  await newSessionButton.click();
+
+  // Wait for session to be created - the placeholder message should disappear
+  // This indicates the session was successfully created and the chat view is ready
+  await expect(
+    page.getByText('Select or create a session to start chatting')
+  ).not.toBeVisible({ timeout });
+
+  // Verify the chat input is now visible and enabled
+  const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
+  await expect(chatInput).toBeVisible({ timeout: 5000 });
+  await expect(chatInput).toBeEnabled();
+
+  // Optionally verify the session appears in the sidebar
+  if (verifySidebar) {
+    // Sessions are displayed with MessageSquare icon and title/id
+    // Look for any session entry in the sidebar (not the "No sessions yet" message)
+    const sessionEntries = page.locator('button').filter({
+      has: page.locator('svg'),
+    }).filter({
+      hasText: /Session/i,
+    });
+    await expect(sessionEntries.first()).toBeVisible({ timeout: 5000 });
+  }
+}
+
+/**
+ * Creates a new session and returns the session ID from the sidebar.
+ *
+ * Prerequisites:
+ * - A connection must already be selected
+ *
+ * This function extends createNewSession to also capture and return
+ * the session identifier displayed in the sidebar.
+ *
+ * @param page - Playwright page object
+ * @returns The session display text (e.g., "Session abc12345")
+ */
+async function createNewSessionAndGetId(page: Page): Promise<string> {
+  // Get the count of existing sessions before creating a new one
+  const sessionsBefore = page.locator('[class*="group"]').filter({
+    has: page.locator('svg'),
+  });
+  const countBefore = await sessionsBefore.count().catch(() => 0);
+
+  // Create the new session
+  await createNewSession(page);
+
+  // Wait for a new session to appear in the sidebar
+  // Look for session entries with the MessageSquare icon pattern
+  const sessionEntries = page.locator('button').filter({
+    hasText: /Session [a-f0-9]+/i,
+  });
+
+  // Wait for at least one more session than before
+  await expect(async () => {
+    const currentCount = await sessionEntries.count();
+    expect(currentCount).toBeGreaterThan(countBefore);
+  }).toPass({ timeout: 10000 });
+
+  // Get the text of the most recently created session (likely the last or first visible one)
+  const latestSession = sessionEntries.first();
+  const sessionText = (await latestSession.textContent()) || 'unknown-session';
+
+  return sessionText.trim();
+}
+
+/**
+ * Selects an existing session from the sidebar by its display text.
+ *
+ * @param page - Playwright page object
+ * @param sessionText - The session text to look for (partial match supported)
+ * @throws Will fail if session is not found
+ */
+async function selectExistingSession(page: Page, sessionText: string): Promise<void> {
+  // Find and click the session button in the sidebar
+  const sessionButton = page.locator('button').filter({
+    hasText: new RegExp(sessionText, 'i'),
+  }).first();
+
+  await expect(sessionButton).toBeVisible({ timeout: 5000 });
+  await sessionButton.click();
+
+  // Verify the chat input is visible after selecting the session
+  const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
+  await expect(chatInput).toBeVisible({ timeout: 5000 });
+}
+
 /**
  * Selects a specific connection from the connection dropdown.
  *
@@ -163,15 +298,10 @@ test.describe('Chat UI Capabilities', () => {
     // Uses helper function that verifies the complete connection selection flow
     await selectConnection(page, 'koperasi');
 
-    // Step 2: Create a new session
-    const newSessionButton = page.getByRole('button', { name: /New Session/i });
-    await expect(newSessionButton).toBeEnabled();
-    await newSessionButton.click();
-
-    // Wait for session to be created - the placeholder message should disappear
-    await expect(
-      page.getByText('Select or create a session to start chatting')
-    ).not.toBeVisible({ timeout: 15000 });
+    // Step 2: Create a new session using helper function
+    // This verifies the New Session button is enabled, clicks it, and waits for
+    // the session to be created (placeholder disappears, chat input visible)
+    await createNewSession(page);
 
     // Step 3: Enter the query in Indonesian
     const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
@@ -202,14 +332,8 @@ test.describe('Chat UI Capabilities', () => {
     // Select connection using helper function
     await selectConnection(page, 'koperasi');
 
-    // Create new session
-    const newSessionButton = page.getByRole('button', { name: /New Session/i });
-    await newSessionButton.click();
-
-    // Wait for session creation
-    await expect(
-      page.getByText('Select or create a session to start chatting')
-    ).not.toBeVisible({ timeout: 15000 });
+    // Create new session using helper function
+    await createNewSession(page);
 
     // Send a query
     const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
@@ -244,16 +368,46 @@ test.describe('Chat UI Capabilities', () => {
       description: selectedConnection,
     });
 
-    // New Session button should now be enabled (verified in helper, but double-check)
-    await expect(newSessionButton).toBeEnabled();
+    // Create session using helper function
+    // This verifies the button is enabled, clicks it, waits for session creation,
+    // and confirms the chat input is visible and enabled
+    await createNewSession(page);
+  });
 
-    // Create session
-    await newSessionButton.click();
+  test('should create new session when New Session button is clicked', async ({ page }) => {
+    // This test specifically validates the session creation step
+    // Pattern from: ui/src/components/chat/session-sidebar.tsx
 
-    // Chat input should now be visible and enabled
+    // Step 1: Verify initial state - New Session button should be disabled
+    const newSessionButton = page.getByRole('button', { name: /New Session/i });
+    await expect(newSessionButton).toBeVisible();
+    await expect(newSessionButton).toBeDisabled();
+
+    // Verify placeholder message is shown (no session selected)
+    await expect(
+      page.getByText('Select or create a session to start chatting')
+    ).toBeVisible();
+
+    // Step 2: Select a connection (required for session creation)
+    await selectKoperasiOrFirstConnection(page);
+
+    // Step 3: Create a new session with sidebar verification
+    // This uses the helper function with verifySidebar option enabled
+    await createNewSession(page, { verifySidebar: true });
+
+    // Step 4: Verify the session was created successfully
+    // - Placeholder message should be hidden
+    await expect(
+      page.getByText('Select or create a session to start chatting')
+    ).not.toBeVisible();
+
+    // - Chat input should be visible and ready for input
     const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
-    await expect(chatInput).toBeVisible({ timeout: 15000 });
+    await expect(chatInput).toBeVisible();
     await expect(chatInput).toBeEnabled();
+
+    // - The "No sessions yet" message should not be visible (session was created)
+    await expect(page.getByText('No sessions yet')).not.toBeVisible();
   });
 
   test('should verify connection dropdown contains available connections', async ({ page }) => {
