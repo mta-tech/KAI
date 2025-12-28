@@ -5,12 +5,16 @@ from app.modules.analytics.models import (
     CorrelationMatrixResult,
     CorrelationResult,
     DescriptiveStats,
+    ExportFormat,
+    ExportRequest,
+    ExportResponse,
     ForecastResult,
     StatisticalTestResult,
     StatisticalTestType,
 )
 from app.modules.analytics.services import (
     AnomalyService,
+    ExportService,
     ForecastingService,
     StatisticalService,
 )
@@ -24,6 +28,10 @@ __all__ = [
     "CorrelationMatrixResult",
     "CorrelationResult",
     "DescriptiveStats",
+    "ExportFormat",
+    "ExportRequest",
+    "ExportResponse",
+    "ExportService",
     "ForecastResult",
     "ForecastingService",
     "StatisticalService",
