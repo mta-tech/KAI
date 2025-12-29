@@ -5,12 +5,16 @@ from app.modules.analytics.models import (
     CorrelationMatrixResult,
     CorrelationResult,
     DescriptiveStats,
+    ExportFormat,
+    ExportRequest,
+    ExportResponse,
     ForecastResult,
     StatisticalTestResult,
     StatisticalTestType,
 )
 from app.modules.analytics.services import (
     AnomalyService,
+    ExportService,
     ForecastingService,
     StatisticalService,
 )
@@ -18,16 +22,24 @@ from app.modules.analytics.services import (
 # Import router after services to avoid circular imports
 from app.modules.analytics.api import router as analytics_router
 
+# Import CLI for command-line access
+from app.modules.analytics.cli import cli as analytics_cli
+
 __all__ = [
     "AnomalyResult",
     "AnomalyService",
     "CorrelationMatrixResult",
     "CorrelationResult",
     "DescriptiveStats",
+    "ExportFormat",
+    "ExportRequest",
+    "ExportResponse",
+    "ExportService",
     "ForecastResult",
     "ForecastingService",
     "StatisticalService",
     "StatisticalTestResult",
     "StatisticalTestType",
+    "analytics_cli",
     "analytics_router",
 ]

@@ -6,10 +6,13 @@ from typing import Any
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.modules.analytics import (
     AnomalyService,
+    ExportFormat,
+    ExportService,
     ForecastingService,
     StatisticalService,
 )
@@ -23,6 +26,25 @@ class DescriptiveStatsRequest(BaseModel):
 
     data: list[float | int]
     column_name: str = "value"
+
+
+class DescriptiveStatsExportRequest(BaseModel):
+    """Request for exporting descriptive statistics."""
+
+    data: list[float | int] = Field(description="The numeric data to analyze")
+    column_name: str = Field(default="value", description="Name of the data column")
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="Export format (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
 
 
 class DescriptiveStatsResponse(BaseModel):
@@ -49,6 +71,26 @@ class TTestRequest(BaseModel):
     alpha: float = 0.05
 
 
+class TTestExportRequest(BaseModel):
+    """Request for exporting t-test results."""
+
+    group1: list[float | int] = Field(description="First group data")
+    group2: list[float | int] = Field(description="Second group data")
+    alpha: float = Field(default=0.05, description="Significance level")
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="Export format (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
+
+
 class StatisticalTestResponse(BaseModel):
     """Response for statistical tests."""
 
@@ -72,6 +114,27 @@ class CorrelationRequest(BaseModel):
     alpha: float = 0.05
 
 
+class CorrelationExportRequest(BaseModel):
+    """Request for exporting correlation analysis results."""
+
+    x: list[float | int] = Field(description="First variable data")
+    y: list[float | int] = Field(description="Second variable data")
+    method: str = Field(default="pearson", description="Correlation method (pearson, spearman, kendall)")
+    alpha: float = Field(default=0.05, description="Significance level")
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="Export format (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
+
+
 class CorrelationResponse(BaseModel):
     """Response for correlation analysis."""
 
@@ -90,6 +153,25 @@ class CorrelationMatrixRequest(BaseModel):
     method: str = "pearson"
 
 
+class CorrelationMatrixExportRequest(BaseModel):
+    """Request for exporting correlation matrix results."""
+
+    data: list[dict[str, Any]] = Field(description="Data as list of dictionaries (rows)")
+    method: str = Field(default="pearson", description="Correlation method (pearson, spearman, kendall)")
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="Export format (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
+
+
 class CorrelationMatrixResponse(BaseModel):
     """Response for correlation matrix."""
 
@@ -104,6 +186,29 @@ class AnomalyRequest(BaseModel):
     data: list[float | int]
     method: str = "zscore"
     threshold: float = 3.0
+
+
+class AnomalyExportRequest(BaseModel):
+    """Request for exporting anomaly detection results."""
+
+    data: list[float | int] = Field(description="The numeric data to analyze for anomalies")
+    method: str = Field(default="zscore", description="Detection method (zscore or iqr)")
+    threshold: float = Field(
+        default=3.0,
+        description="Threshold for anomaly detection (z-score threshold or IQR multiplier)",
+    )
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="Export format (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
 
 
 class AnomalyResponse(BaseModel):
@@ -125,6 +230,25 @@ class ForecastRequest(BaseModel):
     periods: int = 30
 
 
+class ForecastExportRequest(BaseModel):
+    """Request for exporting forecast results."""
+
+    values: list[float | int] = Field(description="Time series values to forecast")
+    periods: int = Field(default=30, description="Number of periods to forecast")
+    format: ExportFormat = Field(
+        default=ExportFormat.JSON,
+        description="Export format (json, csv, or pdf)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Optional custom filename (without extension)",
+    )
+    include_metadata: bool = Field(
+        default=True,
+        description="Whether to include metadata in the export",
+    )
+
+
 class ForecastResponse(BaseModel):
     """Response for forecasting."""
 
@@ -141,6 +265,7 @@ class ForecastResponse(BaseModel):
 _stat_service = StatisticalService()
 _anomaly_service = AnomalyService()
 _forecast_service = ForecastingService()
+_export_service = ExportService()
 
 
 @router.post("/descriptive", response_model=DescriptiveStatsResponse)
@@ -169,6 +294,53 @@ async def descriptive_statistics(
         raise HTTPException(status_code=500, detail=f"Statistics calculation failed: {e}")
 
 
+@router.post("/descriptive/export")
+async def export_descriptive_statistics(
+    request: DescriptiveStatsExportRequest,
+) -> Response:
+    """Export descriptive statistics for a dataset in specified format.
+
+    Calculate descriptive statistics and return as a downloadable file
+    in JSON, CSV, or PDF format.
+    """
+    try:
+        # Calculate descriptive statistics
+        series = pd.Series(request.data, name=request.column_name)
+        result = _stat_service.descriptive_stats(series)
+
+        # Export to requested format
+        export_data = _export_service.export_descriptive_stats(
+            result,
+            format=request.format,
+            include_metadata=request.include_metadata,
+        )
+
+        # Generate filename
+        filename = _export_service.generate_filename(
+            base_name="descriptive_stats",
+            format=request.format,
+            custom_filename=request.filename,
+        )
+
+        # Get content type
+        content_type = _export_service.get_content_type(request.format)
+
+        # Return file response with appropriate headers
+        return Response(
+            content=export_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(export_data)),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {e}",
+        )
+
+
 @router.post("/t-test", response_model=StatisticalTestResponse)
 async def t_test(request: TTestRequest) -> StatisticalTestResponse:
     """Perform independent samples t-test."""
@@ -190,6 +362,55 @@ async def t_test(request: TTestRequest) -> StatisticalTestResponse:
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"T-test failed: {e}")
+
+
+@router.post("/t-test/export")
+async def export_t_test(
+    request: TTestExportRequest,
+) -> Response:
+    """Export t-test results in specified format.
+
+    Perform an independent samples t-test and return as a downloadable file
+    in JSON, CSV, or PDF format. The export includes test statistics,
+    p-value, effect size, and interpretation.
+    """
+    try:
+        # Perform t-test
+        group1 = pd.Series(request.group1)
+        group2 = pd.Series(request.group2)
+        result = _stat_service.t_test_independent(group1, group2, alpha=request.alpha)
+
+        # Export to requested format
+        export_data = _export_service.export_statistical_test(
+            result,
+            format=request.format,
+            include_metadata=request.include_metadata,
+        )
+
+        # Generate filename
+        filename = _export_service.generate_filename(
+            base_name="t_test",
+            format=request.format,
+            custom_filename=request.filename,
+        )
+
+        # Get content type
+        content_type = _export_service.get_content_type(request.format)
+
+        # Return file response with appropriate headers
+        return Response(
+            content=export_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(export_data)),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {e}",
+        )
 
 
 @router.post("/correlation", response_model=CorrelationResponse)
@@ -214,6 +435,56 @@ async def correlation(request: CorrelationRequest) -> CorrelationResponse:
         raise HTTPException(status_code=500, detail=f"Correlation analysis failed: {e}")
 
 
+@router.post("/correlation/export")
+async def export_correlation(
+    request: CorrelationExportRequest,
+) -> Response:
+    """Export correlation analysis results in specified format.
+
+    Calculate correlation between two variables and return as a downloadable file
+    in JSON, CSV, or PDF format.
+    """
+    try:
+        # Calculate correlation
+        x = pd.Series(request.x)
+        y = pd.Series(request.y)
+        result = _stat_service.correlation(
+            x, y, method=request.method, alpha=request.alpha
+        )
+
+        # Export to requested format
+        export_data = _export_service.export_correlation(
+            result,
+            format=request.format,
+            include_metadata=request.include_metadata,
+        )
+
+        # Generate filename
+        filename = _export_service.generate_filename(
+            base_name="correlation",
+            format=request.format,
+            custom_filename=request.filename,
+        )
+
+        # Get content type
+        content_type = _export_service.get_content_type(request.format)
+
+        # Return file response with appropriate headers
+        return Response(
+            content=export_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(export_data)),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {e}",
+        )
+
+
 @router.post("/correlation-matrix", response_model=CorrelationMatrixResponse)
 async def correlation_matrix(
     request: CorrelationMatrixRequest,
@@ -230,6 +501,53 @@ async def correlation_matrix(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Correlation matrix failed: {e}")
+
+
+@router.post("/correlation-matrix/export")
+async def export_correlation_matrix(
+    request: CorrelationMatrixExportRequest,
+) -> Response:
+    """Export correlation matrix in specified format.
+
+    Calculate correlation matrix for a dataset and return as a downloadable file
+    in JSON, CSV, or PDF format.
+    """
+    try:
+        # Calculate correlation matrix
+        df = pd.DataFrame(request.data)
+        result = _stat_service.correlation_matrix(df, method=request.method)
+
+        # Export to requested format
+        export_data = _export_service.export_correlation_matrix(
+            result,
+            format=request.format,
+            include_metadata=request.include_metadata,
+        )
+
+        # Generate filename
+        filename = _export_service.generate_filename(
+            base_name="correlation_matrix",
+            format=request.format,
+            custom_filename=request.filename,
+        )
+
+        # Get content type
+        content_type = _export_service.get_content_type(request.format)
+
+        # Return file response with appropriate headers
+        return Response(
+            content=export_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(export_data)),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {e}",
+        )
 
 
 @router.post("/anomalies", response_model=AnomalyResponse)
@@ -260,6 +578,62 @@ async def detect_anomalies(request: AnomalyRequest) -> AnomalyResponse:
         raise HTTPException(status_code=500, detail=f"Anomaly detection failed: {e}")
 
 
+@router.post("/anomalies/export")
+async def export_anomalies(
+    request: AnomalyExportRequest,
+) -> Response:
+    """Export anomaly detection results in specified format.
+
+    Detect anomalies in a dataset and return as a downloadable file
+    in JSON, CSV, or PDF format. The export includes detected anomalies,
+    summary statistics, and interpretation.
+    """
+    try:
+        # Detect anomalies
+        series = pd.Series(request.data)
+
+        if request.method == "zscore":
+            result = _anomaly_service.detect_zscore(series, threshold=request.threshold)
+        elif request.method == "iqr":
+            result = _anomaly_service.detect_iqr(series, multiplier=request.threshold)
+        else:
+            raise ValueError(f"Unknown method: {request.method}")
+
+        # Export to requested format
+        export_data = _export_service.export_anomalies(
+            result,
+            format=request.format,
+            include_metadata=request.include_metadata,
+        )
+
+        # Generate filename
+        filename = _export_service.generate_filename(
+            base_name="anomaly_detection",
+            format=request.format,
+            custom_filename=request.filename,
+        )
+
+        # Get content type
+        content_type = _export_service.get_content_type(request.format)
+
+        # Return file response with appropriate headers
+        return Response(
+            content=export_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(export_data)),
+            },
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {e}",
+        )
+
+
 @router.post("/forecast", response_model=ForecastResponse)
 async def forecast(request: ForecastRequest) -> ForecastResponse:
     """Generate simple forecast for time series data."""
@@ -279,3 +653,51 @@ async def forecast(request: ForecastRequest) -> ForecastResponse:
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Forecast failed: {e}")
+
+
+@router.post("/forecast/export")
+async def export_forecast(
+    request: ForecastExportRequest,
+) -> Response:
+    """Export forecast results in specified format.
+
+    Generate a time series forecast and return as a downloadable file
+    in JSON, CSV, or PDF format. The export includes predictions,
+    confidence bounds, and trend analysis.
+    """
+    try:
+        # Generate forecast
+        series = pd.Series(request.values)
+        result = _forecast_service.forecast_simple(series, periods=request.periods)
+
+        # Export to requested format
+        export_data = _export_service.export_forecast(
+            result,
+            format=request.format,
+            include_metadata=request.include_metadata,
+        )
+
+        # Generate filename
+        filename = _export_service.generate_filename(
+            base_name="forecast",
+            format=request.format,
+            custom_filename=request.filename,
+        )
+
+        # Get content type
+        content_type = _export_service.get_content_type(request.format)
+
+        # Return file response with appropriate headers
+        return Response(
+            content=export_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(export_data)),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {e}",
+        )
