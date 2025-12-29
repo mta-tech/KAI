@@ -23,7 +23,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# Python lib directories (but not ui/src/lib)
+/lib/
 lib64/
 parts/
 sdist/
@@ -242,3 +243,6 @@ agent_results/
 .bmad_docs/
 .bmad/
 app/data/dbdata/
+
+# Auto Claude data directory
+.auto-claude/
