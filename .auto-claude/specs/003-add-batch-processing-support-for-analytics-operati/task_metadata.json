@@ -1,0 +1,13 @@
+{
+  "sourceType": "ideation",
+  "ideationType": "code_improvements",
+  "ideaId": "ci-002",
+  "rationale": "The code reveals this opportunity because: 1) Robust batch processing pattern already exists in app/api/v2/batch.py with BackgroundTasks, progress tracking, and result aggregation, 2) Analytics services are stateless and can easily process multiple requests, 3) BatchRequest/BatchStatus models can be extended for analytics use cases.",
+  "category": "feature",
+  "estimatedEffort": "medium",
+  "complexity": "medium",
+  "affectedFiles": [
+    "app/modules/analytics/api.py",
+    "app/modules/analytics/batch.py"
+  ]
+}

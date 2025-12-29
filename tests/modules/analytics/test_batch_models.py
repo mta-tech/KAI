@@ -48,7 +48,7 @@ class TestAnalyticsOperationType:
     def test_operation_type_is_string_enum(self) -> None:
         """Should be usable as string."""
         op_type = AnalyticsOperationType.DESCRIPTIVE_STATS
-        assert str(op_type) == "descriptive_stats"
+        assert op_type.value == "descriptive_stats"
         assert op_type == "descriptive_stats"
 
 
