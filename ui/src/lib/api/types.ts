@@ -3,6 +3,7 @@
 export interface Connection {
   id: string;
   alias: string;
+  dialect: string;
   created_at: string;
   database_type?: string;
   status?: string;
@@ -36,12 +37,57 @@ export interface TableDescription {
   created_at?: string;
 }
 
+export interface MDLColumn {
+  name: string;
+  type: string;
+  is_calculated?: boolean;
+  expression?: string;
+  description?: string;
+  properties?: Record<string, unknown>;
+}
+
+export interface MDLModel {
+  name: string;
+  ref_sql?: string;
+  table_name?: string;
+  columns: MDLColumn[];
+  primary_key?: string;
+  cached?: boolean;
+  refresh_time?: string;
+  properties?: Record<string, unknown>;
+}
+
+export interface MDLRelationship {
+  name: string;
+  models: string[];
+  join_type: string;
+  condition: string;
+  properties?: Record<string, unknown>;
+}
+
+export interface MDLMetric {
+  name: string;
+  base_object: string;
+  dimension: string[];
+  measure: string[];
+  time_grain?: string;
+  cached?: boolean;
+  refresh_time?: string;
+  properties?: Record<string, unknown>;
+}
+
 export interface MDLManifest {
   id: string;
   name: string;
+  catalog: string;
+  schema: string;
+  data_source?: string;
   created_at: string;
   db_connection_id: string;
   status?: string;
+  models: MDLModel[];
+  relationships: MDLRelationship[];
+  metrics: MDLMetric[];
 }
 
 export interface AgentSession {
@@ -93,19 +139,40 @@ export interface BusinessGlossary {
 export interface Instruction {
   id: string;
   db_connection_id: string;
-  content: string;
+  condition: string;
+  rules: string;
+  is_default: boolean;
   metadata?: Record<string, unknown>;
   created_at: string;
 }
 
+// Chunk types for structured SSE events
+export type ChunkType = 'text' | 'sql' | 'summary' | 'insights' | 'chart_recommendations' | 'reasoning';
+
 // Agent event types for streaming
 export interface AgentEvent {
-  type: 'tool_start' | 'tool_end' | 'text' | 'todo_update';
+  type: 'tool_start' | 'tool_end' | 'text' | 'todo_update' | 'token' | 'done' | 'error' | 'status';
   tool?: string;
   input?: Record<string, unknown>;
   output?: string | Record<string, unknown>;
   content?: string;
   todos?: AgentTodo[];
+  error?: string;
+  // Structured content from SSE
+  chunk_type?: ChunkType;
+  step?: string;
+  message?: string;
+  session_id?: string;
+  status?: string;
+}
+
+// Parsed message content structure
+export interface ParsedContent {
+  text: string;
+  sql?: string;
+  summary?: string;
+  insights?: string[];
+  chartRecommendations?: string[];
 }
 
 export interface AgentTodo {

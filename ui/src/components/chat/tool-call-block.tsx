@@ -50,7 +50,7 @@ export function ToolCallBlock({ event, result }: ToolCallBlockProps) {
                 {typeof result.output === 'string'
                   ? result.output.slice(0, 500)
                   : JSON.stringify(result.output, null, 2).slice(0, 500)}
-                {(result.output?.length || 0) > 500 && '...'}
+                {(typeof result.output === 'string' ? result.output.length : JSON.stringify(result.output, null, 2).length) > 500 && '...'}
               </pre>
             </div>
           )}

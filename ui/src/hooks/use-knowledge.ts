@@ -77,7 +77,7 @@ export function useCreateInstruction() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (data: { db_connection_id: string; content: string; metadata?: Record<string, unknown> }) =>
+    mutationFn: (data: { db_connection_id: string; condition: string; rules: string; is_default?: boolean; metadata?: Record<string, unknown> }) =>
       instructionsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['instructions'] });
@@ -94,7 +94,7 @@ export function useUpdateInstruction() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { content?: string; metadata?: Record<string, unknown> } }) =>
+    mutationFn: ({ id, data }: { id: string; data: { condition?: string; rules?: string; is_default?: boolean; metadata?: Record<string, unknown> } }) =>
       instructionsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['instructions'] });

@@ -99,7 +99,9 @@ export const instructionsApi = {
 
   async create(data: {
     db_connection_id: string;
-    content: string;
+    condition: string;
+    rules: string;
+    is_default?: boolean;
     metadata?: Record<string, unknown>;
   }): Promise<Instruction> {
     const response = await fetch(`${API_BASE}/api/v1/instructions`, {
@@ -119,7 +121,7 @@ export const instructionsApi = {
 
   async update(
     id: string,
-    data: { content?: string; metadata?: Record<string, unknown> }
+    data: { condition?: string; rules?: string; is_default?: boolean; metadata?: Record<string, unknown> }
   ): Promise<Instruction> {
     const response = await fetch(`${API_BASE}/api/v1/instructions/${id}`, {
       method: 'PUT',

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -24,14 +25,18 @@ interface InstructionListProps {
 export function InstructionList({ items, connectionId }: InstructionListProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [editItem, setEditItem] = useState<Instruction | null>(null);
-  const [content, setContent] = useState('');
+  const [condition, setCondition] = useState('');
+  const [rules, setRules] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
 
   const createMutation = useCreateInstruction();
   const updateMutation = useUpdateInstruction();
   const deleteMutation = useDeleteInstruction();
 
   const resetForm = () => {
-    setContent('');
+    setCondition('');
+    setRules('');
+    setIsDefault(false);
     setEditItem(null);
   };
 
@@ -42,7 +47,9 @@ export function InstructionList({ items, connectionId }: InstructionListProps) {
 
   const handleEdit = (item: Instruction) => {
     setEditItem(item);
-    setContent(item.content);
+    setCondition(item.condition);
+    setRules(item.rules);
+    setIsDefault(item.is_default);
     setIsOpen(true);
   };
 
@@ -50,9 +57,9 @@ export function InstructionList({ items, connectionId }: InstructionListProps) {
     e.preventDefault();
 
     if (editItem) {
-      await updateMutation.mutateAsync({ id: editItem.id, data: { content } });
+      await updateMutation.mutateAsync({ id: editItem.id, data: { condition, rules, is_default: isDefault } });
     } else {
-      await createMutation.mutateAsync({ db_connection_id: connectionId, content });
+      await createMutation.mutateAsync({ db_connection_id: connectionId, condition, rules, is_default: isDefault });
     }
     handleOpenChange(false);
   };
@@ -79,18 +86,42 @@ export function InstructionList({ items, connectionId }: InstructionListProps) {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="content">Instruction</Label>
+                <Label htmlFor="condition">Condition</Label>
                 <Textarea
-                  id="content"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="When calculating totals, always exclude cancelled orders..."
-                  className="min-h-[150px]"
+                  id="condition"
+                  value={condition}
+                  onChange={(e) => setCondition(e.target.value)}
+                  placeholder="When the user asks about sales data..."
+                  className="min-h-[80px]"
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Provide specific instructions for how the AI should handle queries for this database.
+                  Describe when this instruction should apply.
                 </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rules">Rules</Label>
+                <Textarea
+                  id="rules"
+                  value={rules}
+                  onChange={(e) => setRules(e.target.value)}
+                  placeholder="Always exclude cancelled orders from calculations..."
+                  className="min-h-[100px]"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Specify the rules the AI should follow when the condition is met.
+                </p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="is_default"
+                  checked={isDefault}
+                  onCheckedChange={(checked) => setIsDefault(checked === true)}
+                />
+                <Label htmlFor="is_default" className="text-sm font-normal">
+                  Apply as default instruction for all queries
+                </Label>
               </div>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
@@ -120,9 +151,16 @@ export function InstructionList({ items, connectionId }: InstructionListProps) {
             <Card key={item.id}>
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
-                  <CardTitle className="text-sm text-muted-foreground">
-                    Instruction #{index + 1}
-                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-sm text-muted-foreground">
+                      Instruction #{index + 1}
+                    </CardTitle>
+                    {item.is_default && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                        Default
+                      </span>
+                    )}
+                  </div>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
                       <Pencil className="h-3 w-3" />
@@ -133,8 +171,15 @@ export function InstructionList({ items, connectionId }: InstructionListProps) {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap">{item.content}</p>
+              <CardContent className="space-y-2">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Condition:</p>
+                  <p className="text-sm whitespace-pre-wrap">{item.condition}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Rules:</p>
+                  <p className="text-sm whitespace-pre-wrap">{item.rules}</p>
+                </div>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Created: {new Date(item.created_at).toLocaleDateString()}
                 </p>

@@ -37,4 +37,54 @@ export const mdlApi = {
 
     return response.json();
   },
+
+  async buildFromDatabase(request: {
+    db_connection_id: string;
+    name: string;
+    catalog: string;
+    schema: string;
+    infer_relationships?: boolean;
+  }): Promise<{ manifest_id: string }> {
+    const response = await fetch(`${API_BASE}/api/v1/mdl/manifests/build`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to build MDL manifest: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  async delete(id: string): Promise<void> {
+    const response = await fetch(`${API_BASE}/api/v1/mdl/manifests/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete MDL manifest: ${response.statusText}`);
+    }
+  },
+
+  async export(id: string): Promise<MDLManifest> {
+    const response = await fetch(`${API_BASE}/api/v1/mdl/manifests/${id}/export`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to export MDL manifest: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
 };

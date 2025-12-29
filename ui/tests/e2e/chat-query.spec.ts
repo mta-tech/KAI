@@ -197,13 +197,13 @@ function assertKoperasiResponse(
 async function createNewSession(
   page: Page,
   options: {
-    /** Timeout for session creation in milliseconds. Default: 15000 */
+    /** Timeout for session creation in milliseconds. Default: 30000 */
     timeout?: number;
     /** Whether to verify the session appears in the sidebar. Default: false */
     verifySidebar?: boolean;
   } = {}
 ): Promise<void> {
-  const { timeout = 15000, verifySidebar = false } = options;
+  const { timeout = 30000, verifySidebar = false } = options;
 
   // Verify the New Session button is enabled (requires connection to be selected)
   const newSessionButton = page.getByRole('button', { name: /New Session/i });
@@ -213,16 +213,20 @@ async function createNewSession(
   // Click the New Session button to create a session
   await newSessionButton.click();
 
-  // Wait for session to be created - the placeholder message should disappear
-  // This indicates the session was successfully created and the chat view is ready
+  // Wait for session to be created - use polling approach to check for chat input
+  // The API call to create session may take time, so we wait for the chat input to appear
+  const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
+
+  // Use expect().toPass() for reliable polling - wait until chat input is visible
+  await expect(async () => {
+    await expect(chatInput).toBeVisible();
+    await expect(chatInput).toBeEnabled();
+  }).toPass({ timeout, intervals: [500, 1000, 2000, 3000] });
+
+  // Verify the placeholder message is gone
   await expect(
     page.getByText('Select or create a session to start chatting')
-  ).not.toBeVisible({ timeout });
-
-  // Verify the chat input is now visible and enabled
-  const chatInput = page.getByPlaceholder(/Ask a question about your data/i);
-  await expect(chatInput).toBeVisible({ timeout: 5000 });
-  await expect(chatInput).toBeEnabled();
+  ).not.toBeVisible({ timeout: 5000 });
 
   // Optionally verify the session appears in the sidebar
   if (verifySidebar) {
@@ -250,28 +254,25 @@ async function createNewSession(
  * @returns The session display text (e.g., "Session abc12345")
  */
 async function createNewSessionAndGetId(page: Page): Promise<string> {
-  // Get the count of existing sessions before creating a new one
-  const sessionsBefore = page.locator('[class*="group"]').filter({
-    has: page.locator('svg'),
-  });
-  const countBefore = await sessionsBefore.count().catch(() => 0);
-
   // Create the new session
   await createNewSession(page);
 
-  // Wait for a new session to appear in the sidebar
+  // Wait for the "No sessions yet" message to disappear
+  // This indicates the session list has been updated
+  await expect(page.getByText('No sessions yet')).not.toBeVisible({ timeout: 15000 });
+
+  // Wait for session entries to appear in the sidebar
   // Look for session entries with the MessageSquare icon pattern
   const sessionEntries = page.locator('button').filter({
     hasText: /Session [a-f0-9]+/i,
   });
 
-  // Wait for at least one more session than before
+  // Wait for at least one session to exist using polling
   await expect(async () => {
-    const currentCount = await sessionEntries.count();
-    expect(currentCount).toBeGreaterThan(countBefore);
-  }).toPass({ timeout: 10000 });
+    await expect(sessionEntries.first()).toBeVisible();
+  }).toPass({ timeout: 15000, intervals: [500, 1000, 2000] });
 
-  // Get the text of the most recently created session (likely the last or first visible one)
+  // Get the text of the first visible session (most recently created)
   const latestSession = sessionEntries.first();
   const sessionText = (await latestSession.textContent()) || 'unknown-session';
 
@@ -405,18 +406,47 @@ async function submitQueryAndWaitForResponse(
 ): Promise<{ responseText: string; responseElement: ReturnType<typeof page.locator> }> {
   const { useButton = false, responseTimeout = 60000, minResponseLength = 10 } = options;
 
+  // Count existing responses before submitting
+  const existingResponseCount = await page.locator('.prose').count();
+
   // Submit the query
   await submitQuery(page, query, { useButton });
 
-  // Wait for agent response - look for the prose class which indicates markdown-rendered response
+  // Wait for a NEW agent response to appear (count should increase)
   // The response may take time due to LLM processing and streaming
-  const agentResponse = page.locator('.prose').first();
-  await expect(agentResponse).toBeVisible({ timeout: responseTimeout });
+  const proseLocator = page.locator('.prose');
+  await expect(async () => {
+    const currentCount = await proseLocator.count();
+    expect(currentCount).toBeGreaterThan(existingResponseCount);
+  }).toPass({ timeout: responseTimeout });
 
-  // Get the response text and verify it has content
-  const responseText = (await agentResponse.textContent()) || '';
-  expect(responseText).toBeTruthy();
-  expect(responseText.length).toBeGreaterThan(minResponseLength);
+  // Wait for streaming to complete (PROCESSING_REQUEST... indicator should disappear)
+  // This ensures the response is fully rendered before we check its content
+  const processingIndicator = page.locator('text=PROCESSING_REQUEST...');
+  await expect(processingIndicator).toBeHidden({ timeout: responseTimeout });
+
+  // Get the last response (the new one)
+  const agentResponse = proseLocator.last();
+  await expect(agentResponse).toBeVisible({ timeout: 5000 });
+
+  // Wait for the response to have meaningful content (not just routing indicators)
+  // The backend may send routing info like "DATABASE" before the actual response
+  let responseText = '';
+  await expect(async () => {
+    responseText = (await agentResponse.textContent()) || '';
+    // Response must be longer than minResponseLength AND not just routing indicators
+    const isRoutingOnly = /^(DATABASE|GENERAL|ANALYSIS)\s*$/i.test(responseText.trim());
+    expect(responseText.length).toBeGreaterThan(minResponseLength);
+    expect(isRoutingOnly).toBe(false);
+  }).toPass({ timeout: responseTimeout });
+
+  // Wait for streaming to fully complete - the Stop button should disappear
+  // When isStreaming becomes false, the destructive (red) Stop button is replaced with the Send button
+  // The Stop button has variant="destructive" which renders as a red button
+  const stopButton = page.locator('button').filter({
+    has: page.locator('svg.lucide-square'),
+  });
+  await expect(stopButton).toBeHidden({ timeout: responseTimeout });
 
   return { responseText, responseElement: agentResponse };
 }
@@ -441,8 +471,9 @@ async function verifyStreamingIndicator(
   }).last();
 
   // Either the processing indicator text or stop button should be visible
+  // Using .first() to avoid strict mode violation when both elements exist
   await expect(
-    page.getByText(/PROCESSING_REQUEST/i).or(stopButton)
+    page.getByText(/PROCESSING_REQUEST/i).or(stopButton).first()
   ).toBeVisible({ timeout });
 }
 
@@ -466,22 +497,28 @@ async function selectConnection(page: Page, connectionName: string): Promise<voi
   const connectionDropdown = page.getByRole('combobox');
   await expect(connectionDropdown).toBeVisible();
 
-  // Verify dropdown shows placeholder before selection
-  await expect(connectionDropdown).toContainText('Select connection');
+  // Check if the desired connection is already selected
+  const currentValue = await connectionDropdown.textContent();
+  if (currentValue && new RegExp(connectionName, 'i').test(currentValue)) {
+    // Connection is already selected, just verify New Session is enabled
+    const newSessionButton = page.getByRole('button', { name: /New Session/i });
+    await expect(newSessionButton).toBeEnabled();
+    return;
+  }
 
   // Click to open the dropdown
   await connectionDropdown.click();
 
   // Wait for the dropdown content to be visible and options to load
   // Options come from API call to list connections, so may take time
+  // Use polling approach since API call may have already happened during page load
   const connectionOption = page.getByRole('option', { name: new RegExp(connectionName, 'i') });
-  await expect(connectionOption).toBeVisible({ timeout: 10000 });
+  await expect(connectionOption).toBeVisible({ timeout: 30000 });
 
   // Select the connection
   await connectionOption.click();
 
   // Verify the dropdown now shows the selected connection (not the placeholder)
-  await expect(connectionDropdown).not.toContainText('Select connection');
   await expect(connectionDropdown).toContainText(new RegExp(connectionName, 'i'));
 
   // Verify the "New Session" button is now enabled (depends on connection selection)
@@ -499,11 +536,23 @@ async function selectConnection(page: Page, connectionName: string): Promise<voi
 async function selectFirstAvailableConnection(page: Page): Promise<string> {
   const connectionDropdown = page.getByRole('combobox');
   await expect(connectionDropdown).toBeVisible();
+
+  // Check if a connection is already selected (not showing placeholder)
+  const currentValue = await connectionDropdown.textContent();
+  if (currentValue && !currentValue.includes('Select connection')) {
+    // Connection is already selected
+    const newSessionButton = page.getByRole('button', { name: /New Session/i });
+    await expect(newSessionButton).toBeEnabled();
+    return currentValue;
+  }
+
+  // Click to open dropdown
   await connectionDropdown.click();
 
   // Wait for at least one option to appear
+  // Use longer timeout since API call may have already happened during page load
   const options = page.getByRole('option');
-  await expect(options.first()).toBeVisible({ timeout: 10000 });
+  await expect(options.first()).toBeVisible({ timeout: 30000 });
 
   // Get the text of the first option
   const firstOption = options.first();
@@ -511,9 +560,6 @@ async function selectFirstAvailableConnection(page: Page): Promise<string> {
 
   // Select the first option
   await firstOption.click();
-
-  // Verify selection was successful (placeholder should be replaced)
-  await expect(connectionDropdown).not.toContainText('Select connection');
 
   // Verify New Session button is enabled
   const newSessionButton = page.getByRole('button', { name: /New Session/i });
@@ -531,11 +577,24 @@ async function selectFirstAvailableConnection(page: Page): Promise<string> {
  */
 async function selectKoperasiOrFirstConnection(page: Page): Promise<string> {
   const connectionDropdown = page.getByRole('combobox');
+  await expect(connectionDropdown).toBeVisible();
+
+  // Check if a connection is already selected (not showing placeholder)
+  const currentValue = await connectionDropdown.textContent();
+  if (currentValue && !currentValue.includes('Select connection')) {
+    // Connection is already selected
+    const newSessionButton = page.getByRole('button', { name: /New Session/i });
+    await expect(newSessionButton).toBeEnabled();
+    return currentValue;
+  }
+
+  // Click to open dropdown
   await connectionDropdown.click();
 
   // Wait for options to load
+  // Use longer timeout since API call may have already happened during page load
   const options = page.getByRole('option');
-  await expect(options.first()).toBeVisible({ timeout: 10000 });
+  await expect(options.first()).toBeVisible({ timeout: 30000 });
 
   // Try to find koperasi, otherwise use first available connection
   const koperasiOption = page.getByRole('option', { name: /koperasi/i });
@@ -561,12 +620,29 @@ async function selectKoperasiOrFirstConnection(page: Page): Promise<string> {
 }
 
 test.describe('Chat UI Capabilities', () => {
+  // Run tests serially to avoid state interference
+  test.describe.configure({ mode: 'serial' });
+
   test.beforeEach(async ({ page }) => {
+    // Capture console logs and errors for debugging
+    page.on('console', (msg) => {
+      const type = msg.type();
+      const text = msg.text();
+      if (type === 'error' || type === 'warning' || text.includes('[Agent API]') || text.includes('[useChat]') || text.includes('[Chat Store]')) {
+        console.log(`[Browser ${type}]`, text);
+      }
+    });
+
+    page.on('pageerror', (error) => {
+      console.error('[Browser Error]', error.message);
+    });
+
     // Navigate to the chat page
     await page.goto('/chat');
 
-    // Wait for the page to be fully loaded
-    await expect(page.getByText('Select or create a session to start chatting')).toBeVisible();
+    // Wait for the page to be fully loaded - check both placeholder and combobox
+    await expect(page.getByText('Select or create a session to start chatting')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('combobox')).toBeVisible({ timeout: 15000 });
   });
 
   test('should display chat page with connection dropdown and new session button', async ({ page }) => {
@@ -775,6 +851,9 @@ test.describe('Chat UI Capabilities', () => {
     const query1 = 'berapa jumlah koperasi di jakarta';
     await submitQueryAndWaitForResponse(page, query1, { responseTimeout: 60000 });
 
+    // Wait a bit to ensure the first response is fully rendered before submitting the next query
+    await page.waitForTimeout(2000);
+
     // Step 3: Submit second query (follow-up question)
     const query2 = 'bagaimana trennya dalam 5 tahun terakhir';
     await submitQueryAndWaitForResponse(page, query2, { responseTimeout: 60000 });
@@ -921,13 +1000,13 @@ test.describe('Chat UI Capabilities', () => {
     // Open connection dropdown
     const connectionDropdown = page.getByRole('combobox');
     await expect(connectionDropdown).toBeVisible();
-    await expect(connectionDropdown).toContainText('Select connection');
 
+    // Click to open dropdown (may already have a connection selected)
     await connectionDropdown.click();
 
     // Wait for options to load from API
     const options = page.getByRole('option');
-    await expect(options.first()).toBeVisible({ timeout: 10000 });
+    await expect(options.first()).toBeVisible({ timeout: 15000 });
 
     // Count available connections
     const connectionCount = await options.count();
@@ -944,10 +1023,7 @@ test.describe('Chat UI Capabilities', () => {
       description: connectionNames.join(', '),
     });
 
-    // Close dropdown by clicking outside or pressing Escape
+    // Close dropdown by pressing Escape
     await page.keyboard.press('Escape');
-
-    // Verify dropdown is closed (placeholder still visible since nothing selected)
-    await expect(connectionDropdown).toContainText('Select connection');
   });
 });

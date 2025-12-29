@@ -34,7 +34,7 @@ export default function ChatPage() {
   });
 
   const handleSelectSession = (session: AgentSession) => {
-    setSession(session.id, session.db_connection_id);
+    setSession(session.id, session.db_connection_id || '');
     clearMessages();
   };
 
