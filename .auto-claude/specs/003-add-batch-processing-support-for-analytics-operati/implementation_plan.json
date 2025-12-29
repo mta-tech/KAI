@@ -1,0 +1,249 @@
+{
+  "feature": "Add Batch Processing Support for Analytics Operations",
+  "description": "Extend the batch processing infrastructure to support analytics operations. Allow users to submit multiple statistical analyses (descriptive stats, correlations, forecasts, anomaly detection) in a single batch request with progress tracking and result aggregation.",
+  "created_at": "2025-12-28T12:06:26.717Z",
+  "updated_at": "2025-12-28T12:10:00.000Z",
+  "status": "human_review",
+  "planStatus": "review",
+  "workflow_type": "development",
+  "spec_file": "spec.md",
+  "services_involved": [
+    "StatisticalService",
+    "AnomalyService",
+    "ForecastingService"
+  ],
+  "phases": [
+    {
+      "phase_id": "phase_1",
+      "name": "Models and Data Structures",
+      "description": "Create Pydantic models for batch analytics requests, responses, and status tracking",
+      "status": "completed",
+      "subtasks": [
+        {
+          "subtask_id": "1.1",
+          "title": "Create batch analytics request models",
+          "description": "Create AnalyticsOperationType enum and SingleAnalyticsRequest model that supports all analytics types: descriptive_stats, t_test, correlation, correlation_matrix, anomaly_detection, forecast. Each operation type has its own parameters stored in a flexible params dict.",
+          "status": "completed",
+          "file_path": "app/modules/analytics/batch_models.py",
+          "estimated_lines": 80,
+          "dependencies": []
+        },
+        {
+          "subtask_id": "1.2",
+          "title": "Create batch analytics status and response models",
+          "description": "Create AnalyticsBatchRequest (list of operations + max_concurrency), AnalyticsBatchStatus (batch_id, status, total, completed, failed, results, timestamps), and AnalyticsBatchResult models for tracking and returning batch job progress.",
+          "status": "completed",
+          "file_path": "app/modules/analytics/batch_models.py",
+          "estimated_lines": 60,
+          "dependencies": [
+            "1.1"
+          ],
+          "notes": "Added BatchJobStatus enum, AnalyticsBatchRequest, AnalyticsBatchResult, and AnalyticsBatchStatus models with comprehensive documentation, validation, and helper methods for tracking batch job progress."
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_2",
+      "name": "Batch Analytics Service",
+      "description": "Implement the core batch processing service that orchestrates analytics operations",
+      "status": "completed",
+      "subtasks": [
+        {
+          "subtask_id": "2.1",
+          "title": "Create batch analytics service core",
+          "description": "Create AnalyticsBatchService class with in-memory job storage (_batch_jobs dict), methods to create batch jobs, and helper method to execute single analytics operations by routing to appropriate service (StatisticalService, AnomalyService, ForecastingService).",
+          "status": "completed",
+          "file_path": "app/modules/analytics/services/batch_service.py",
+          "estimated_lines": 120,
+          "dependencies": [
+            "1.1",
+            "1.2"
+          ],
+          "notes": "Created AnalyticsBatchService with in-memory job storage, job management methods (create, get, delete, cancel), and execute_single_operation helper that routes to StatisticalService, AnomalyService, or ForecastingService. Supports all 6 operation types with parameter validation and error handling."
+        },
+        {
+          "subtask_id": "2.2",
+          "title": "Implement async batch processing with concurrency control",
+          "description": "Add async process_batch() method using asyncio.Semaphore for max_concurrency control, progress tracking (updating completed/failed counts), result aggregation per operation, and proper error handling with detailed error messages.",
+          "status": "completed",
+          "file_path": "app/modules/analytics/services/batch_service.py",
+          "estimated_lines": 100,
+          "dependencies": [
+            "2.1"
+          ],
+          "notes": "Added async process_batch() method with asyncio.Semaphore for concurrency control, progress tracking (updating completed/failed counts as operations finish), result aggregation per operation (stored by operation_id), and comprehensive error handling including cancellation support and thread pool execution for sync operations."
+        },
+        {
+          "subtask_id": "2.3",
+          "title": "Export batch service from services module",
+          "description": "Update app/modules/analytics/services/__init__.py to export AnalyticsBatchService.",
+          "status": "completed",
+          "file_path": "app/modules/analytics/services/__init__.py",
+          "estimated_lines": 5,
+          "dependencies": [
+            "2.2"
+          ],
+          "notes": "Updated app/modules/analytics/services/__init__.py to export AnalyticsBatchService class and analytics_batch_service singleton instance. Verified syntax is valid with py_compile."
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_3",
+      "name": "API Endpoints",
+      "description": "Create FastAPI endpoints for batch analytics operations",
+      "status": "completed",
+      "subtasks": [
+        {
+          "subtask_id": "3.1",
+          "title": "Create batch analytics API router",
+          "description": "Create new API file with router at /api/v2/analytics/batch prefix. Add POST /batch endpoint to submit batch jobs using BackgroundTasks, returning batch_id and initial status.",
+          "status": "completed",
+          "file_path": "app/modules/analytics/batch_api.py",
+          "estimated_lines": 60,
+          "dependencies": [
+            "2.2",
+            "2.3"
+          ],
+          "notes": "Created batch_api.py with router at /api/v2/analytics/batch prefix. Added POST /batch endpoint to submit batch jobs using BackgroundTasks (returns batch_id and initial status), and GET /batch/{batch_id} endpoint for status checking. Uses analytics_batch_service singleton from services module."
+        },
+        {
+          "subtask_id": "3.2",
+          "title": "Add batch status and results endpoints",
+          "description": "Add GET /batch/{batch_id} for status checking (returns AnalyticsBatchStatus), GET /batch/{batch_id}/results for retrieving completed results, and DELETE /batch/{batch_id} for canceling/cleaning up jobs.",
+          "status": "completed",
+          "file_path": "app/modules/analytics/batch_api.py",
+          "estimated_lines": 50,
+          "dependencies": [
+            "3.1"
+          ],
+          "notes": "Added GET /batch/{batch_id}/results endpoint for retrieving completed operation results with full metadata (operation type, status, result, error, timing). Added DELETE /batch/{batch_id} endpoint that cancels running/pending jobs before deleting them from storage. Both endpoints include proper 404 error handling and follow the existing pattern from app/api/v2/batch.py."
+        },
+        {
+          "subtask_id": "3.3",
+          "title": "Register batch analytics router",
+          "description": "Update app/modules/analytics/__init__.py to export the batch_router and ensure it's registered in the application. Update main app router registration if needed.",
+          "status": "completed",
+          "file_path": "app/modules/analytics/__init__.py",
+          "estimated_lines": 10,
+          "dependencies": [
+            "3.2"
+          ],
+          "notes": "Updated app/modules/analytics/__init__.py to export batch_analytics_router from batch_api.py. Registered both analytics_router and batch_analytics_router in app/server/__init__.py so all analytics endpoints are available at /api/v2/analytics/* and /api/v2/analytics/batch/*."
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_4",
+      "name": "Testing",
+      "description": "Comprehensive tests for batch analytics functionality",
+      "status": "completed",
+      "subtasks": [
+        {
+          "subtask_id": "4.1",
+          "title": "Create unit tests for batch models",
+          "description": "Test AnalyticsOperationType enum, SingleAnalyticsRequest validation for different operation types, AnalyticsBatchRequest validation (min/max operations, concurrency limits).",
+          "status": "completed",
+          "file_path": "tests/modules/analytics/test_batch_models.py",
+          "estimated_lines": 80,
+          "dependencies": [
+            "1.1",
+            "1.2"
+          ],
+          "notes": "Created comprehensive unit tests with 57 test methods covering: AnalyticsOperationType enum (all 6 types), BatchJobStatus enum (all 6 statuses), SingleAnalyticsRequest validation (operation types, required params validation), AnalyticsBatchRequest validation (min/max operations 1-100, concurrency limits 1-20), AnalyticsBatchResult properties (is_successful, duration_ms), and AnalyticsBatchStatus properties and helper methods (pending, progress_percent, is_finished, duration_ms, get_successful_results, get_failed_results)."
+        },
+        {
+          "subtask_id": "4.2",
+          "title": "Create unit tests for batch service",
+          "description": "Test batch job creation, single operation execution routing, batch processing with various operation types, error handling for invalid operations, progress tracking accuracy.",
+          "status": "completed",
+          "file_path": "tests/modules/analytics/test_batch_service.py",
+          "estimated_lines": 150,
+          "dependencies": [
+            "2.1",
+            "2.2"
+          ],
+          "notes": "Created comprehensive unit tests for AnalyticsBatchService with 70+ test methods covering: batch job creation (single/multiple operations, ID assignment, empty operations validation), batch job retrieval and deletion, batch job cancellation with status validation, single operation execution routing for all 6 operation types (descriptive_stats, t_test, correlation, correlation_matrix, anomaly_detection, forecast), error handling for missing required parameters and invalid methods, async batch processing with concurrency control, progress tracking accuracy with mixed success/failure scenarios, result validation for all operation type fields, and edge cases (custom params, large batches, timing)."
+        },
+        {
+          "subtask_id": "4.3",
+          "title": "Create API integration tests",
+          "description": "Test POST /batch endpoint with valid/invalid requests, GET /batch/{batch_id} status polling, GET /batch/{batch_id}/results retrieval, DELETE /batch/{batch_id} cleanup, concurrent batch job handling.",
+          "status": "completed",
+          "file_path": "tests/modules/analytics/test_batch_api.py",
+          "estimated_lines": 120,
+          "dependencies": [
+            "3.1",
+            "3.2",
+            "3.3"
+          ],
+          "notes": "Created comprehensive API integration tests with 60+ test methods organized into 10 test classes: TestPostBatchEndpoint (valid/invalid batch creation, concurrency limits, operation type validation), TestGetBatchStatusEndpoint (status polling, 404 handling, timing info), TestGetBatchResultsEndpoint (results retrieval, format validation), TestDeleteBatchEndpoint (deletion, cleanup, cancellation), TestConcurrentBatchJobs (multiple batches, independence, large batches), TestInvalidRequests (malformed JSON, missing params), TestOperationTypeValidation (all 6 operation types), TestResponseFormats (all endpoint responses), TestEdgeCases (boundary conditions, immediate operations)."
+        }
+      ]
+    }
+  ],
+  "final_acceptance": [
+    "All unit tests pass for batch models",
+    "All unit tests pass for batch service",
+    "All API integration tests pass",
+    "Batch jobs can process multiple analytics operations concurrently",
+    "Progress tracking accurately reflects completed/failed operations",
+    "Results are properly aggregated and retrievable"
+  ],
+  "qa_signoff": {
+    "status": "approved",
+    "qa_session": 0,
+    "issues_found": [
+      {
+        "description": "Minor: datetime.utcnow() deprecation warning for Python 3.12+ (non-blocking)"
+      }
+    ],
+    "tests_passed": {},
+    "timestamp": "2025-12-28T12:58:28.453215+00:00",
+    "ready_for_qa_revalidation": false
+  },
+  "metadata": {
+    "total_subtasks": 11,
+    "completed_subtasks": 11,
+    "estimated_total_lines": 835,
+    "key_files": [
+      "app/modules/analytics/batch_models.py",
+      "app/modules/analytics/services/batch_service.py",
+      "app/modules/analytics/batch_api.py",
+      "app/modules/analytics/__init__.py",
+      "app/modules/analytics/services/__init__.py",
+      "tests/modules/analytics/test_batch_models.py",
+      "tests/modules/analytics/test_batch_service.py",
+      "tests/modules/analytics/test_batch_api.py"
+    ],
+    "existing_patterns_to_follow": [
+      "app/api/v2/batch.py - BatchRequest, BatchStatus, process_batch pattern",
+      "app/modules/analytics/api.py - Router structure, request/response models",
+      "app/modules/analytics/services/*.py - Service class patterns",
+      "tests/modules/analytics/test_statistical_service.py - Test structure and fixtures"
+    ],
+    "analytics_operations_supported": [
+      "descriptive_stats - Calculate descriptive statistics for numeric data",
+      "t_test - Independent samples t-test between two groups",
+      "correlation - Correlation analysis (pearson, spearman, kendall)",
+      "correlation_matrix - Full correlation matrix for dataset",
+      "anomaly_detection - Z-score or IQR based anomaly detection",
+      "forecast - Simple moving average forecast for time series"
+    ]
+  },
+  "last_updated": "2025-12-28T12:58:28.453227+00:00",
+  "qa_iteration_history": [
+    {
+      "iteration": 1,
+      "status": "approved",
+      "timestamp": "2025-12-28T12:58:54.794359+00:00",
+      "issues": [],
+      "duration_seconds": 276.91
+    }
+  ],
+  "qa_stats": {
+    "total_iterations": 1,
+    "last_iteration": 1,
+    "last_status": "approved",
+    "issues_by_type": {}
+  }
+}
