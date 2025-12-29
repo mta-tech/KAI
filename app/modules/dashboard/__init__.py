@@ -1,4 +1,15 @@
 """Dashboard module for BI dashboard generation from natural language."""
+from app.modules.dashboard.exceptions import (
+    DashboardCreationError,
+    DashboardError,
+    DashboardExecutionError,
+    DashboardNotFoundError,
+    DashboardRenderError,
+    ShareTokenError,
+    WidgetExecutionError,
+    WidgetNotFoundError,
+    WidgetQueryGenerationError,
+)
 from app.modules.dashboard.models import (
     AggregationType,
     ChartType,
@@ -35,6 +46,16 @@ from app.modules.dashboard.services import (
 from app.modules.dashboard.api import create_dashboard_router
 
 __all__ = [
+    # Exceptions
+    "DashboardCreationError",
+    "DashboardError",
+    "DashboardExecutionError",
+    "DashboardNotFoundError",
+    "DashboardRenderError",
+    "ShareTokenError",
+    "WidgetExecutionError",
+    "WidgetNotFoundError",
+    "WidgetQueryGenerationError",
     # Models
     "AggregationType",
     "ChartType",

@@ -8,6 +8,7 @@ from typing import Optional
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.data.db.storage import Storage
+from app.modules.dashboard.exceptions import DashboardCreationError
 from app.modules.dashboard.models import (
     AggregationType,
     ChartType,
@@ -126,9 +127,13 @@ class DashboardPlannerService:
         try:
             response = await llm.ainvoke(messages)
             return self._parse_plan_response(response.content)
+        except DashboardCreationError:
+            raise
         except Exception as e:
             logger.error(f"Dashboard refinement failed: {e}")
-            raise
+            raise DashboardCreationError(
+                f"Failed to refine dashboard: {e}"
+            ) from e
 
     async def _build_context(self, db_connection_id: str) -> dict:
         """Build context information for LLM."""
@@ -227,7 +232,9 @@ class DashboardPlannerService:
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse dashboard plan: {e}")
-            raise ValueError(f"Invalid dashboard plan response: {e}")
+            raise DashboardCreationError(
+                f"Failed to parse dashboard plan response: {e}"
+            ) from e
 
     def _create_fallback_plan(
         self, user_request: str, context: dict
