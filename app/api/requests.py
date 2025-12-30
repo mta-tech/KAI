@@ -35,8 +35,8 @@ class TableDescriptionRequest(BaseModel):
 
 
 class ScannerRequest(BaseModel):
-    table_description_ids: list[str] | None
-    instruction: str | None
+    table_description_ids: list[str] | None = None
+    instruction: str | None = None
     llm_config: LLMConfig | None = None
     metadata: dict | None = None
 
