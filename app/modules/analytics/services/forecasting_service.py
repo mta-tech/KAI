@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from app.modules.analytics.exceptions import ForecastingError, InsufficientDataError
 from app.modules.analytics.models import ForecastResult
 
 
@@ -22,54 +23,78 @@ class ForecastingService:
         try:
             from prophet import Prophet
         except ImportError:
-            raise ImportError(
-                "Prophet is required for forecasting. Install with: pip install prophet"
+            raise ForecastingError(
+                "Prophet is required for forecasting. "
+                "Install with: pip install prophet"
             )
+
+        # Validate columns exist
+        if date_column not in df.columns:
+            raise ForecastingError(f"Date column '{date_column}' not found in data")
+        if value_column not in df.columns:
+            raise ForecastingError(f"Value column '{value_column}' not found in data")
 
         prophet_df = df[[date_column, value_column]].copy()
         prophet_df.columns = ["ds", "y"]
-        prophet_df["ds"] = pd.to_datetime(prophet_df["ds"])
 
-        model = Prophet(interval_width=confidence_level)
-        model.fit(prophet_df)
+        # Drop missing values
+        prophet_df = prophet_df.dropna()
 
-        future = model.make_future_dataframe(periods=periods)
-        forecast = model.predict(future)
+        if len(prophet_df) == 0:
+            raise InsufficientDataError("Cannot forecast with empty data")
+        if len(prophet_df) < 2:
+            raise InsufficientDataError(
+                f"Prophet forecasting requires at least 2 data points, "
+                f"got {len(prophet_df)}"
+            )
 
-        forecast_only = forecast.tail(periods)
+        try:
+            prophet_df["ds"] = pd.to_datetime(prophet_df["ds"])
 
-        start_val = forecast_only["yhat"].iloc[0]
-        end_val = forecast_only["yhat"].iloc[-1]
-        trend = (
-            "increasing"
-            if end_val > start_val
-            else "decreasing" if end_val < start_val else "stable"
-        )
-        change_pct = (
-            ((end_val - start_val) / abs(start_val) * 100) if start_val != 0 else 0
-        )
+            model = Prophet(interval_width=confidence_level)
+            model.fit(prophet_df)
 
-        interpretation = (
-            f"Forecast shows a {trend} trend over the next {periods} periods. "
-            f"Expected change: {change_pct:+.1f}%. "
-            f"Values range from {forecast_only['yhat_lower'].min():.2f} to "
-            f"{forecast_only['yhat_upper'].max():.2f} ({confidence_level*100:.0f}% CI)."
-        )
+            future = model.make_future_dataframe(periods=periods)
+            forecast = model.predict(future)
 
-        return ForecastResult(
-            model_name="Prophet",
-            forecast_dates=forecast_only["ds"].dt.strftime("%Y-%m-%d").tolist(),
-            forecast_values=forecast_only["yhat"].round(2).tolist(),
-            lower_bound=forecast_only["yhat_lower"].round(2).tolist(),
-            upper_bound=forecast_only["yhat_upper"].round(2).tolist(),
-            confidence_level=confidence_level,
-            trend=trend,
-            interpretation=interpretation,
-            metrics={
-                "periods": periods,
-                "change_percent": round(change_pct, 2),
-            },
-        )
+            forecast_only = forecast.tail(periods)
+
+            start_val = forecast_only["yhat"].iloc[0]
+            end_val = forecast_only["yhat"].iloc[-1]
+            trend = (
+                "increasing"
+                if end_val > start_val
+                else "decreasing" if end_val < start_val else "stable"
+            )
+            change_pct = (
+                ((end_val - start_val) / abs(start_val) * 100) if start_val != 0 else 0
+            )
+
+            interpretation = (
+                f"Forecast shows a {trend} trend over the next {periods} periods. "
+                f"Expected change: {change_pct:+.1f}%. "
+                f"Values range from {forecast_only['yhat_lower'].min():.2f} to "
+                f"{forecast_only['yhat_upper'].max():.2f} ({confidence_level*100:.0f}% CI)."
+            )
+
+            return ForecastResult(
+                model_name="Prophet",
+                forecast_dates=forecast_only["ds"].dt.strftime("%Y-%m-%d").tolist(),
+                forecast_values=forecast_only["yhat"].round(2).tolist(),
+                lower_bound=forecast_only["yhat_lower"].round(2).tolist(),
+                upper_bound=forecast_only["yhat_upper"].round(2).tolist(),
+                confidence_level=confidence_level,
+                trend=trend,
+                interpretation=interpretation,
+                metrics={
+                    "periods": periods,
+                    "change_percent": round(change_pct, 2),
+                },
+            )
+        except (InsufficientDataError, ForecastingError):
+            raise
+        except Exception as e:
+            raise ForecastingError(f"Prophet forecasting failed: {e}") from e
 
     def forecast_simple(
         self,
@@ -77,25 +102,43 @@ class ForecastingService:
         periods: int = 30,
     ) -> ForecastResult:
         """Simple moving average forecast (fallback when Prophet unavailable)."""
-        window = min(7, len(series) // 2)
-        ma = series.rolling(window=window).mean().iloc[-1]
-        std = series.std()
+        clean_series = series.dropna()
 
-        forecast_values = [float(ma)] * periods
-        lower = [float(ma - 1.96 * std)] * periods
-        upper = [float(ma + 1.96 * std)] * periods
+        if len(clean_series) == 0:
+            raise InsufficientDataError("Cannot forecast with empty data")
+        if len(clean_series) < 2:
+            raise InsufficientDataError(
+                f"Simple forecasting requires at least 2 data points, "
+                f"got {len(clean_series)}"
+            )
 
-        last_date = pd.Timestamp.now()
-        dates = pd.date_range(last_date, periods=periods, freq="D")
+        try:
+            window = min(7, len(clean_series) // 2)
+            if window < 1:
+                window = 1
 
-        return ForecastResult(
-            model_name="Simple Moving Average",
-            forecast_dates=[d.strftime("%Y-%m-%d") for d in dates],
-            forecast_values=forecast_values,
-            lower_bound=lower,
-            upper_bound=upper,
-            confidence_level=0.95,
-            trend="stable",
-            interpretation=f"Simple forecast based on {window}-period moving average: {ma:.2f}",
-            metrics={"window": window, "std": float(std)},
-        )
+            ma = clean_series.rolling(window=window).mean().iloc[-1]
+            std = clean_series.std()
+
+            forecast_values = [float(ma)] * periods
+            lower = [float(ma - 1.96 * std)] * periods
+            upper = [float(ma + 1.96 * std)] * periods
+
+            last_date = pd.Timestamp.now()
+            dates = pd.date_range(last_date, periods=periods, freq="D")
+
+            return ForecastResult(
+                model_name="Simple Moving Average",
+                forecast_dates=[d.strftime("%Y-%m-%d") for d in dates],
+                forecast_values=forecast_values,
+                lower_bound=lower,
+                upper_bound=upper,
+                confidence_level=0.95,
+                trend="stable",
+                interpretation=f"Simple forecast based on {window}-period moving average: {ma:.2f}",
+                metrics={"window": window, "std": float(std)},
+            )
+        except InsufficientDataError:
+            raise
+        except Exception as e:
+            raise ForecastingError(f"Simple forecasting failed: {e}") from e

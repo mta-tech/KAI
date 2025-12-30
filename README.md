@@ -1,254 +1,682 @@
+<div align="center">
+
 # KAI
+### Knowledge Agent for Intelligence Query
 
-<p align="center">
-    <b>Knowledge Agent for Intelligence Query</b> <br />
-</p>
+**Transform natural language into powerful data insights**
 
-<p align="center">
-  <a href="./LICENSE" target="_blank">
-      <img src="https://img.shields.io/static/v1?label=license&message=Apache 2.0&color=white" alt="License">
-  </a> |
-  <a href="https://mta-3.gitbook.io/kai" target="_blank">
-      Documentation
-  </a>
-</p>
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-00a393.svg)](https://fastapi.tiangolo.com/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-latest-purple.svg)](https://github.com/langchain-ai/langgraph)
 
-KAI, which stands for **Knowledge Agent for Intelligence Query**, is an AI-agent designed to revolutionize how data is queried, analyzed, and utilized. By embedding a Generative AI component into your database, KAI allows users to perform complex analytics and document searches using natural language queries. This brings a new level of accessibility and efficiency to data interaction, making it easier for both technical and non-technical users to extract valuable insights.
+[Documentation](https://mta-3.gitbook.io/kai) • [Getting Started](#quickstart) • [Contributing](CONTRIBUTING.md) • [Architecture](ARCHITECTURE.md)
 
-KAI is built to seamlessly integrate with existing databases and systems, enhancing them with powerful AI capabilities. Whether you need to search vast amounts of documents, perform complex data analytics, or interact with your data in a more intuitive way, KAI is equipped to meet those needs.
+</div>
 
-## **Key Features of KAI**
+---
 
-1. **Natural Language Querying**
-   * **Description:** KAI enables users to interact with their databases using plain English, eliminating the need for complex SQL queries or other technical languages.
-   * **Benefit:** Makes data access and analysis more accessible to non-technical users.
-2. **Generative AI Integration**
-   * **Description:** Incorporates state-of-the-art Generative AI models to assist with data retrieval, analysis, and content generation.
-   * **Benefit:** Enhances the intelligence and flexibility of queries, enabling more accurate and insightful responses.
-3. **Real-time Analytics**
-   * **Description:** Provides real-time processing and analysis of data, allowing for immediate insights and decision-making.
-   * **Benefit:** Supports timely and informed decisions, critical in fast-paced environments.
-4. **Document Search and Management**
-   * **Description:** KAI includes powerful tools for searching and managing large volumes of documents, making it easy to find relevant information quickly.
-   * **Benefit:** Increases productivity by reducing the time spent on manual document searches.
-5. **Scalable and Flexible Architecture**
-   * **Description:** Designed to be highly scalable, KAI can be deployed across different environments, from local setups to cloud-based infrastructures.
-   * **Benefit:** Ensures that KAI can grow with your organization’s needs and integrate with various systems.
-6. **Customizable AI Models**
-   * **Description:** Allows the use of custom AI models tailored to specific business needs.
-   * **Benefit:** Provides flexibility to optimize the AI component for specialized tasks and industries.
+## Table of Contents
+
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Quickstart](#quickstart)
+- [Web UI](#web-ui)
+- [Development Setup](#development-setup)
+- [Architecture](#architecture)
+- [CLI Usage & Tutorial](#cli-usage)
+- [Environment Configuration](#environment-configuration)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Overview
+
+KAI (Knowledge Agent for Intelligence Query) is an **AI-powered data agent** that transforms how you interact with databases. Using natural language, you can:
+
+- **Query databases** without writing SQL
+- **Generate insights** with advanced analytics (forecasting, anomaly detection, statistical analysis)
+- **Create dashboards** from natural language descriptions
+- **Search documents** across large datasets
+- **Remember context** across sessions with long-term memory
+
+Built with **FastAPI**, **LangGraph**, and **LangChain**, KAI supports multiple LLM providers (OpenAI, Google Gemini, Ollama, OpenRouter) and integrates seamlessly with your existing data infrastructure.
+
+**Access Options:**
+- **Web UI** - Modern Next.js interface for visual interaction
+- **REST API** - 40+ endpoints for programmatic access
+- **CLI** - Command-line tool for terminal-based workflows
+
+## Key Features
+
+<table>
+<tr>
+<td width="50%">
+
+### Natural Language Querying
+Ask questions in plain English—no SQL knowledge required. KAI translates your intent into optimized database queries.
+
+### Advanced Analytics
+- Statistical analysis (correlation, regression)
+- Time series forecasting
+- Anomaly detection
+- Automated insights generation
+
+### Dashboard Creation
+Generate interactive dashboards from natural language descriptions using natural language.
+
+</td>
+<td width="50%">
+
+### Long-term Memory
+Persistent memory across sessions using Typesense or Letta backends to maintain context.
+
+### Multi-LLM Support
+Flexible LLM provider support:
+- OpenAI (GPT-4, GPT-3.5)
+- Google Gemini
+- Ollama (local models)
+- OpenRouter
+
+### Production-Ready
+- LangGraph-based agent architecture
+- FastAPI for high-performance APIs
+- Docker deployment support
+- Comprehensive testing suite
+
+</td>
+</tr>
+</table>
 
 ## Quickstart
 
-Here is a quickstart guide for setting up and running KAI using Docker Compose
+Get KAI running in **5 minutes** with Docker Compose!
 
 ### Prerequisites
 
-1. **Docker**: Ensure Docker is installed on your system. You can download it from Docker's official website.
-2. **Docker Compose**: Docker Compose is included with Docker Desktop. For standalone installations, you can follow Docker Compose installation instructions.
+- **Docker** & **Docker Compose** ([Install Docker](https://docs.docker.com/get-docker/))
+- **API Key** from OpenAI, Google, or other LLM provider
 
 ### Setup
 
-1. Create a .env file using the .env.example file as a reference.&#x20;
+**1. Clone the repository**
+
+```bash
+git clone https://github.com/your-org/kai.git
+cd kai
+```
+
+**2. Create environment configuration**
 
 ```bash
 cp .env.example .env
 ```
 
-2. Make sure to configure these fields for the engine to run.
+**3. Configure your LLM provider**
 
-```
-APP_HOST=0.0.0.0
-APP_PORT=8015
+Edit `.env` and set your LLM configuration:
 
-# OpenAI credentials and model 
-CHAT_MODEL = "gpt-4o-mini"
-EMBEDDING_MODEL = "text-embedding-ada-002"
-OPENAI_API_KEY = 
+```bash
+# Choose your LLM provider
+CHAT_FAMILY=openai  # or: google, ollama, openrouter
+CHAT_MODEL=gpt-4o-mini
+OPENAI_API_KEY=your-api-key-here
 
-# use different tools you can set the "AGENT_MAX_ITERATIONS" env variable. By default it is set to 20 iterations.
-AGENT_MAX_ITERATIONS = 20
-#timeout in seconds for the engine to return a response. Defaults to 150 seconds
-DH_ENGINE_TIMEOUT = 150
-#timeout for SQL execution, our agents execute the SQL query to recover from errors, this is the timeout for that execution. Defaults to 60 seconds
-SQL_EXECUTION_TIMEOUT = 60
-#The upper limit on number of rows returned from the query engine (equivalent to using LIMIT N in PostgreSQL/MySQL/SQlite). Defauls to 50
-UPPER_LIMIT_QUERY_RETURN_ROWS = 50
-
-TYPESENSE_API_KEY = kai_typesense
-# Replace TYPESENSE_API_KEY with a secure API key for Typesense if you want.
-
-#Encryption key for storing DB connection data in Typesense
-ENCRYPT_KEY = 
+# Required: Generate encryption key for database credentials
+ENCRYPT_KEY=  # See below
 ```
 
-3. Follow the next commands to generate an ENCRYPT\_KEY and paste it in the .env file like this `ENCRYPT_KEY = 4Mbe2GYx0Hk94o_f-irVHk1fKkCGAt1R7LLw5wHVghI`
+**4. Generate encryption key**
 
-<pre data-full-width="false"><code><strong># Install the package cryptography in the terminal
-</strong>pip3 install cryptography
+```bash
+uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
 
-# Run python in terminal
-python3
+Copy the output and paste it as `ENCRYPT_KEY` in your `.env` file.
 
-# Import Fernet
-from cryptography.fernet import Fernet
+### Running with Docker
 
-# Generate the key
-Fernet.generate_key()
-</code></pre>
+**Start all services:**
 
-### Running the Services
+```bash
+docker compose up -d
+```
 
-1.  **Navigate to your project directory** where the `docker-compose.yml` file is located:
+**Verify services are running:**
 
-    ```bash
-    cd /path/to/your/project
-    ```
-2.  **Start the services** using Docker Compose:
+```bash
+docker compose ps
+```
 
-    ```bash
-    docker compose up -d
-    ```
+Expected output:
+```
+NAME         IMAGE                      STATUS          PORTS
+kai_engine   kai-kai_engine             Up 2 minutes    0.0.0.0:8015->8015/tcp
+typesense    typesense/typesense:26.0   Up 2 minutes    0.0.0.0:8108->8108/tcp
+```
 
-    The `-d` flag runs the containers in detached mode (in the background).
-3.  **Verify the containers are running**:
+**Access the application:**
 
-    ```bash
-    docker compose ps
-    ```
+- **API Documentation**: http://localhost:8015/docs
+- **Typesense**: http://localhost:8108
 
-    You should see output indicating that both `typesense` and `kai_engine` services are up and running.
+**Test the API:**
 
-    ```
-    NAME         IMAGE                      COMMAND                  SERVICE      CREATED        STATUS          PORTS
-    kai_engine   kai-kai_engine             "poetry run python -…"   kai_engine   17 hours ago   Up 20 minutes   0.0.0.0:8015->8015/tcp
-    typesense    typesense/typesense:26.0   "/opt/typesense-serv…"   typesense    17 hours ago   Up 20 minutes   0.0.0.0:8108->8108/tcp 
-    ```
-4. In your browser visit [http://localhost/docs](http://localhost/docs)
+```bash
+curl http://localhost:8015/health
+# Expected: {"status":"healthy"}
+```
 
-### Stopping the Services
-
-To stop the services, run:
+### Stopping Services
 
 ```bash
 docker compose down
 ```
 
-This will stop and remove the containers, but it will retain the data in the `app/data/dbdata` directory for Typesense.
+> **Note**: Data in `./app/data/dbdata` persists across restarts.
 
-### Additional Notes
+### Next Steps
 
-* **Network Configuration**: The services are connected via the `kai_network` network, allowing them to communicate.
-* **Data Persistence**: The `typesense` container’s data is stored in `./app/data/dbdata` to persist data across container restarts.
+Now that KAI is running, explore these options:
+- **[Web UI](#web-ui)** - Visual interface with dashboard builder
+- **[Dashboard Tutorial](#creating-dashboards-tutorial)** - Create dashboards from natural language
+- **[CLI Tutorial](#quick-cli-tutorial)** - Terminal-based workflows
+- **[API Documentation](http://localhost:8015/docs)** - Programmatic access
 
-With this setup, you should be able to get your product up and running with Docker Compose quickly. Let me know if you have any questions or need further assistance!
+---
 
-## Environment
+## Web UI
 
-KAI relies on several environment variables to configure and control its behavior. Below is a detailed description of each environment variable used in the project:
+KAI includes a **modern web interface** built with Next.js for visual, interactive data analysis.
 
-```systemd
-APP_NAME=KAI API
-APP_DESCRIPTION="KAI stands for Knowledge Agent for Intelligence query. This project brings the Gen AI component to be able to embedded into the database so that it can perform analytics and document searches with natural language."
-APP_VERSION=1.0.0
-APP_ENVIRONMENT=LOCAL
+### Features
 
-APP_HOST=0.0.0.0
-APP_PORT=8015
-APP_ENABLE_HOT_RELOAD=0
+- **Interactive Chat** - Natural language conversations with your data
+- **Dashboard Builder** - Create visual dashboards from text descriptions
+- **SQL Query Interface** - Write and execute queries with visual results
+- **Analytics Visualizations** - View forecasts, trends, and statistical analysis
+- **Database Management** - Configure connections and settings through UI
 
-TYPESENSE_API_KEY = kai_typesense
-TYPESENSE_HOST = localhost
-TYPESENSE_PORT = 8108
-TYPESENSE_PROTOCOL = HTTP
-TYPESENSE_TIMEOUT = 2
+### Quick Start
 
-CHAT_MODEL = "gpt-4o-mini"
-EMBEDDING_MODEL = "text-embedding-ada-002"
+**1. Ensure the backend is running**
 
-OPENAI_API_KEY = 
-OLLAMA_API_BASE = 
-HUGGINGFACEHUB_API_TOKEN = 
-
-# use different tools you can set the "AGENT_MAX_ITERATIONS" env variable. By default it is set to 20 iterations.
-AGENT_MAX_ITERATIONS = 20
-#timeout in seconds for the engine to return a response. Defaults to 150 seconds
-DH_ENGINE_TIMEOUT = 150
-#timeout for SQL execution, our agents execute the SQL query to recover from errors, this is the timeout for that execution. Defaults to 60 seconds
-SQL_EXECUTION_TIMEOUT = 60
-#The upper limit on number of rows returned from the query engine (equivalent to using LIMIT N in PostgreSQL/MySQL/SQlite). Defauls to 50
-UPPER_LIMIT_QUERY_RETURN_ROWS = 50
-#Encryption key for storing DB connection data in Typesense
-ENCRYPT_KEY = f0KVMZHZPgdMStBmVIn2XD049e6Mun7ZEDhf1W7MRnw=
+```bash
+docker compose up -d
+# Backend available at http://localhost:8015
 ```
 
-### **Server Configuration**
+**2. Navigate to UI directory**
 
-* **`APP_HOST`**\
-  _Description:_ The host address on which the application will run.\
-  _Example:_ `"0.0.0.0"`
-* **`APP_PORT`**\
-  _Description:_ The port number on which the application will listen for incoming requests.\
-  _Example:_ `"8015"`
-* **`APP_ENABLE_HOT_RELOAD`**\
-  _Description:_ Enables or disables hot reloading of the application. Set to `1` to enable hot reload, or `0` to disable it.\
-  _Example:_ `"0"`
+```bash
+cd ui
+```
 
-### **Typesense Configuration**
+**3. Install dependencies**
 
-* **`TYPESENSE_API_KEY`**\
-  _Description:_ The API key used to authenticate requests to the Typesense server.\
-  _Example:_ `"kai_typesense"`
-* **`TYPESENSE_HOST`**\
-  _Description:_ The host address of the Typesense server.\
-  _Example:_ `"localhost"`
-* **`TYPESENSE_PORT`**\
-  _Description:_ The port number on which the Typesense server listens.\
-  _Example:_ `"8108"`
-* **`TYPESENSE_PROTOCOL`**\
-  _Description:_ The protocol used to communicate with the Typesense server.\
-  _Example:_ `"HTTP"`
-* **`TYPESENSE_TIMEOUT`**\
-  _Description:_ The timeout value (in seconds) for requests to the Typesense server.\
-  _Example:_ `"2"`
+```bash
+npm install
+# or
+yarn install
+```
 
-### **Model Configuration**
+**4. Configure environment**
 
-* **`CHAT_MODEL`**\
-  _Description:_ The model used for chat and natural language understanding tasks.\
-  _Example:_ `"gpt-4o-mini"`
-* **`EMBEDDING_MODEL`**\
-  _Description:_ The model used for generating embeddings from text data.\
-  _Example:_ `"text-embedding-ada-002"`
+Create `ui/.env.local`:
 
-### **API Keys**
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8015
+NEXT_PUBLIC_API_BASE_PATH=/api/v1
+```
 
-* **`OPENAI_API_KEY`**\
-  _Description:_ The API key used to authenticate with OpenAI services.\
-  _Example:_ `""` _(To be provided)_
-* **`OLLAMA_API_BASE`**\
-  _Description:_ The base URL for OLLAMA API.\
-  _Example:_ `""` _(To be provided)_
-* **`HUGGINGFACEHUB_API_TOKEN`**\
-  _Description:_ The API token for accessing Hugging Face Hub services.\
-  _Example:_ `""` _(To be provided)_
+**5. Start the UI**
 
-### **Agent Configuration**
+```bash
+npm run dev
+```
 
-* **`AGENT_MAX_ITERATIONS`**\
-  _Description:_ The maximum number of iterations the agent will perform. This is useful for controlling resource usage.\
-  _Example:_ `"20"`
-* **`DH_ENGINE_TIMEOUT`**\
-  _Description:_ The timeout value (in seconds) for the engine to return a response.\
-  _Example:_ `"150"`
-* **`SQL_EXECUTION_TIMEOUT`**\
-  _Description:_ The timeout (in seconds) for executing SQL queries. This is important for recovering from errors during execution.\
-  _Example:_ `"60"`
-* **`UPPER_LIMIT_QUERY_RETURN_ROWS`**\
-  _Description:_ The upper limit on the number of rows returned from the query engine. This acts similarly to the `LIMIT` clause in SQL.\
-  _Example:_ `"50"`
-* **`ENCRYPT_KEY`**\
-  _Description:_ The encryption key used for securely storing database connection data in Typesense. Use Fernet Generated key for this.\
-  _Example:_ `"f0KVMZHZPgdMStBmVIn2XD049e6Mun7ZEDhf1W7MRnw="`
+**6. Open in browser**
 
-These environment variables provide flexibility and control over the behavior of the KAI API, ensuring that the application can be easily configured for different environments and use cases.
+Visit [http://localhost:3000](http://localhost:3000)
+
+### Using the Web UI
+
+**Create a session:**
+1. Navigate to "New Session"
+2. Select your database connection
+3. Start asking questions in natural language
+
+**Example interactions:**
+- "Show me total sales by month"
+- "Create a dashboard with revenue trends and top products"
+- "What are the customer demographics?"
+- "Forecast sales for next quarter"
+
+**View results:**
+- SQL queries are shown with syntax highlighting
+- Results displayed in interactive tables
+- Charts auto-generated for time series and distributions
+- Download results as CSV or JSON
+
+### Creating Dashboards Tutorial
+
+KAI can automatically generate interactive dashboards from natural language descriptions.
+
+**Step 1: Access Dashboard Builder**
+
+Navigate to the "Dashboards" section in the Web UI.
+
+**Step 2: Describe your dashboard**
+
+Enter a natural language description of what you want to see:
+
+```
+Create a sales dashboard showing:
+- Total revenue this month
+- Top 5 products by sales
+- Revenue trend over the last 12 months
+- Customer distribution by region
+```
+
+**Step 3: Select database**
+
+Choose the database connection to query from.
+
+**Step 4: Generate**
+
+Click "Generate Dashboard" and KAI will:
+1. Analyze your description
+2. Generate appropriate SQL queries
+3. Execute queries against your database
+4. Create visualizations (charts, tables, KPIs)
+5. Arrange components in a responsive layout
+
+**Step 5: Customize**
+
+- Rearrange dashboard components via drag-and-drop
+- Adjust chart types (bar, line, pie, etc.)
+- Modify time ranges and filters
+- Save dashboard for future use
+
+**Via API:**
+
+You can also create dashboards programmatically:
+
+```bash
+curl -X POST http://localhost:8015/api/v1/dashboards \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sales Overview",
+    "description": "Show total revenue, top products, and monthly trends",
+    "db_connection_id": "your-connection-id"
+  }'
+```
+
+**Via CLI:**
+
+```bash
+uv run kai-agent create-dashboard \
+  "Sales dashboard with revenue trends and top products" \
+  --db sales
+```
+
+For detailed UI documentation and advanced features, see [ui/README.md](ui/README.md).
+
+---
+
+## Development Setup
+
+For local development without Docker:
+
+### Prerequisites
+
+- **Python 3.11+** ([Download](https://www.python.org/downloads/))
+- **uv** package manager ([Install uv](https://github.com/astral-sh/uv))
+
+### Installation
+
+**1. Install dependencies**
+
+```bash
+uv sync
+```
+
+**2. Start Typesense (required)**
+
+```bash
+docker compose up typesense -d
+```
+
+**3. Configure environment**
+
+```bash
+cp .env.example .env
+# Edit .env with your settings (use TYPESENSE_HOST=localhost for local dev)
+```
+
+**4. Run the development server**
+
+```bash
+uv run python -m app.main
+```
+
+Or with hot reload:
+
+```bash
+APP_ENABLE_HOT_RELOAD=1 uv run python -m app.main
+```
+
+**5. Access the API**
+
+- API: http://localhost:8015
+- API Docs: http://localhost:8015/docs
+
+### LangGraph Development
+
+For working with LangGraph agents:
+
+```bash
+uv run langgraph dev
+```
+
+This starts the LangGraph Studio interface for debugging agent workflows.
+
+---
+
+## Architecture
+
+KAI follows a modular, layered architecture:
+
+```
+┌─────────────────────────────────────────────────────┐
+│                 FastAPI REST API                     │
+│                  (app/api/)                          │
+├─────────────────────────────────────────────────────┤
+│                 Service Layer                        │
+│  ┌──────────┬──────────┬──────────┬──────────┐     │
+│  │ Session  │   SQL    │Analytics │Dashboard │     │
+│  │  Module  │ Module   │  Module  │  Module  │     │
+│  └──────────┴──────────┴──────────┴──────────┘     │
+├─────────────────────────────────────────────────────┤
+│             Repository Layer                         │
+│        (Data Access via Typesense)                   │
+├─────────────────────────────────────────────────────┤
+│      LangGraph Agents & LLM Adapters                │
+│   ┌────────────────┬──────────────────┐            │
+│   │ Session Graph  │  SQL Agent Graph │            │
+│   └────────────────┴──────────────────┘            │
+├─────────────────────────────────────────────────────┤
+│            Storage & External Services               │
+│   ┌──────────┬───────────┬──────────────┐          │
+│   │Typesense │  Database │  LLM APIs    │          │
+│   │ (Vector) │ (User DB) │ (OpenAI/etc) │          │
+│   └──────────┴───────────┴──────────────┘          │
+└─────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+- **FastAPI Server**: REST API with 40+ endpoints
+- **LangGraph Agents**: Conversational session management and SQL generation
+- **Service Modules**: Domain-specific business logic (analytics, dashboards, visualization)
+- **Typesense**: Vector search and document storage
+- **LLM Adapters**: Unified interface for multiple LLM providers
+
+For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+---
+
+## Testing
+
+Run the test suite:
+
+```bash
+# All tests
+uv run pytest
+
+# With coverage
+uv run pytest --cov=app
+
+# Specific module
+uv run pytest tests/modules/session/
+
+# Single test
+uv run pytest tests/unit/test_deep_agent_adapter.py::test_function_name
+```
+
+> **Note**: Tests require a running Typesense instance. Start it with:
+> ```bash
+> docker compose up typesense -d
+> ```
+
+---
+
+## CLI Usage
+
+KAI provides a powerful command-line interface for database management and natural language analysis.
+
+### Quick CLI Tutorial
+
+Here's a complete workflow from connecting to your database to running queries:
+
+**Step 1: Connect to your database**
+
+```bash
+# PostgreSQL
+uv run kai-agent create-connection \
+  "postgresql://user:password@localhost:5432/sales_db" \
+  -a sales
+
+# MySQL
+uv run kai-agent create-connection \
+  "mysql://user:password@localhost:3306/crm_db" \
+  -a crm
+
+# SQLite
+uv run kai-agent create-connection \
+  "sqlite:///path/to/database.db" \
+  -a local_db
+```
+
+**Step 2: Scan your database schema**
+
+Let KAI understand your database structure:
+
+```bash
+# Basic scan
+uv run kai-agent scan-all sales
+
+# With AI-generated descriptions (recommended)
+uv run kai-agent scan-all sales -d
+```
+
+This analyzes your tables, columns, and relationships, generating descriptions to help the AI understand your data model.
+
+**Step 3: Run your first query**
+
+Try these example queries:
+
+```bash
+# One-shot query
+uv run kai-agent run "Show total sales by month for 2024" --db sales
+
+# Another example
+uv run kai-agent run "List top 10 customers by revenue" --db sales
+
+# Complex analytics
+uv run kai-agent run "Analyze correlation between price and quantity sold" --db sales
+```
+
+**Step 4: Interactive mode**
+
+For back-and-forth conversations:
+
+```bash
+uv run kai-agent interactive --db sales
+```
+
+Then ask questions naturally:
+
+```
+> Show me total revenue this quarter
+> Which products are underperforming?
+> Create a forecast for next month's sales
+> What's the average order value by customer segment?
+```
+
+Type `exit` or press Ctrl+D to quit.
+
+### Available Commands
+
+```bash
+# Connection management
+kai-agent create-connection <uri> -a <alias>    # Add database
+kai-agent list-connections                       # List all connections
+kai-agent delete-connection <alias>              # Remove connection
+
+# Schema management
+kai-agent scan-all <alias>                       # Scan all tables
+kai-agent scan-all <alias> -d                    # Scan with AI descriptions
+kai-agent scan-table <alias> <table_name>        # Scan specific table
+
+# Query execution
+kai-agent run "<question>" --db <alias>          # One-shot query
+kai-agent interactive --db <alias>               # Interactive session
+
+# Help
+kai-agent --help                                 # Show all commands
+kai-agent <command> --help                       # Command-specific help
+```
+
+### Advanced CLI Features
+
+**Custom instructions:**
+
+```bash
+# Add domain-specific guidance
+uv run kai-agent add-instruction \
+  "Always use fiscal year (July-June) for financial queries" \
+  --db sales
+```
+
+**Export results:**
+
+```bash
+# Run query and save to CSV
+uv run kai-agent run "Show monthly sales" --db sales --output sales.csv
+
+# JSON format
+uv run kai-agent run "Show top products" --db sales --format json
+```
+
+**Verbose mode:**
+
+```bash
+# See detailed SQL generation process
+uv run kai-agent run "Show revenue" --db sales --verbose
+```
+
+---
+
+## Environment Configuration
+
+### Required Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `CHAT_FAMILY` | LLM provider | `openai`, `google`, `ollama` |
+| `CHAT_MODEL` | Model name | `gpt-4o-mini`, `gemini-2.0-flash` |
+| `OPENAI_API_KEY` | OpenAI API key | `sk-...` |
+| `ENCRYPT_KEY` | Fernet encryption key | Generate with command above |
+| `TYPESENSE_HOST` | Typesense server host | `localhost` (dev), `typesense` (Docker) |
+
+### Optional Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MEMORY_BACKEND` | Memory backend | `typesense` |
+| `MCP_ENABLED` | Enable Model Context Protocol | `false` |
+| `AGENT_LANGUAGE` | Agent language | `en` |
+| `AGENT_MAX_ITERATIONS` | Max agent iterations | `20` |
+| `DH_ENGINE_TIMEOUT` | Engine timeout (seconds) | `150` |
+| `SQL_EXECUTION_TIMEOUT` | SQL timeout (seconds) | `60` |
+| `UPPER_LIMIT_QUERY_RETURN_ROWS` | Max query rows | `50` |
+
+See `.env.example` for a complete configuration template.
+
+---
+
+## Documentation
+
+- **[API Documentation](docs/apis/README.md)** - Complete REST API reference
+- **[Architecture Guide](ARCHITECTURE.md)** - System design and patterns
+- **[Getting Started](docs/GETTING_STARTED.md)** - Detailed setup guide
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment
+- **[Tutorials](docs/tutorials/)** - Step-by-step guides
+
+---
+
+## Contributing
+
+We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details on:
+
+- Development workflow
+- Code style guidelines
+- Testing requirements
+- Pull request process
+
+### Quick Start for Contributors
+
+```bash
+# Fork and clone the repository
+git clone https://github.com/your-username/kai.git
+cd kai
+
+# Create a feature branch
+git checkout -b feature/amazing-feature
+
+# Install dependencies
+uv sync
+
+# Make your changes and test
+uv run pytest
+
+# Commit and push
+git commit -m "Add amazing feature"
+git push origin feature/amazing-feature
+
+# Open a pull request
+```
+
+---
+
+## License
+
+This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Star History
+
+If you find KAI useful, please consider giving it a star on GitHub!
+
+---
+
+## Acknowledgments
+
+Built with:
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- [LangGraph](https://github.com/langchain-ai/langgraph) - Agent orchestration
+- [LangChain](https://github.com/langchain-ai/langchain) - LLM framework
+- [Typesense](https://typesense.org/) - Vector search engine
+
+---
+
+<div align="center">
+
+**Made with love by MTA**
+
+[Report Bug](https://github.com/your-org/kai/issues) • [Request Feature](https://github.com/your-org/kai/issues) • [Join Discussion](https://github.com/your-org/kai/discussions)
+
+</div>

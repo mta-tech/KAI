@@ -1,7 +1,8 @@
 # Tutorial: Teaching KAI-Agent Domain Knowledge
 
-This tutorial walks you through KAI-Agent's learning capabilities using a real-world example: analyzing Indonesian cooperative (koperasi) data. You'll learn how to:
+This tutorial walks you through KAI-Agent's learning capabilities using a sample dataset: analyzing Indonesian cooperative (koperasi) data. You'll learn how to:
 
+- Set up a local PostgreSQL database with sample data
 - Connect to a database
 - Scan and describe tables with AI
 - Run natural language queries
@@ -10,19 +11,22 @@ This tutorial walks you through KAI-Agent's learning capabilities using a real-w
 
 By the end, you'll understand how KAI-Agent learns from your guidance to deliver accurate, context-aware analysis.
 
+**Sample Data**: This tutorial uses a sample PostgreSQL database with 15 provinces and cooperative statistics. All CSV files and setup scripts are provided in the `koperasi-sample-data/` directory.
+
 ---
 
 ## Table of Contents
 
 1. [Prerequisites](#prerequisites)
-2. [Environment Setup](#environment-setup)
-3. [Connect to the Database](#connect-to-the-database)
-4. [Scan Tables with AI Descriptions](#scan-tables-with-ai-descriptions)
-5. [First Analysis Attempt](#first-analysis-attempt)
-6. [Teaching with Skills](#teaching-with-skills)
-7. [Refining with Instructions](#refining-with-instructions)
-8. [Final Results](#final-results)
-9. [Key Takeaways](#key-takeaways)
+2. [Prepare Sample Database](#prepare-sample-database)
+3. [Environment Setup](#environment-setup)
+4. [Connect to the Database](#connect-to-the-database)
+5. [Scan Tables with AI Descriptions](#scan-tables-with-ai-descriptions)
+6. [First Analysis Attempt](#first-analysis-attempt)
+7. [Teaching with Skills](#teaching-with-skills)
+8. [Refining with Instructions](#refining-with-instructions)
+9. [Final Results](#final-results)
+10. [Key Takeaways](#key-takeaways)
 
 ---
 
@@ -32,8 +36,8 @@ Before starting, ensure you have:
 
 - **Python 3.11+** installed
 - **[uv](https://docs.astral.sh/uv/)** package manager
-- **Docker** running (for Typesense)
-- **Google API Key** (for Gemini models)
+- **Docker** running (for Typesense and PostgreSQL)
+- **Google API Key** (for Gemini models) or OpenAI API Key
 
 ```bash
 # Clone and enter the project
@@ -45,6 +49,88 @@ uv sync
 # Start Typesense (required for storage)
 docker compose up typesense -d
 ```
+
+### Prepare Sample Database
+
+This tutorial uses a sample PostgreSQL database with Indonesian cooperative (koperasi) data.
+
+**Option 1: Docker PostgreSQL (Recommended)**
+
+```bash
+# Start PostgreSQL container
+docker run -d \
+  --name postgres_koperasi \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=koperasi_demo \
+  -p 5432:5432 \
+  postgres:15
+
+# Wait for PostgreSQL to start
+sleep 5
+
+# Navigate to sample data directory
+cd docs/tutorials/koperasi-sample-data
+
+# Copy CSV files to container
+docker cp dim_geography.csv postgres_koperasi:/tmp/
+docker cp dim_date.csv postgres_koperasi:/tmp/
+docker cp fact_kpi.csv postgres_koperasi:/tmp/
+
+# Create tables and load data
+docker exec -i postgres_koperasi psql -U postgres -d koperasi_demo <<'EOF'
+CREATE TABLE dim_geography (
+    id INTEGER PRIMARY KEY,
+    province_name VARCHAR(100) NOT NULL,
+    region VARCHAR(100),
+    island_group VARCHAR(50)
+);
+
+CREATE TABLE dim_date (
+    id INTEGER PRIMARY KEY,
+    date DATE NOT NULL,
+    year INTEGER,
+    quarter INTEGER,
+    month INTEGER,
+    month_name VARCHAR(20),
+    day INTEGER,
+    week_of_year INTEGER
+);
+
+CREATE TABLE fact_kpi (
+    id INTEGER PRIMARY KEY,
+    geography_id INTEGER REFERENCES dim_geography(id),
+    date_id INTEGER REFERENCES dim_date(id),
+    TotalKoperasiTerdaftar INTEGER,
+    TotalAnggota INTEGER,
+    TotalAset BIGINT,
+    status VARCHAR(20)
+);
+
+\COPY dim_geography FROM '/tmp/dim_geography.csv' WITH (FORMAT csv, HEADER true);
+\COPY dim_date FROM '/tmp/dim_date.csv' WITH (FORMAT csv, HEADER true);
+\COPY fact_kpi FROM '/tmp/fact_kpi.csv' WITH (FORMAT csv, HEADER true);
+EOF
+
+# Verify data loaded
+docker exec postgres_koperasi psql -U postgres -d koperasi_demo -c "SELECT COUNT(*) FROM fact_kpi;"
+```
+
+**Option 2: Local PostgreSQL**
+
+If you have PostgreSQL installed locally:
+
+```bash
+# Create database
+createdb koperasi_demo
+
+# Navigate to sample data directory
+cd docs/tutorials/koperasi-sample-data
+
+# Run setup script
+psql -d koperasi_demo -f setup_database.sql
+```
+
+For more setup options, see [koperasi-sample-data/README.md](koperasi-sample-data/README.md).
 
 ---
 
@@ -77,7 +163,7 @@ AGENT_LANGUAGE=en
 AGENT_MAX_ITERATIONS=20
 ```
 
-> 💡 **Tip**: Generate the encryption key by running:
+> **Tip**: Generate the encryption key by running:
 > ```bash
 > uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 > ```
@@ -86,18 +172,30 @@ AGENT_MAX_ITERATIONS=20
 
 ## Connect to the Database
 
-For this tutorial, we'll use a sample database containing Indonesian cooperative (koperasi) data hosted on Neon PostgreSQL.
+Now that the sample database is set up, connect KAI to your local PostgreSQL instance.
 
 ### Create the Connection
 
+**For Docker PostgreSQL:**
+
 ```bash
 uv run kai-agent create-connection \
-  "postgresql://neondb_owner:npg_Pb6dIxMEVW8L@ep-damp-smoke-a15l6d4g-pooler.ap-southeast-1.aws.neon.tech/kemenkop?sslmode=require&channel_binding=require" \
+  "postgresql://postgres:postgres@localhost:5432/koperasi_demo" \
+  -a koperasi \
+  -s public
+```
+
+**For local PostgreSQL (if using different credentials):**
+
+```bash
+uv run kai-agent create-connection \
+  "postgresql://your_user:your_password@localhost:5432/koperasi_demo" \
   -a koperasi \
   -s public
 ```
 
 **Parameters explained:**
+- Connection URI format: `postgresql://user:password@host:port/database`
 - `-a koperasi` — Sets a friendly alias for the connection
 - `-s public` — Limits scanning to the `public` schema
 
@@ -106,11 +204,11 @@ uv run kai-agent create-connection \
 ✔ Connection created successfully
   ID: abc123-def456-...
   Alias: koperasi
-  Database: kemenkop
+  Database: koperasi_demo
   Schemas: ['public']
 ```
 
-> 📝 **Note**: Save the connection ID (e.g., `abc123-def456-...`). You'll need it for subsequent commands.
+> **Note**: Save the connection ID (e.g., `abc123-def456-...`). You'll need it for subsequent commands.
 
 ### Verify the Connection
 
@@ -528,5 +626,5 @@ uv run kai-agent export-session <session_id> -f markdown
 
 ---
 
-*Happy analyzing with KAI-Agent! 🚀*
+*Happy analyzing with KAI-Agent!*
 

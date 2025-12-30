@@ -23,7 +23,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# Python lib directories (but not ui/src/lib)
+/lib/
 lib64/
 parts/
 sdist/
@@ -241,4 +242,17 @@ agent_results/
 .langgraph_api/
 .bmad_docs/
 .bmad/
+bmad_docs/
 app/data/dbdata/
+
+# Auto Claude data directory
+.auto-claude/
+.auto-claude-status
+.worktrees/
+.auto-drive/
+
+# Claude settings
+.claude_settings.json
+
+# BMAD output directory
+bmad_output/

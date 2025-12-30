@@ -9,6 +9,13 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
+from app.modules.visualization.exceptions import (
+    ChartExportError,
+    ChartGenerationError,
+    ChartRecommendationError,
+    InvalidChartTypeError,
+    MissingColumnError,
+)
 from app.modules.visualization.models import (
     ChartConfig,
     ChartRecommendation,
@@ -31,31 +38,74 @@ class ChartService:
         config: ChartConfig,
     ) -> ChartResult:
         """Generate a chart from DataFrame using configuration."""
-        theme = self.theme_service.get_theme(config.theme)
+        # Validate required columns exist in dataframe
+        self._validate_columns(df, config)
 
-        fig = self._create_figure(df, config)
+        try:
+            theme = self.theme_service.get_theme(config.theme)
 
-        fig.update_layout(
-            template=theme.plotly_template,
-            title=config.title,
-            width=config.width,
-            height=config.height,
-            showlegend=config.show_legend,
-            font=dict(family=theme.font_family, color=theme.font_color),
-            paper_bgcolor=theme.background_color,
-            plot_bgcolor=theme.background_color,
-        )
+            fig = self._create_figure(df, config)
 
-        html_output = None
-        if config.interactive:
-            html_output = fig.to_html(include_plotlyjs="cdn", full_html=False)
+            fig.update_layout(
+                template=theme.plotly_template,
+                title=config.title,
+                width=config.width,
+                height=config.height,
+                showlegend=config.show_legend,
+                font=dict(family=theme.font_family, color=theme.font_color),
+                paper_bgcolor=theme.background_color,
+                plot_bgcolor=theme.background_color,
+            )
 
-        return ChartResult(
-            chart_type=config.chart_type.value,
-            html=html_output,
-            json_spec=fig.to_dict(),
-            config=config,
-        )
+            html_output = None
+            if config.interactive:
+                html_output = fig.to_html(include_plotlyjs="cdn", full_html=False)
+
+            return ChartResult(
+                chart_type=config.chart_type.value,
+                html=html_output,
+                json_spec=fig.to_dict(),
+                config=config,
+            )
+        except (MissingColumnError, InvalidChartTypeError):
+            raise
+        except Exception as e:
+            raise ChartGenerationError(f"Failed to generate chart: {e}") from e
+
+    def _validate_columns(self, df: pd.DataFrame, config: ChartConfig) -> None:
+        """Validate that required columns exist in the dataframe."""
+        columns = df.columns.tolist()
+
+        if config.x_column and config.x_column not in columns:
+            raise MissingColumnError(
+                f"Required x_column '{config.x_column}' not found in data. "
+                f"Available columns: {columns}"
+            )
+        if config.y_column and config.y_column not in columns:
+            raise MissingColumnError(
+                f"Required y_column '{config.y_column}' not found in data. "
+                f"Available columns: {columns}"
+            )
+        if config.color_column and config.color_column not in columns:
+            raise MissingColumnError(
+                f"Specified color_column '{config.color_column}' not found in data. "
+                f"Available columns: {columns}"
+            )
+        if config.size_column and config.size_column not in columns:
+            raise MissingColumnError(
+                f"Specified size_column '{config.size_column}' not found in data. "
+                f"Available columns: {columns}"
+            )
+        if config.values_column and config.values_column not in columns:
+            raise MissingColumnError(
+                f"Specified values_column '{config.values_column}' not found in data. "
+                f"Available columns: {columns}"
+            )
+        if config.names_column and config.names_column not in columns:
+            raise MissingColumnError(
+                f"Specified names_column '{config.names_column}' not found in data. "
+                f"Available columns: {columns}"
+            )
 
     def _create_figure(
         self,
@@ -179,16 +229,28 @@ class ChartService:
         scale: float = 2.0,
     ) -> bytes:
         """Export chart to static image."""
-        fig = go.Figure(result.json_spec)
+        valid_formats = {"png", "svg", "pdf", "jpeg", "webp"}
+        if format not in valid_formats:
+            raise ChartExportError(
+                f"Invalid export format: '{format}'. "
+                f"Valid formats: {', '.join(sorted(valid_formats))}"
+            )
 
-        if format == "png":
+        try:
+            fig = go.Figure(result.json_spec)
+
+            if format == "png":
+                return fig.to_image(format="png", scale=scale)
+            if format == "svg":
+                return fig.to_image(format="svg")
+            if format == "pdf":
+                return fig.to_image(format="pdf")
+
             return fig.to_image(format="png", scale=scale)
-        if format == "svg":
-            return fig.to_image(format="svg")
-        if format == "pdf":
-            return fig.to_image(format="pdf")
-
-        return fig.to_image(format="png", scale=scale)
+        except ChartExportError:
+            raise
+        except Exception as e:
+            raise ChartExportError(f"Failed to export chart to {format}: {e}") from e
 
     def export_to_base64(
         self,
@@ -197,8 +259,15 @@ class ChartService:
         scale: float = 2.0,
     ) -> str:
         """Export chart to base64 encoded image."""
-        image_bytes = self.export_to_image(result, format, scale)
-        return base64.b64encode(image_bytes).decode("utf-8")
+        try:
+            image_bytes = self.export_to_image(result, format, scale)
+            return base64.b64encode(image_bytes).decode("utf-8")
+        except ChartExportError:
+            raise
+        except Exception as e:
+            raise ChartExportError(
+                f"Failed to encode chart as base64: {e}"
+            ) from e
 
     def recommend_chart_type(
         self,
@@ -207,58 +276,70 @@ class ChartService:
         y_column: str | None = None,
     ) -> ChartRecommendation:
         """Recommend optimal chart type based on data characteristics."""
-        num_cols = df.select_dtypes(include=["number"]).columns.tolist()
-        cat_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
-        date_cols = df.select_dtypes(include=["datetime64"]).columns.tolist()
-
-        if date_cols and num_cols:
-            return ChartRecommendation(
-                chart_type=ChartType.LINE,
-                confidence=0.9,
-                rationale="Time series data detected - line chart recommended",
-                x_column=date_cols[0],
-                y_column=num_cols[0],
+        if df.empty:
+            raise ChartRecommendationError(
+                "Cannot recommend chart type for empty dataframe"
             )
 
-        if cat_cols and num_cols:
-            unique_cats = df[cat_cols[0]].nunique() if cat_cols else 0
-            if unique_cats <= 6:
+        try:
+            num_cols = df.select_dtypes(include=["number"]).columns.tolist()
+            cat_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
+            date_cols = df.select_dtypes(include=["datetime64"]).columns.tolist()
+
+            if date_cols and num_cols:
                 return ChartRecommendation(
-                    chart_type=ChartType.PIE,
-                    confidence=0.8,
-                    rationale="Few categories with numeric values - pie chart recommended",
+                    chart_type=ChartType.LINE,
+                    confidence=0.9,
+                    rationale="Time series data detected - line chart recommended",
+                    x_column=date_cols[0],
+                    y_column=num_cols[0],
+                )
+
+            if cat_cols and num_cols:
+                unique_cats = df[cat_cols[0]].nunique() if cat_cols else 0
+                if unique_cats <= 6:
+                    return ChartRecommendation(
+                        chart_type=ChartType.PIE,
+                        confidence=0.8,
+                        rationale="Few categories with numeric values - pie chart recommended",
+                        x_column=cat_cols[0],
+                        y_column=num_cols[0],
+                    )
+                return ChartRecommendation(
+                    chart_type=ChartType.BAR,
+                    confidence=0.85,
+                    rationale="Categorical vs numeric data - bar chart recommended",
                     x_column=cat_cols[0],
                     y_column=num_cols[0],
                 )
+
+            if len(num_cols) >= 2:
+                return ChartRecommendation(
+                    chart_type=ChartType.SCATTER,
+                    confidence=0.8,
+                    rationale="Multiple numeric columns - scatter plot recommended",
+                    x_column=num_cols[0],
+                    y_column=num_cols[1],
+                )
+
+            if len(num_cols) == 1:
+                return ChartRecommendation(
+                    chart_type=ChartType.HISTOGRAM,
+                    confidence=0.75,
+                    rationale="Single numeric column - histogram recommended",
+                    x_column=num_cols[0],
+                )
+
             return ChartRecommendation(
                 chart_type=ChartType.BAR,
-                confidence=0.85,
-                rationale="Categorical vs numeric data - bar chart recommended",
-                x_column=cat_cols[0],
-                y_column=num_cols[0],
+                confidence=0.5,
+                rationale="Default recommendation - bar chart",
+                x_column=x_column,
+                y_column=y_column,
             )
-
-        if len(num_cols) >= 2:
-            return ChartRecommendation(
-                chart_type=ChartType.SCATTER,
-                confidence=0.8,
-                rationale="Multiple numeric columns - scatter plot recommended",
-                x_column=num_cols[0],
-                y_column=num_cols[1],
-            )
-
-        if len(num_cols) == 1:
-            return ChartRecommendation(
-                chart_type=ChartType.HISTOGRAM,
-                confidence=0.75,
-                rationale="Single numeric column - histogram recommended",
-                x_column=num_cols[0],
-            )
-
-        return ChartRecommendation(
-            chart_type=ChartType.BAR,
-            confidence=0.5,
-            rationale="Default recommendation - bar chart",
-            x_column=x_column,
-            y_column=y_column,
-        )
+        except ChartRecommendationError:
+            raise
+        except Exception as e:
+            raise ChartRecommendationError(
+                f"Failed to recommend chart type: {e}"
+            ) from e

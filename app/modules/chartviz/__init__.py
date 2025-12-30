@@ -50,6 +50,14 @@ from app.modules.chartviz.agent import (
     auto_generate_chart,
 )
 from app.modules.chartviz.api import router
+from app.modules.chartviz.exceptions import (
+    ChartVizError,
+    ChartVizGenerationError,
+    ChartVizRecommendationError,
+    AutoChartGenerationError,
+    AnalysisDataExtractionError,
+    InvalidChartTypeError,
+)
 
 
 __all__ = [
@@ -73,4 +81,11 @@ __all__ = [
     "auto_generate_chart",
     # Router
     "router",
+    # Exceptions
+    "ChartVizError",
+    "ChartVizGenerationError",
+    "ChartVizRecommendationError",
+    "AutoChartGenerationError",
+    "AnalysisDataExtractionError",
+    "InvalidChartTypeError",
 ]

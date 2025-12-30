@@ -2,11 +2,17 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 
+from app.modules.dashboard.exceptions import (
+    DashboardCreationError,
+    DashboardExecutionError,
+    DashboardNotFoundError,
+    DashboardRenderError,
+    ShareTokenError,
+)
 from app.modules.dashboard.models import (
     CreateDashboardRequest,
     Dashboard,
@@ -17,6 +23,7 @@ from app.modules.dashboard.models import (
     Widget,
 )
 from app.modules.dashboard.services import DashboardService
+from app.server.errors import error_response
 
 
 def create_dashboard_router(service: DashboardService) -> APIRouter:
@@ -47,8 +54,11 @@ def create_dashboard_router(service: DashboardService) -> APIRouter:
         try:
             dashboard = await service.create_from_nl(request)
             return dashboard
+        except DashboardCreationError as e:
+            return error_response(e, {"request": request.request})
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            wrapped_error = DashboardCreationError(f"Dashboard creation failed: {e}")
+            return error_response(wrapped_error, {"request": request.request})
 
     @router.post("/generate/stream")
     async def create_dashboard_stream(request: CreateDashboardRequest):
@@ -83,7 +93,10 @@ def create_dashboard_router(service: DashboardService) -> APIRouter:
         """Get dashboard definition by ID."""
         dashboard = service.get(dashboard_id)
         if not dashboard:
-            raise HTTPException(status_code=404, detail="Dashboard not found")
+            return error_response(
+                DashboardNotFoundError("Dashboard not found"),
+                {"dashboard_id": dashboard_id},
+            )
         return dashboard
 
     @router.put("/{dashboard_id}", response_model=Dashboard)
@@ -91,14 +104,20 @@ def create_dashboard_router(service: DashboardService) -> APIRouter:
         """Update dashboard metadata (name, description, theme, etc.)."""
         dashboard = service.update(dashboard_id, request)
         if not dashboard:
-            raise HTTPException(status_code=404, detail="Dashboard not found")
+            return error_response(
+                DashboardNotFoundError("Dashboard not found"),
+                {"dashboard_id": dashboard_id},
+            )
         return dashboard
 
     @router.delete("/{dashboard_id}")
     async def delete_dashboard(dashboard_id: str):
         """Delete a dashboard."""
         if not service.delete(dashboard_id):
-            raise HTTPException(status_code=404, detail="Dashboard not found")
+            return error_response(
+                DashboardNotFoundError("Dashboard not found"),
+                {"dashboard_id": dashboard_id},
+            )
         return {"message": "Dashboard deleted successfully"}
 
     # =========================================================================
@@ -133,9 +152,17 @@ def create_dashboard_router(service: DashboardService) -> APIRouter:
                 },
             }
         except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
+            return error_response(
+                DashboardNotFoundError(str(e)),
+                {"dashboard_id": dashboard_id},
+            )
+        except DashboardExecutionError as e:
+            return error_response(e, {"dashboard_id": dashboard_id})
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            wrapped_error = DashboardExecutionError(
+                f"Dashboard execution failed: {e}"
+            )
+            return error_response(wrapped_error, {"dashboard_id": dashboard_id})
 
     @router.post("/{dashboard_id}/execute/stream")
     async def execute_dashboard_stream(dashboard_id: str):
@@ -175,9 +202,19 @@ def create_dashboard_router(service: DashboardService) -> APIRouter:
             else:
                 return result
         except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
+            return error_response(
+                DashboardNotFoundError(str(e)),
+                {"dashboard_id": dashboard_id},
+            )
+        except DashboardRenderError as e:
+            return error_response(
+                e, {"dashboard_id": dashboard_id, "format": format}
+            )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            wrapped_error = DashboardRenderError(f"Dashboard render failed: {e}")
+            return error_response(
+                wrapped_error, {"dashboard_id": dashboard_id, "format": format}
+            )
 
     # =========================================================================
     # Widget Management
@@ -188,7 +225,10 @@ def create_dashboard_router(service: DashboardService) -> APIRouter:
         """Add a widget to a dashboard."""
         dashboard = service.add_widget(dashboard_id, widget)
         if not dashboard:
-            raise HTTPException(status_code=404, detail="Dashboard not found")
+            return error_response(
+                DashboardNotFoundError("Dashboard not found"),
+                {"dashboard_id": dashboard_id},
+            )
         return dashboard
 
     @router.put("/{dashboard_id}/widgets/{widget_id}", response_model=Dashboard)
@@ -196,7 +236,10 @@ def create_dashboard_router(service: DashboardService) -> APIRouter:
         """Update a widget in a dashboard."""
         dashboard = service.update_widget(dashboard_id, widget_id, widget)
         if not dashboard:
-            raise HTTPException(status_code=404, detail="Dashboard not found")
+            return error_response(
+                DashboardNotFoundError("Dashboard or widget not found"),
+                {"dashboard_id": dashboard_id, "widget_id": widget_id},
+            )
         return dashboard
 
     @router.delete("/{dashboard_id}/widgets/{widget_id}", response_model=Dashboard)
@@ -204,7 +247,10 @@ def create_dashboard_router(service: DashboardService) -> APIRouter:
         """Remove a widget from a dashboard."""
         dashboard = service.remove_widget(dashboard_id, widget_id)
         if not dashboard:
-            raise HTTPException(status_code=404, detail="Dashboard not found")
+            return error_response(
+                DashboardNotFoundError("Dashboard or widget not found"),
+                {"dashboard_id": dashboard_id, "widget_id": widget_id},
+            )
         return dashboard
 
     # =========================================================================
@@ -221,14 +267,20 @@ def create_dashboard_router(service: DashboardService) -> APIRouter:
         base_url = str(request.base_url).rstrip("/")
         response = service.share(dashboard_id, base_url=base_url)
         if not response:
-            raise HTTPException(status_code=404, detail="Dashboard not found")
+            return error_response(
+                DashboardNotFoundError("Dashboard not found"),
+                {"dashboard_id": dashboard_id},
+            )
         return response
 
     @router.delete("/{dashboard_id}/share")
     async def revoke_share(dashboard_id: str):
         """Revoke sharing for a dashboard."""
         if not service.revoke_share(dashboard_id):
-            raise HTTPException(status_code=404, detail="Dashboard not found")
+            return error_response(
+                DashboardNotFoundError("Dashboard not found"),
+                {"dashboard_id": dashboard_id},
+            )
         return {"message": "Share link revoked"}
 
     @router.get("/shared/{share_token}")
@@ -240,14 +292,22 @@ def create_dashboard_router(service: DashboardService) -> APIRouter:
         """
         dashboard = service.get_by_share_token(share_token)
         if not dashboard:
-            raise HTTPException(status_code=404, detail="Dashboard not found or not shared")
+            return error_response(
+                ShareTokenError("Dashboard not found or not shared"),
+                {"share_token": share_token},
+            )
 
         # Render the dashboard
         try:
             html = await service.render(dashboard.id, format="html", execute=True)
             return HTMLResponse(content=html)
+        except DashboardRenderError as e:
+            return error_response(e, {"share_token": share_token})
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            wrapped_error = DashboardRenderError(
+                f"Dashboard render failed: {e}"
+            )
+            return error_response(wrapped_error, {"share_token": share_token})
 
     # =========================================================================
     # Refinement
@@ -267,10 +327,21 @@ def create_dashboard_router(service: DashboardService) -> APIRouter:
         try:
             dashboard = await service.refine(dashboard_id, request)
             if not dashboard:
-                raise HTTPException(status_code=404, detail="Dashboard not found")
+                return error_response(
+                    DashboardNotFoundError("Dashboard not found"),
+                    {"dashboard_id": dashboard_id},
+                )
             return dashboard
+        except DashboardCreationError as e:
+            return error_response(
+                e, {"dashboard_id": dashboard_id, "request": request.request}
+            )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            wrapped_error = DashboardCreationError(f"Dashboard refinement failed: {e}")
+            return error_response(
+                wrapped_error,
+                {"dashboard_id": dashboard_id, "request": request.request},
+            )
 
     # =========================================================================
     # Themes

@@ -40,10 +40,18 @@ dependencies = [
     "matplotlib>=3.8.0",
     "openpyxl>=3.1.0",
     "temporalio>=1.4.0",
+    "neo4j>=6.0.3",
+    "plotly>=5.0.0",
+    "jsonschema>=4.0.0",
+    "scipy>=1.11.0",
+    # Security patches for transitive dependencies
+    "urllib3>=2.6.0",  # CVE: streaming API and decompression chain vulnerabilities
+    "marshmallow>=3.26.2",  # CVE: DoS in Schema.load(many)
 ]
 
 [project.scripts]
 kai-agent = "app.modules.autonomous_agent.cli:cli"
+kai-analytics = "app.modules.analytics.cli:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
