@@ -63,86 +63,87 @@ export function ConnectionTable({ connections }: ConnectionTableProps) {
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Alias</TableHead>
-          <TableHead>Dialect</TableHead>
-          <TableHead>Schemas</TableHead>
-          <TableHead>Created</TableHead>
-          <TableHead className="w-[50px]"></TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {connections.map((connection) => (
-          <TableRow key={connection.id}>
-            <TableCell className="font-medium">
-              {connection.alias || connection.id.slice(0, 8)}
-            </TableCell>
-            <TableCell>
-              <Badge variant="outline">{connection.dialect}</Badge>
-            </TableCell>
-            <TableCell>
-              {connection.schemas?.length ? (
-                <div className="flex flex-wrap gap-1">
-                  {connection.schemas.map((schema) => (
-                    <Badge key={schema} variant="secondary">
-                      {schema}
-                    </Badge>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-muted-foreground">-</span>
-              )}
-            </TableCell>
-            <TableCell>
-              {new Date(connection.created_at).toLocaleDateString()}
-            </TableCell>
-            <TableCell>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem asChild>
-                    <Link href={`/schema?connection=${connection.id}`}>
-                      <Table2 className="mr-2 h-4 w-4" />
-                      View Schema
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleScanWithAI(connection)}>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Scan with AI
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href={`/mdl?connection=${connection.id}`}>
-                      <Layers className="mr-2 h-4 w-4" />
-                      View MDL
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleBuildMDL(connection)}>
-                    <Scan className="mr-2 h-4 w-4" />
-                    Build MDL
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={() => handleDelete(connection.id)}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
     <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Alias</TableHead>
+            <TableHead>Dialect</TableHead>
+            <TableHead>Schemas</TableHead>
+            <TableHead>Created</TableHead>
+            <TableHead className="w-[50px]"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {connections.map((connection) => (
+            <TableRow key={connection.id}>
+              <TableCell className="font-medium">
+                {connection.alias || connection.id.slice(0, 8)}
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline">{connection.dialect}</Badge>
+              </TableCell>
+              <TableCell>
+                {connection.schemas?.length ? (
+                  <div className="flex flex-wrap gap-1">
+                    {connection.schemas.map((schema) => (
+                      <Badge key={schema} variant="secondary">
+                        {schema}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </TableCell>
+              <TableCell>
+                {new Date(connection.created_at).toLocaleDateString()}
+              </TableCell>
+              <TableCell>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <Link href={`/schema?connection=${connection.id}`}>
+                        <Table2 className="mr-2 h-4 w-4" />
+                        View Schema
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleScanWithAI(connection)}>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Scan with AI
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href={`/mdl?connection=${connection.id}`}>
+                        <Layers className="mr-2 h-4 w-4" />
+                        View MDL
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleBuildMDL(connection)}>
+                      <Scan className="mr-2 h-4 w-4" />
+                      Build MDL
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={() => handleDelete(connection.id)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
       <ScanDialog
         open={scanDialogOpen}
         onOpenChange={setScanDialogOpen}
