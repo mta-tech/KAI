@@ -21,6 +21,7 @@
 - [Overview](#overview)
 - [Key Features](#key-features)
 - [Quickstart](#quickstart)
+- [Web UI](#web-ui)
 - [Development Setup](#development-setup)
 - [Architecture](#architecture)
 - [CLI Usage & Tutorial](#cli-usage)
@@ -40,6 +41,11 @@ KAI (Knowledge Agent for Intelligence Query) is an **AI-powered data agent** tha
 - **Remember context** across sessions with long-term memory
 
 Built with **FastAPI**, **LangGraph**, and **LangChain**, KAI supports multiple LLM providers (OpenAI, Google Gemini, Ollama, OpenRouter) and integrates seamlessly with your existing data infrastructure.
+
+**Access Options:**
+- **Web UI** - Modern Next.js interface for visual interaction
+- **REST API** - 40+ endpoints for programmatic access
+- **CLI** - Command-line tool for terminal-based workflows
 
 ## Key Features
 
@@ -171,10 +177,150 @@ docker compose down
 
 ### Next Steps
 
-Now that KAI is running, try the **[CLI Tutorial](#quick-cli-tutorial)** below to:
-- Connect to your first database
-- Run natural language queries
-- Explore interactive analysis mode
+Now that KAI is running, explore these options:
+- **[Web UI](#web-ui)** - Visual interface with dashboard builder
+- **[Dashboard Tutorial](#creating-dashboards-tutorial)** - Create dashboards from natural language
+- **[CLI Tutorial](#quick-cli-tutorial)** - Terminal-based workflows
+- **[API Documentation](http://localhost:8015/docs)** - Programmatic access
+
+---
+
+## Web UI
+
+KAI includes a **modern web interface** built with Next.js for visual, interactive data analysis.
+
+### Features
+
+- **Interactive Chat** - Natural language conversations with your data
+- **Dashboard Builder** - Create visual dashboards from text descriptions
+- **SQL Query Interface** - Write and execute queries with visual results
+- **Analytics Visualizations** - View forecasts, trends, and statistical analysis
+- **Database Management** - Configure connections and settings through UI
+
+### Quick Start
+
+**1. Ensure the backend is running**
+
+```bash
+docker compose up -d
+# Backend available at http://localhost:8015
+```
+
+**2. Navigate to UI directory**
+
+```bash
+cd ui
+```
+
+**3. Install dependencies**
+
+```bash
+npm install
+# or
+yarn install
+```
+
+**4. Configure environment**
+
+Create `ui/.env.local`:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8015
+NEXT_PUBLIC_API_BASE_PATH=/api/v1
+```
+
+**5. Start the UI**
+
+```bash
+npm run dev
+```
+
+**6. Open in browser**
+
+Visit [http://localhost:3000](http://localhost:3000)
+
+### Using the Web UI
+
+**Create a session:**
+1. Navigate to "New Session"
+2. Select your database connection
+3. Start asking questions in natural language
+
+**Example interactions:**
+- "Show me total sales by month"
+- "Create a dashboard with revenue trends and top products"
+- "What are the customer demographics?"
+- "Forecast sales for next quarter"
+
+**View results:**
+- SQL queries are shown with syntax highlighting
+- Results displayed in interactive tables
+- Charts auto-generated for time series and distributions
+- Download results as CSV or JSON
+
+### Creating Dashboards Tutorial
+
+KAI can automatically generate interactive dashboards from natural language descriptions.
+
+**Step 1: Access Dashboard Builder**
+
+Navigate to the "Dashboards" section in the Web UI.
+
+**Step 2: Describe your dashboard**
+
+Enter a natural language description of what you want to see:
+
+```
+Create a sales dashboard showing:
+- Total revenue this month
+- Top 5 products by sales
+- Revenue trend over the last 12 months
+- Customer distribution by region
+```
+
+**Step 3: Select database**
+
+Choose the database connection to query from.
+
+**Step 4: Generate**
+
+Click "Generate Dashboard" and KAI will:
+1. Analyze your description
+2. Generate appropriate SQL queries
+3. Execute queries against your database
+4. Create visualizations (charts, tables, KPIs)
+5. Arrange components in a responsive layout
+
+**Step 5: Customize**
+
+- Rearrange dashboard components via drag-and-drop
+- Adjust chart types (bar, line, pie, etc.)
+- Modify time ranges and filters
+- Save dashboard for future use
+
+**Via API:**
+
+You can also create dashboards programmatically:
+
+```bash
+curl -X POST http://localhost:8015/api/v1/dashboards \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sales Overview",
+    "description": "Show total revenue, top products, and monthly trends",
+    "db_connection_id": "your-connection-id"
+  }'
+```
+
+**Via CLI:**
+
+```bash
+uv run kai-agent create-dashboard \
+  "Sales dashboard with revenue trends and top products" \
+  --db sales
+```
+
+For detailed UI documentation and advanced features, see [ui/README.md](ui/README.md).
 
 ---
 
