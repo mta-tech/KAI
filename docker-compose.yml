@@ -19,7 +19,7 @@ services:
     container_name: text2sql-agent
     restart: on-failure
     ports:
-      - "8015:8005"
+      - "8015:8000"
     depends_on:
       - typesense
     env_file:

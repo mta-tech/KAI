@@ -360,7 +360,7 @@ async def save_message_node(state: SessionState) -> dict[str, Any]:
         "id": f"msg_{uuid.uuid4().hex[:8]}",
         "role": "assistant",
         "query": state["current_query"] or "",
-        "sql": state["current_sql"],
+        "sql": state.get("current_sql"),
         "results_summary": state.get("metadata", {}).get("results_summary"),
         "analysis": state["current_analysis"].get("summary") if state.get("current_analysis") else None,
         "timestamp": datetime.now().isoformat()
