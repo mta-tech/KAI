@@ -23,7 +23,7 @@
 - [Quickstart](#quickstart)
 - [Development Setup](#development-setup)
 - [Architecture](#architecture)
-- [CLI Usage](#cli-usage)
+- [CLI Usage & Tutorial](#cli-usage)
 - [Environment Configuration](#environment-configuration)
 - [Testing](#testing)
 - [Contributing](#contributing)
@@ -169,6 +169,13 @@ docker compose down
 
 > **Note**: Data in `./app/data/dbdata` persists across restarts.
 
+### Next Steps
+
+Now that KAI is running, try the **[CLI Tutorial](#quick-cli-tutorial)** below to:
+- Connect to your first database
+- Run natural language queries
+- Explore interactive analysis mode
+
 ---
 
 ## Development Setup
@@ -300,21 +307,127 @@ uv run pytest tests/unit/test_deep_agent_adapter.py::test_function_name
 
 ## CLI Usage
 
-KAI provides a powerful CLI for database management and analysis:
+KAI provides a powerful command-line interface for database management and natural language analysis.
+
+### Quick CLI Tutorial
+
+Here's a complete workflow from connecting to your database to running queries:
+
+**Step 1: Connect to your database**
 
 ```bash
-# Database connection management
-uv run kai-agent create-connection "postgresql://user:pass@host:5432/db" -a mydb
-uv run kai-agent scan-all mydb -d  # Scan with AI-generated descriptions
+# PostgreSQL
+uv run kai-agent create-connection \
+  "postgresql://user:password@localhost:5432/sales_db" \
+  -a sales
 
-# Interactive analysis session
-uv run kai-agent interactive --db mydb
+# MySQL
+uv run kai-agent create-connection \
+  "mysql://user:password@localhost:3306/crm_db" \
+  -a crm
 
-# One-shot analysis
-uv run kai-agent run "Show top 10 customers by revenue" --db mydb
+# SQLite
+uv run kai-agent create-connection \
+  "sqlite:///path/to/database.db" \
+  -a local_db
+```
 
-# List all commands
-uv run kai-agent --help
+**Step 2: Scan your database schema**
+
+Let KAI understand your database structure:
+
+```bash
+# Basic scan
+uv run kai-agent scan-all sales
+
+# With AI-generated descriptions (recommended)
+uv run kai-agent scan-all sales -d
+```
+
+This analyzes your tables, columns, and relationships, generating descriptions to help the AI understand your data model.
+
+**Step 3: Run your first query**
+
+Try these example queries:
+
+```bash
+# One-shot query
+uv run kai-agent run "Show total sales by month for 2024" --db sales
+
+# Another example
+uv run kai-agent run "List top 10 customers by revenue" --db sales
+
+# Complex analytics
+uv run kai-agent run "Analyze correlation between price and quantity sold" --db sales
+```
+
+**Step 4: Interactive mode**
+
+For back-and-forth conversations:
+
+```bash
+uv run kai-agent interactive --db sales
+```
+
+Then ask questions naturally:
+
+```
+> Show me total revenue this quarter
+> Which products are underperforming?
+> Create a forecast for next month's sales
+> What's the average order value by customer segment?
+```
+
+Type `exit` or press Ctrl+D to quit.
+
+### Available Commands
+
+```bash
+# Connection management
+kai-agent create-connection <uri> -a <alias>    # Add database
+kai-agent list-connections                       # List all connections
+kai-agent delete-connection <alias>              # Remove connection
+
+# Schema management
+kai-agent scan-all <alias>                       # Scan all tables
+kai-agent scan-all <alias> -d                    # Scan with AI descriptions
+kai-agent scan-table <alias> <table_name>        # Scan specific table
+
+# Query execution
+kai-agent run "<question>" --db <alias>          # One-shot query
+kai-agent interactive --db <alias>               # Interactive session
+
+# Help
+kai-agent --help                                 # Show all commands
+kai-agent <command> --help                       # Command-specific help
+```
+
+### Advanced CLI Features
+
+**Custom instructions:**
+
+```bash
+# Add domain-specific guidance
+uv run kai-agent add-instruction \
+  "Always use fiscal year (July-June) for financial queries" \
+  --db sales
+```
+
+**Export results:**
+
+```bash
+# Run query and save to CSV
+uv run kai-agent run "Show monthly sales" --db sales --output sales.csv
+
+# JSON format
+uv run kai-agent run "Show top products" --db sales --format json
+```
+
+**Verbose mode:**
+
+```bash
+# See detailed SQL generation process
+uv run kai-agent run "Show revenue" --db sales --verbose
 ```
 
 ---
