@@ -1,0 +1,16 @@
+id,province_name,region,island_group
+1,DKI Jakarta,Jakarta,Java
+2,Jawa Barat,West Java,Java
+3,Jawa Tengah,Central Java,Java
+4,DI Yogyakarta,Yogyakarta,Java
+5,Jawa Timur,East Java,Java
+6,Banten,Banten,Java
+7,Sumatera Utara,North Sumatra,Sumatra
+8,Sumatera Barat,West Sumatra,Sumatra
+9,Riau,Riau,Sumatra
+10,Sumatera Selatan,South Sumatra,Sumatra
+11,Bali,Bali,Bali-Nusa Tenggara
+12,Nusa Tenggara Barat,West Nusa Tenggara,Bali-Nusa Tenggara
+13,Kalimantan Barat,West Kalimantan,Kalimantan
+14,Kalimantan Selatan,South Kalimantan,Kalimantan
+15,Sulawesi Selatan,South Sulawesi,Sulawesi
