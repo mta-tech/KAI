@@ -146,7 +146,7 @@ class MDLRepository:
 
         docs = self.storage.find(
             self.collection,
-            filter=filters if filters else None,
+            filter=filters,
             limit=limit,
             page=offset // limit if limit > 0 else 0,
         )

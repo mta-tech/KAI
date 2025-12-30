@@ -22,6 +22,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 # Analytics module imports
 from app.modules.analytics import analytics_router, batch_analytics_router
 
+# MDL module imports
+from app.modules.mdl.api import create_mdl_router
+from app.modules.mdl.services import MDLService
+from app.modules.mdl.repositories import MDLRepository
+
 
 class FastAPI:
     def __init__(self, settings: Settings):
@@ -56,6 +61,9 @@ class FastAPI:
         self._app.include_router(analytics_router)
         self._app.include_router(batch_analytics_router)
 
+        # Register MDL router
+        self._setup_mdl_module()
+
         @self._app.on_event("shutdown")
         async def shutdown_event():
             DBConnections.dispose_all_engines()
@@ -89,6 +97,16 @@ class FastAPI:
 
         # Include session router
         self._app.include_router(session_router, prefix="/api/v1", tags=["Sessions"])
+
+    def _setup_mdl_module(self):
+        """Configure and register the MDL module."""
+        # Create MDL service
+        mdl_repository = MDLRepository(self._storage)
+        mdl_service = MDLService(mdl_repository, self._storage)
+
+        # Create and include MDL router
+        mdl_router = create_mdl_router(mdl_service)
+        self._app.include_router(mdl_router)
 
     def app(self) -> fastapi.FastAPI:
         return self._app

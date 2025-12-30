@@ -37,17 +37,23 @@ export const tablesApi = {
     return response.json();
   },
 
-  async scan(tableIds: string[]): Promise<void> {
+  async scan(tableIds: string[], withAI: boolean = false, instruction?: string): Promise<TableDescription[]> {
     const response = await fetch(`${API_BASE}/api/v1/table-descriptions/sync-schemas`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ table_description_ids: tableIds }),
+      body: JSON.stringify({
+        table_description_ids: tableIds,
+        instruction: withAI ? (instruction || 'Generate detailed descriptions for tables and columns') : null,
+      }),
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to scan tables: ${response.statusText}`);
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(error.detail || `Failed to scan tables: ${response.statusText}`);
     }
+
+    return response.json();
   },
 };

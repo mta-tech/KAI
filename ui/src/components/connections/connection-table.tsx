@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -15,11 +16,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, Table2, Layers } from 'lucide-react';
+import { MoreHorizontal, Trash2, Table2, Layers, Scan, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import type { DatabaseConnection } from '@/lib/api/types';
 import { useDeleteConnection } from '@/hooks/use-connections';
+import { ScanDialog } from './scan-dialog';
+import { MDLBuildDialog } from './mdl-build-dialog';
 
 interface ConnectionTableProps {
   connections: DatabaseConnection[];
@@ -27,11 +31,24 @@ interface ConnectionTableProps {
 
 export function ConnectionTable({ connections }: ConnectionTableProps) {
   const deleteMutation = useDeleteConnection();
+  const [scanDialogOpen, setScanDialogOpen] = useState(false);
+  const [mdlDialogOpen, setMdlDialogOpen] = useState(false);
+  const [selectedConnection, setSelectedConnection] = useState<DatabaseConnection | null>(null);
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this connection?')) {
       await deleteMutation.mutateAsync(id);
     }
+  };
+
+  const handleScanWithAI = (connection: DatabaseConnection) => {
+    setSelectedConnection(connection);
+    setScanDialogOpen(true);
+  };
+
+  const handleBuildMDL = (connection: DatabaseConnection) => {
+    setSelectedConnection(connection);
+    setMdlDialogOpen(true);
   };
 
   if (connections.length === 0) {
@@ -95,12 +112,22 @@ export function ConnectionTable({ connections }: ConnectionTableProps) {
                       View Schema
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleScanWithAI(connection)}>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Scan with AI
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link href={`/mdl?connection=${connection.id}`}>
                       <Layers className="mr-2 h-4 w-4" />
-                      Create MDL
+                      View MDL
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBuildMDL(connection)}>
+                    <Scan className="mr-2 h-4 w-4" />
+                    Build MDL
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive"
                     onClick={() => handleDelete(connection.id)}
@@ -115,5 +142,17 @@ export function ConnectionTable({ connections }: ConnectionTableProps) {
         ))}
       </TableBody>
     </Table>
+    <>
+      <ScanDialog
+        open={scanDialogOpen}
+        onOpenChange={setScanDialogOpen}
+        connection={selectedConnection}
+      />
+      <MDLBuildDialog
+        open={mdlDialogOpen}
+        onOpenChange={setMdlDialogOpen}
+        connection={selectedConnection}
+      />
+    </>
   );
 }

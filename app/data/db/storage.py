@@ -92,16 +92,17 @@ class Storage(TypeSenseDB):
     ) -> list:
         self.ensure_collection_exists(collection)
 
-        filter_by = " && ".join(
-            [f"{k}:={self._escape_filter_value(v)}" for k, v in filter.items()]
-        )
-
         search_params = {
             "q": "*",
-            "filter_by": filter_by,
             "per_page": limit if limit > 0 else 250,
             "page": page if page > 0 else 1,
         }
+
+        if filter:
+            filter_by = " && ".join(
+                [f"{k}:={self._escape_filter_value(v)}" for k, v in filter.items()]
+            )
+            search_params["filter_by"] = filter_by
 
         if sort:
             search_params["sort_by"] = ",".join(sort)
