@@ -247,8 +247,12 @@ app/data/dbdata/
 
 # Auto Claude data directory
 .auto-claude/
+.auto-claude-status
 .worktrees/
 .auto-drive/
+
+# Claude settings
+.claude_settings.json
 
 # BMAD output directory
 bmad_output/
