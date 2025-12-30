@@ -242,6 +242,7 @@ agent_results/
 .langgraph_api/
 .bmad_docs/
 .bmad/
+bmad_docs/
 app/data/dbdata/
 
 # Auto Claude data directory
