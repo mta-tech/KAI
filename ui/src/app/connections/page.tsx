@@ -3,6 +3,7 @@
 import { useConnections } from '@/hooks/use-connections';
 import { ConnectionTable } from '@/components/connections/connection-table';
 import { ConnectionDialog } from '@/components/connections/connection-dialog';
+import { ScanProgressBanner } from '@/components/connections/scan-progress-banner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -29,6 +30,8 @@ export default function ConnectionsPage() {
         </div>
         <ConnectionDialog />
       </div>
+
+      <ScanProgressBanner />
 
       <Card>
         <CardHeader>

@@ -18,12 +18,13 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, Table2, Layers, Scan, Sparkles } from 'lucide-react';
+import { MoreHorizontal, Trash2, Table2, Layers, Scan, Sparkles, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import type { DatabaseConnection } from '@/lib/api/types';
 import { useDeleteConnection } from '@/hooks/use-connections';
 import { ScanDialog } from './scan-dialog';
 import { MDLBuildDialog } from './mdl-build-dialog';
+import { useScanProgress } from '@/lib/stores/scan-progress';
 
 interface ConnectionTableProps {
   connections: DatabaseConnection[];
@@ -31,6 +32,7 @@ interface ConnectionTableProps {
 
 export function ConnectionTable({ connections }: ConnectionTableProps) {
   const deleteMutation = useDeleteConnection();
+  const { isScanning, getActiveScan } = useScanProgress();
   const [scanDialogOpen, setScanDialogOpen] = useState(false);
   const [mdlDialogOpen, setMdlDialogOpen] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState<DatabaseConnection | null>(null);
@@ -75,14 +77,26 @@ export function ConnectionTable({ connections }: ConnectionTableProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {connections.map((connection) => (
-            <TableRow key={connection.id}>
-              <TableCell className="font-medium">
-                {connection.alias || connection.id.slice(0, 8)}
-              </TableCell>
-              <TableCell>
-                <Badge variant="outline">{connection.dialect}</Badge>
-              </TableCell>
+          {connections.map((connection) => {
+            const scanning = isScanning(connection.id);
+            const scanInfo = getActiveScan(connection.id);
+
+            return (
+              <TableRow key={connection.id}>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    {connection.alias || connection.id.slice(0, 8)}
+                    {scanning && (
+                      <Badge variant="secondary" className="gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Scanning{scanInfo?.withAI ? ' with AI' : ''}...
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">{connection.dialect}</Badge>
+                </TableCell>
               <TableCell>
                 {connection.schemas?.length ? (
                   <div className="flex flex-wrap gap-1">
@@ -113,9 +127,12 @@ export function ConnectionTable({ connections }: ConnectionTableProps) {
                         View Schema
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleScanWithAI(connection)}>
+                    <DropdownMenuItem
+                      onClick={() => handleScanWithAI(connection)}
+                      disabled={scanning}
+                    >
                       <Sparkles className="mr-2 h-4 w-4" />
-                      Scan with AI
+                      {scanning ? 'Scanning...' : 'Scan with AI'}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
@@ -140,7 +157,8 @@ export function ConnectionTable({ connections }: ConnectionTableProps) {
                 </DropdownMenu>
               </TableCell>
             </TableRow>
-          ))}
+            );
+          })}
         </TableBody>
       </Table>
 
