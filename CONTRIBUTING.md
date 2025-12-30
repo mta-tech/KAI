@@ -1,4 +1,4 @@
-# Contributing to KAI 🤝
+# Contributing to KAI
 
 Thank you for your interest in contributing to KAI! We're excited to have you as part of our community. Whether you're fixing bugs, adding features, improving documentation, or helping others, your contributions are valuable.
 
@@ -347,12 +347,12 @@ async def test_create_session_invalid_db():
 
 Not a coder? You can still contribute!
 
-- 📝 **Documentation**: Improve guides and tutorials
-- 🐛 **Bug Reports**: Report issues with clear reproduction steps
-- 💡 **Feature Requests**: Suggest new features or improvements
-- 🎨 **Design**: UI/UX improvements
-- 🌍 **Translation**: Help translate documentation
-- 🤝 **Community Support**: Help others in discussions
+- **Documentation**: Improve guides and tutorials
+- **Bug Reports**: Report issues with clear reproduction steps
+- **Feature Requests**: Suggest new features or improvements
+- **Design**: UI/UX improvements
+- **Translation**: Help translate documentation
+- **Community Support**: Help others in discussions
 
 ### Recognition
 
@@ -361,4 +361,4 @@ All contributors are recognized in our:
 - Release notes
 - Project documentation
 
-Thank you for contributing to KAI! 🎉
+Thank you for contributing to KAI!

@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🤖 KAI
+# KAI
 ### Knowledge Agent for Intelligence Query
 
 **Transform natural language into powerful data insights**
@@ -10,69 +10,69 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-00a393.svg)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-latest-purple.svg)](https://github.com/langchain-ai/langgraph)
 
-[Documentation](https://mta-3.gitbook.io/kai) • [Getting Started](#-quickstart) • [Contributing](CONTRIBUTING.md) • [Architecture](ARCHITECTURE.md)
+[Documentation](https://mta-3.gitbook.io/kai) • [Getting Started](#quickstart) • [Contributing](CONTRIBUTING.md) • [Architecture](ARCHITECTURE.md)
 
 </div>
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [Overview](#-overview)
-- [Key Features](#-key-features)
-- [Quickstart](#-quickstart)
-- [Development Setup](#-development-setup)
-- [Architecture](#-architecture)
-- [CLI Usage](#-cli-usage)
-- [Environment Configuration](#-environment-configuration)
-- [Testing](#-testing)
-- [Contributing](#-contributing)
-- [License](#-license)
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Quickstart](#quickstart)
+- [Development Setup](#development-setup)
+- [Architecture](#architecture)
+- [CLI Usage](#cli-usage)
+- [Environment Configuration](#environment-configuration)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
 
-## 🌟 Overview
+## Overview
 
 KAI (Knowledge Agent for Intelligence Query) is an **AI-powered data agent** that transforms how you interact with databases. Using natural language, you can:
 
-- 🗣️ **Query databases** without writing SQL
-- 📊 **Generate insights** with advanced analytics (forecasting, anomaly detection, statistical analysis)
-- 🎨 **Create dashboards** from natural language descriptions
-- 🔍 **Search documents** across large datasets
-- 🧠 **Remember context** across sessions with long-term memory
+- **Query databases** without writing SQL
+- **Generate insights** with advanced analytics (forecasting, anomaly detection, statistical analysis)
+- **Create dashboards** from natural language descriptions
+- **Search documents** across large datasets
+- **Remember context** across sessions with long-term memory
 
 Built with **FastAPI**, **LangGraph**, and **LangChain**, KAI supports multiple LLM providers (OpenAI, Google Gemini, Ollama, OpenRouter) and integrates seamlessly with your existing data infrastructure.
 
-## ✨ Key Features
+## Key Features
 
 <table>
 <tr>
 <td width="50%">
 
-### 🗣️ Natural Language Querying
+### Natural Language Querying
 Ask questions in plain English—no SQL knowledge required. KAI translates your intent into optimized database queries.
 
-### 📊 Advanced Analytics
+### Advanced Analytics
 - Statistical analysis (correlation, regression)
 - Time series forecasting
 - Anomaly detection
 - Automated insights generation
 
-### 🎨 Dashboard Creation
+### Dashboard Creation
 Generate interactive dashboards from natural language descriptions using natural language.
 
 </td>
 <td width="50%">
 
-### 🧠 Long-term Memory
+### Long-term Memory
 Persistent memory across sessions using Typesense or Letta backends to maintain context.
 
-### 🔧 Multi-LLM Support
+### Multi-LLM Support
 Flexible LLM provider support:
 - OpenAI (GPT-4, GPT-3.5)
 - Google Gemini
 - Ollama (local models)
 - OpenRouter
 
-### 🚀 Production-Ready
+### Production-Ready
 - LangGraph-based agent architecture
 - FastAPI for high-performance APIs
 - Docker deployment support
@@ -82,7 +82,7 @@ Flexible LLM provider support:
 </tr>
 </table>
 
-## 🚀 Quickstart
+## Quickstart
 
 Get KAI running in **5 minutes** with Docker Compose!
 
@@ -128,7 +128,7 @@ uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_
 
 Copy the output and paste it as `ENCRYPT_KEY` in your `.env` file.
 
-### 🐳 Running with Docker
+### Running with Docker
 
 **Start all services:**
 
@@ -151,8 +151,8 @@ typesense    typesense/typesense:26.0   Up 2 minutes    0.0.0.0:8108->8108/tcp
 
 **Access the application:**
 
-- 🌐 **API Documentation**: http://localhost:8015/docs
-- 🔍 **Typesense**: http://localhost:8108
+- **API Documentation**: http://localhost:8015/docs
+- **Typesense**: http://localhost:8108
 
 **Test the API:**
 
@@ -161,7 +161,7 @@ curl http://localhost:8015/health
 # Expected: {"status":"healthy"}
 ```
 
-### 🛑 Stopping Services
+### Stopping Services
 
 ```bash
 docker compose down
@@ -171,7 +171,7 @@ docker compose down
 
 ---
 
-## 💻 Development Setup
+## Development Setup
 
 For local development without Docker:
 
@@ -230,7 +230,7 @@ This starts the LangGraph Studio interface for debugging agent workflows.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 KAI follows a modular, layered architecture:
 
@@ -273,7 +273,7 @@ For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
-## 🧪 Testing
+## Testing
 
 Run the test suite:
 
@@ -298,7 +298,7 @@ uv run pytest tests/unit/test_deep_agent_adapter.py::test_function_name
 
 ---
 
-## 🔧 CLI Usage
+## CLI Usage
 
 KAI provides a powerful CLI for database management and analysis:
 
@@ -319,7 +319,7 @@ uv run kai-agent --help
 
 ---
 
-## ⚙️ Environment Configuration
+## Environment Configuration
 
 ### Required Variables
 
@@ -347,18 +347,18 @@ See `.env.example` for a complete configuration template.
 
 ---
 
-## 📚 Documentation
+## Documentation
 
-- 📖 **[API Documentation](docs/apis/README.md)** - Complete REST API reference
-- 🏗️ **[Architecture Guide](ARCHITECTURE.md)** - System design and patterns
-- 🚀 **[Getting Started](docs/GETTING_STARTED.md)** - Detailed setup guide
-- 🔧 **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
-- 📦 **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment
-- 🎓 **[Tutorials](docs/tutorials/)** - Step-by-step guides
+- **[API Documentation](docs/apis/README.md)** - Complete REST API reference
+- **[Architecture Guide](ARCHITECTURE.md)** - System design and patterns
+- **[Getting Started](docs/GETTING_STARTED.md)** - Detailed setup guide
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment
+- **[Tutorials](docs/tutorials/)** - Step-by-step guides
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details on:
 
@@ -392,19 +392,19 @@ git push origin feature/amazing-feature
 
 ---
 
-## 📝 License
+## License
 
 This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🌟 Star History
+## Star History
 
-If you find KAI useful, please consider giving it a ⭐ on GitHub!
+If you find KAI useful, please consider giving it a star on GitHub!
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 Built with:
 - [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
@@ -416,7 +416,7 @@ Built with:
 
 <div align="center">
 
-**Made with ❤️ by the KAI Team**
+**Made by the KAI Team**
 
 [Report Bug](https://github.com/your-org/kai/issues) • [Request Feature](https://github.com/your-org/kai/issues) • [Join Discussion](https://github.com/your-org/kai/discussions)
 

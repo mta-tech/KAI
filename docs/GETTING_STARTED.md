@@ -400,4 +400,4 @@ If you encounter issues, see:
 
 ---
 
-**Ready to build?** Start with `uv run kai-agent interactive --db your_db` and explore! 🚀
+**Ready to build?** Start with `uv run kai-agent interactive --db your_db` and explore!

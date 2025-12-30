@@ -5,11 +5,11 @@ A modern Next.js-based web interface for interacting with the KAI (Knowledge Age
 ## Overview
 
 The KAI Web UI provides an intuitive interface for:
-- 💬 **Interactive Chat** - Natural language conversations with your data
-- 📊 **Dashboard Management** - Create and view data dashboards
-- 🔍 **SQL Query Interface** - Execute and visualize database queries
-- 📈 **Analytics** - View statistical analysis and forecasts
-- ⚙️ **Configuration** - Manage database connections and settings
+- **Interactive Chat** - Natural language conversations with your data
+- **Dashboard Management** - Create and view data dashboards
+- **SQL Query Interface** - Execute and visualize database queries
+- **Analytics** - View statistical analysis and forecasts
+- **Configuration** - Manage database connections and settings
 
 ## Tech Stack
 
