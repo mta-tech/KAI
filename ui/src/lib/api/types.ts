@@ -90,6 +90,17 @@ export interface MDLManifest {
   metrics: MDLMetric[];
 }
 
+// Session message from backend
+export interface SessionMessage {
+  id: string;
+  role: string;
+  query: string;
+  sql: string | null;
+  results_summary: string | null;
+  analysis: string | null;
+  timestamp: string;
+}
+
 export interface AgentSession {
   id: string;
   session_id: string;
@@ -97,6 +108,7 @@ export interface AgentSession {
   created_at: string;
   status: 'active' | 'completed' | 'failed';
   db_connection_id?: string;
+  messages?: SessionMessage[];
 }
 
 export interface AgentMessage {
