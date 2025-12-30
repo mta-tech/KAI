@@ -529,7 +529,7 @@ Built with:
 
 <div align="center">
 
-**Made by the KAI Team**
+**Made with love by MTA**
 
 [Report Bug](https://github.com/your-org/kai/issues) • [Request Feature](https://github.com/your-org/kai/issues) • [Join Discussion](https://github.com/your-org/kai/discussions)
 
