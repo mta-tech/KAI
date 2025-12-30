@@ -1,7 +1,10 @@
 """Agent Session API endpoints."""
+import json
+import uuid
+from typing import AsyncGenerator, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from typing import Optional
 
 from app.modules.autonomous_agent.api.requests import (
     CreateAgentSessionRequest,
@@ -15,9 +18,11 @@ from app.modules.autonomous_agent.api.responses import (
 )
 from app.modules.autonomous_agent.repositories import AgentSessionRepository
 from app.modules.autonomous_agent.models import AgentSession, AgentTask
+from app.modules.autonomous_agent.service import AutonomousAgentService
+from app.modules.database_connection.repositories import DatabaseConnectionRepository
+from app.utils.sql_database.sql_database import SQLDatabase
 from app.data.db.storage import Storage
-
-import uuid
+from langgraph.checkpoint.memory import MemorySaver
 
 
 # Dependency placeholder - will be configured during app startup
@@ -193,6 +198,155 @@ async def resume_agent_session(
     session.status = "active"
     await repo.aupdate(session)
     return {"status": "active"}
+
+
+# ============================================================================
+# Streaming endpoint for autonomous agent execution
+# ============================================================================
+
+# Session-scoped checkpointers for multi-turn conversations
+_session_checkpointers: dict[str, MemorySaver] = {}
+
+
+def _get_or_create_checkpointer(session_id: str) -> MemorySaver:
+    """Get or create a MemorySaver checkpointer for a session."""
+    if session_id not in _session_checkpointers:
+        _session_checkpointers[session_id] = MemorySaver()
+    return _session_checkpointers[session_id]
+
+
+def _create_autonomous_service(
+    session: AgentSession,
+    storage: Storage,
+) -> AutonomousAgentService:
+    """Create AutonomousAgentService instance for a session.
+
+    Args:
+        session: The agent session
+        storage: Storage instance for database operations
+
+    Returns:
+        Configured AutonomousAgentService
+    """
+    # Get database connection from storage
+    db_repo = DatabaseConnectionRepository(storage)
+    db_connection = db_repo.find_by_id(session.db_connection_id)
+
+    if not db_connection:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Database connection '{session.db_connection_id}' not found",
+        )
+
+    # Create SQLDatabase instance
+    database = SQLDatabase.get_sql_engine(db_connection, False)
+
+    # Get or create checkpointer for this session
+    checkpointer = _get_or_create_checkpointer(session.id)
+
+    # Create the service
+    return AutonomousAgentService(
+        db_connection=db_connection,
+        database=database,
+        checkpointer=checkpointer,
+        storage=storage,
+    )
+
+
+async def _stream_generator(
+    service: AutonomousAgentService,
+    task: AgentTask,
+) -> AsyncGenerator[str, None]:
+    """Convert stream_execute events to SSE format.
+
+    Args:
+        service: AutonomousAgentService instance
+        task: AgentTask to execute
+
+    Yields:
+        SSE formatted event strings
+    """
+    async for event in service.stream_execute(task):
+        event_type = event.get("type", "chunk")
+        yield f"event: {event_type}\ndata: {json.dumps(event)}\n\n"
+
+
+@router.post("/{session_id}/stream")
+async def stream_agent_task(
+    session_id: str,
+    body: AgentTaskRequest,
+    repo: AgentSessionRepository = Depends(get_agent_session_repository),
+):
+    """
+    Stream autonomous agent execution via Server-Sent Events (SSE).
+
+    Executes the agent task and streams events in real-time including:
+    - memory_loaded: When memories from previous sessions are loaded
+    - skill_loaded: When relevant skills are loaded
+    - session_resumed: When resuming from a checkpoint
+    - token: LLM token streaming
+    - tool_start: When a tool starts executing
+    - tool_end: When a tool finishes executing
+    - todo_update: When the agent's todo list changes
+    - done: When execution completes
+    - error: When an error occurs
+
+    Returns a streaming response with media type text/event-stream.
+    """
+    # Validate session exists
+    session = await repo.aget(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Agent session not found")
+
+    # Check session status
+    if session.status == "closed":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot execute task on closed session",
+        )
+
+    # Ensure storage is available
+    if _storage is None:
+        raise RuntimeError("Storage not configured. Call set_agent_session_storage() first.")
+
+    # Create the service
+    service = _create_autonomous_service(session, _storage)
+
+    # Create task
+    task = AgentTask(
+        id=f"task_{uuid.uuid4().hex[:8]}",
+        session_id=session_id,
+        prompt=body.prompt,
+        db_connection_id=session.db_connection_id,
+        mode=session.mode,
+        context=body.context,
+        metadata=body.metadata,
+    )
+
+    # Update session status
+    session.status = "running"
+    await repo.aupdate(session)
+
+    # Return streaming response
+    async def stream_with_status_update():
+        """Stream and update session status on completion."""
+        try:
+            async for chunk in _stream_generator(service, task):
+                yield chunk
+        finally:
+            # Update session status after streaming completes
+            session.status = "active"
+            await repo.aupdate(session)
+
+    return StreamingResponse(
+        stream_with_status_update(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
+    )
 
 
 __all__ = ["router", "set_agent_session_storage", "get_agent_session_repository"]

@@ -5,6 +5,10 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from app.modules.analytics.exceptions import (
+    AnomalyDetectionError,
+    InsufficientDataError,
+)
 from app.modules.analytics.models import AnomalyResult
 
 
@@ -18,52 +22,66 @@ class AnomalyService:
     ) -> AnomalyResult:
         """Detect anomalies using Z-score method."""
         clean = series.dropna()
-        mean = clean.mean()
-        std = clean.std()
 
-        if std == 0:
+        if len(clean) == 0:
+            raise InsufficientDataError("Cannot detect anomalies in empty data")
+        if len(clean) < 3:
+            raise InsufficientDataError(
+                f"Z-score anomaly detection requires at least 3 data points, "
+                f"got {len(clean)}"
+            )
+
+        try:
+            mean = clean.mean()
+            std = clean.std()
+
+            if std == 0:
+                return AnomalyResult(
+                    method="z-score",
+                    total_points=len(clean),
+                    anomaly_count=0,
+                    anomaly_percentage=0.0,
+                    anomalies=[],
+                    threshold=threshold,
+                    interpretation="No variance in data - cannot detect anomalies.",
+                )
+
+            z_scores = (clean - mean) / std
+            anomaly_mask = np.abs(z_scores) > threshold
+
+            anomalies = []
+            for idx in clean[anomaly_mask].index:
+                anomalies.append(
+                    {
+                        "index": (
+                            int(idx) if isinstance(idx, (int, np.integer)) else str(idx)
+                        ),
+                        "value": float(clean.loc[idx]),
+                        "z_score": float(z_scores.loc[idx]),
+                    }
+                )
+
+            count = len(anomalies)
+            pct = (count / len(clean)) * 100
+
+            interpretation = (
+                f"Z-score analysis (threshold: {threshold}): Found {count} anomalies "
+                f"({pct:.1f}% of data). Mean: {mean:.2f}, Std: {std:.2f}."
+            )
+
             return AnomalyResult(
                 method="z-score",
                 total_points=len(clean),
-                anomaly_count=0,
-                anomaly_percentage=0.0,
-                anomalies=[],
+                anomaly_count=count,
+                anomaly_percentage=round(pct, 2),
+                anomalies=anomalies,
                 threshold=threshold,
-                interpretation="No variance in data - cannot detect anomalies.",
+                interpretation=interpretation,
             )
-
-        z_scores = (clean - mean) / std
-        anomaly_mask = np.abs(z_scores) > threshold
-
-        anomalies = []
-        for idx in clean[anomaly_mask].index:
-            anomalies.append(
-                {
-                    "index": (
-                        int(idx) if isinstance(idx, (int, np.integer)) else str(idx)
-                    ),
-                    "value": float(clean.loc[idx]),
-                    "z_score": float(z_scores.loc[idx]),
-                }
-            )
-
-        count = len(anomalies)
-        pct = (count / len(clean)) * 100
-
-        interpretation = (
-            f"Z-score analysis (threshold: {threshold}): Found {count} anomalies "
-            f"({pct:.1f}% of data). Mean: {mean:.2f}, Std: {std:.2f}."
-        )
-
-        return AnomalyResult(
-            method="z-score",
-            total_points=len(clean),
-            anomaly_count=count,
-            anomaly_percentage=round(pct, 2),
-            anomalies=anomalies,
-            threshold=threshold,
-            interpretation=interpretation,
-        )
+        except InsufficientDataError:
+            raise
+        except Exception as e:
+            raise AnomalyDetectionError(f"Z-score detection failed: {e}") from e
 
     def detect_iqr(
         self,
@@ -72,45 +90,59 @@ class AnomalyService:
     ) -> AnomalyResult:
         """Detect anomalies using IQR method."""
         clean = series.dropna()
-        q1 = clean.quantile(0.25)
-        q3 = clean.quantile(0.75)
-        iqr = q3 - q1
 
-        lower_bound = q1 - multiplier * iqr
-        upper_bound = q3 + multiplier * iqr
-
-        anomaly_mask = (clean < lower_bound) | (clean > upper_bound)
-
-        anomalies = []
-        for idx in clean[anomaly_mask].index:
-            val = clean.loc[idx]
-            anomalies.append(
-                {
-                    "index": (
-                        int(idx) if isinstance(idx, (int, np.integer)) else str(idx)
-                    ),
-                    "value": float(val),
-                    "direction": "high" if val > upper_bound else "low",
-                }
+        if len(clean) == 0:
+            raise InsufficientDataError("Cannot detect anomalies in empty data")
+        if len(clean) < 4:
+            raise InsufficientDataError(
+                f"IQR anomaly detection requires at least 4 data points, "
+                f"got {len(clean)}"
             )
 
-        count = len(anomalies)
-        pct = (count / len(clean)) * 100
+        try:
+            q1 = clean.quantile(0.25)
+            q3 = clean.quantile(0.75)
+            iqr = q3 - q1
 
-        interpretation = (
-            f"IQR analysis (multiplier: {multiplier}x): Found {count} anomalies "
-            f"({pct:.1f}% of data). Normal range: [{lower_bound:.2f}, {upper_bound:.2f}]."
-        )
+            lower_bound = q1 - multiplier * iqr
+            upper_bound = q3 + multiplier * iqr
 
-        return AnomalyResult(
-            method="iqr",
-            total_points=len(clean),
-            anomaly_count=count,
-            anomaly_percentage=round(pct, 2),
-            anomalies=anomalies,
-            threshold=multiplier,
-            interpretation=interpretation,
-        )
+            anomaly_mask = (clean < lower_bound) | (clean > upper_bound)
+
+            anomalies = []
+            for idx in clean[anomaly_mask].index:
+                val = clean.loc[idx]
+                anomalies.append(
+                    {
+                        "index": (
+                            int(idx) if isinstance(idx, (int, np.integer)) else str(idx)
+                        ),
+                        "value": float(val),
+                        "direction": "high" if val > upper_bound else "low",
+                    }
+                )
+
+            count = len(anomalies)
+            pct = (count / len(clean)) * 100
+
+            interpretation = (
+                f"IQR analysis (multiplier: {multiplier}x): Found {count} anomalies "
+                f"({pct:.1f}% of data). Normal range: [{lower_bound:.2f}, {upper_bound:.2f}]."
+            )
+
+            return AnomalyResult(
+                method="iqr",
+                total_points=len(clean),
+                anomaly_count=count,
+                anomaly_percentage=round(pct, 2),
+                anomalies=anomalies,
+                threshold=multiplier,
+                interpretation=interpretation,
+            )
+        except InsufficientDataError:
+            raise
+        except Exception as e:
+            raise AnomalyDetectionError(f"IQR detection failed: {e}") from e
 
     def detect_isolation_forest(
         self,
@@ -122,43 +154,68 @@ class AnomalyService:
         try:
             from sklearn.ensemble import IsolationForest
         except ImportError:
-            raise ImportError("scikit-learn required for Isolation Forest")
+            raise AnomalyDetectionError(
+                "scikit-learn is required for Isolation Forest. "
+                "Install with: pip install scikit-learn"
+            )
+
+        # Validate columns exist
+        missing_cols = set(columns) - set(df.columns)
+        if missing_cols:
+            raise AnomalyDetectionError(
+                f"Missing columns in dataframe: {', '.join(missing_cols)}"
+            )
 
         data = df[columns].dropna()
 
-        model = IsolationForest(contamination=contamination, random_state=42)
-        predictions = model.fit_predict(data)
-        scores = model.decision_function(data)
-
-        anomaly_mask = predictions == -1
-        anomalies = []
-
-        for idx in data[anomaly_mask].index:
-            row = data.loc[idx]
-            anomalies.append(
-                {
-                    "index": (
-                        int(idx) if isinstance(idx, (int, np.integer)) else str(idx)
-                    ),
-                    "values": row.to_dict(),
-                    "anomaly_score": float(scores[data.index.get_loc(idx)]),
-                }
+        if len(data) == 0:
+            raise InsufficientDataError("Cannot detect anomalies in empty data")
+        if len(data) < 10:
+            raise InsufficientDataError(
+                f"Isolation Forest requires at least 10 data points, "
+                f"got {len(data)}"
             )
 
-        count = len(anomalies)
-        pct = (count / len(data)) * 100
+        try:
+            model = IsolationForest(contamination=contamination, random_state=42)
+            predictions = model.fit_predict(data)
+            scores = model.decision_function(data)
 
-        interpretation = (
-            f"Isolation Forest (contamination: {contamination}): Found {count} anomalies "
-            f"({pct:.1f}% of data) using columns: {', '.join(columns)}."
-        )
+            anomaly_mask = predictions == -1
+            anomalies = []
 
-        return AnomalyResult(
-            method="isolation_forest",
-            total_points=len(data),
-            anomaly_count=count,
-            anomaly_percentage=round(pct, 2),
-            anomalies=anomalies,
-            threshold=contamination,
-            interpretation=interpretation,
-        )
+            for idx in data[anomaly_mask].index:
+                row = data.loc[idx]
+                anomalies.append(
+                    {
+                        "index": (
+                            int(idx) if isinstance(idx, (int, np.integer)) else str(idx)
+                        ),
+                        "values": row.to_dict(),
+                        "anomaly_score": float(scores[data.index.get_loc(idx)]),
+                    }
+                )
+
+            count = len(anomalies)
+            pct = (count / len(data)) * 100
+
+            interpretation = (
+                f"Isolation Forest (contamination: {contamination}): Found {count} anomalies "
+                f"({pct:.1f}% of data) using columns: {', '.join(columns)}."
+            )
+
+            return AnomalyResult(
+                method="isolation_forest",
+                total_points=len(data),
+                anomaly_count=count,
+                anomaly_percentage=round(pct, 2),
+                anomalies=anomalies,
+                threshold=contamination,
+                interpretation=interpretation,
+            )
+        except (InsufficientDataError, AnomalyDetectionError):
+            raise
+        except Exception as e:
+            raise AnomalyDetectionError(
+                f"Isolation Forest detection failed: {e}"
+            ) from e

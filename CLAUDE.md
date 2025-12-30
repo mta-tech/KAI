@@ -25,6 +25,52 @@ docker compose up typesense -d
 uv run langgraph dev
 ```
 
+## Docker Deployment
+
+### LangGraph Server (Recommended for Production)
+
+Build and run the LangGraph server with full stack (PostgreSQL, Redis, Typesense):
+
+```bash
+# Build the LangGraph container image
+uv run langgraph build -t kai-langgraph:latest
+
+# Start the full stack
+docker compose -f docker-compose.langgraph.yml up -d
+```
+
+Services started:
+- **LangGraph API**: http://localhost:8123 (graphs: `session`, `sql_agent`)
+- **Typesense**: http://localhost:8108 (vector search)
+- **PostgreSQL**: localhost:5433 (state persistence)
+- **Redis**: localhost:6379 (streaming)
+
+Health check: `curl http://localhost:8123/ok`
+
+### Alternative: Manual Dockerfile Build
+
+```bash
+# Build using Dockerfile.langgraph directly
+docker build -f Dockerfile.langgraph -t kai-langgraph .
+
+# Run standalone (requires external Typesense/Redis/PostgreSQL)
+docker run -p 8123:8123 --env-file .env kai-langgraph
+```
+
+### Typesense Only (Local Development)
+
+```bash
+# Start only Typesense for local development
+docker compose up typesense -d
+```
+
+### Docker Network
+
+The LangGraph stack uses `kai_langgraph_network` bridge network. Services connect via container names:
+- `TYPESENSE_HOST=typesense`
+- `REDIS_URI=redis://langgraph-redis:6379`
+- `DATABASE_URI=postgres://postgres:postgres@langgraph-postgres:5432/postgres`
+
 ## Testing
 
 ```bash
@@ -63,6 +109,8 @@ uv run kai-agent interactive --db mydb
 uv run kai-agent run "Analyze sales by region" --db mydb
 ```
 
+CLI entry point: `app/modules/autonomous_agent/cli.py` (registered as `kai-agent` in pyproject.toml).
+
 ## Architecture
 
 ### Layered Structure
@@ -78,6 +126,9 @@ app/
 │   ├── sql_generation/     # NL-to-SQL conversion
 │   ├── memory/             # Long-term memory (Typesense/Letta backends)
 │   ├── skill/              # Markdown-based reusable analysis patterns
+│   ├── analytics/          # Statistical analysis, forecasting, anomaly detection
+│   ├── dashboard/          # Natural language dashboard creation
+│   ├── visualization/      # Chart generation and theming
 │   └── ...                 # Other domain modules
 ├── utils/                  # Shared utilities (LLM adapters, SQL tools, prompts)
 ├── data/db/                # Typesense storage wrapper and schemas
@@ -91,20 +142,29 @@ Each module follows a consistent pattern:
 - **repositories/** - Data access via Storage (Typesense)
 - **services/** - Business logic that uses repositories
 
+When adding new modules, follow this pattern and add services to `app/api/__init__.py` for API exposure.
+
 ### LangGraph Graphs
 
 Located in `app/langgraph_server/graphs.py`:
 - `session_graph` - Multi-turn conversational sessions with routing
 - `sql_agent_graph` - ReAct agent for SQL generation with tools
 
-Configuration in `langgraph.json`.
+Configuration in `langgraph.json`. Graphs are exposed as `session` and `sql_agent` assistants.
 
 ### Key Patterns
 
 - **Storage**: Typesense wrapper at `app/data/db/storage.py` handles vector search and document storage
-- **Settings**: `app/server/config.py` uses `pydantic_settings.BaseSettings` with `@lru_cache` singleton
-- **LLM Adapters**: `app/utils/model/` provides unified interface across providers
-- **API Registration**: Routes added via `router.add_api_route()` in `app/api/__init__.py`
+- **Settings**: `app/server/config.py` uses `pydantic_settings.BaseSettings` with `@lru_cache` singleton via `get_settings()`
+- **LLM Adapters**: `app/utils/model/` provides unified interface across providers (google, openai, ollama, openrouter)
+- **API Registration**: Routes added via `router.add_api_route()` in `app/api/__init__.py`. The `API` class receives `Storage` and instantiates all services
+
+### Adding New Features
+
+1. Create module in `app/modules/<feature>/` with `models/`, `repositories/`, `services/` subdirs
+2. Add service instantiation in `app/api/__init__.py`
+3. Register routes in `_register_routes()` method
+4. Add request/response models in `app/api/requests.py` and `app/api/responses.py`
 
 ## Environment Setup
 
@@ -114,6 +174,11 @@ Required `.env` variables:
 - `CHAT_MODEL` - Model name (e.g., `gemini-2.0-flash`, `gpt-4o-mini`)
 - `ENCRYPT_KEY` - Fernet key for credential encryption
 - `TYPESENSE_HOST` - Use `localhost` for local dev, `typesense` for Docker
+
+Optional:
+- `MEMORY_BACKEND` - `typesense` (default) or `letta` for long-term memory
+- `MCP_ENABLED` - Enable Model Context Protocol integration
+- `AGENT_LANGUAGE` - `en` (English) or `id` (Indonesian)
 
 Generate encryption key:
 ```bash

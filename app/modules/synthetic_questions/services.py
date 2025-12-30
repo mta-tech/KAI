@@ -1,11 +1,7 @@
-import logging
+from langchain_community.callbacks import get_openai_callback
 import random
 
-from langchain_community.callbacks import get_openai_callback
-
 from app.data.db.storage import Storage
-
-logger = logging.getLogger(__name__)
 from app.modules.synthetic_questions.models import (
     QuestionGenerationConfig,
     SyntheticQuestions,
@@ -141,7 +137,7 @@ class SyntheticQuestionService:
             # Run all tasks in parallel and wait for all to complete
             import asyncio
 
-            logger.info(f"Starting {num_batches} question generation agents in parallel")
+            print(f"Starting {num_batches} question generation agents in parallel")
             results = await asyncio.gather(*tasks)
 
 
@@ -152,7 +148,7 @@ class SyntheticQuestionService:
                 [pair.model_dump() for pair in question_sql_pairs]
             )
 
-        logger.info(f"Generated a total of {len(all_questions)} questions")
+        print(f"Generated a total of {len(all_questions)} questions")
         
         synthetic_questions = SyntheticQuestions(
             questions=all_questions,

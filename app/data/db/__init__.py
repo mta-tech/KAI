@@ -1,10 +1,7 @@
 import json
-import logging
 import os
 
 import typesense
-
-logger = logging.getLogger(__name__)
 
 # from app.server.config import Settings
 
@@ -52,7 +49,7 @@ class TypeSenseDB:
                 try:  # Try to set num_dim value to embedding field
                     field["num_dim"] = num_dim
                 except Exception as e:
-                    logger.warning(f"Failed to set embedding dimensions: {e}, field: {field}")
+                    print(e, field)
 
         return schema
 

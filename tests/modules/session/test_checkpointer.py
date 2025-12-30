@@ -8,10 +8,9 @@ from app.modules.session.graph.checkpointer import TypesenseCheckpointer
 
 @pytest.fixture
 def mock_storage():
-    """Mock storage with sync methods (checkpointer calls them synchronously)."""
     storage = MagicMock()
-    storage.find_by_id = MagicMock(return_value=None)
-    storage.update_or_create = MagicMock()
+    storage.find_by_id = AsyncMock(return_value=None)
+    storage.update_or_create = AsyncMock()
     return storage
 
 
@@ -73,8 +72,7 @@ async def test_aput_saves_checkpoint(checkpointer, mock_storage):
 
     mock_storage.update_or_create.assert_called_once()
     call_args = mock_storage.update_or_create.call_args
-    # update_or_create is called with (collection, filter_dict, update_dict)
-    assert call_args[0][1] == {"id": "sess_123"}  # filter with session_id
+    assert call_args[0][1] == "sess_123"  # session_id
 
 
 def test_serialize_deserialize_roundtrip(checkpointer):

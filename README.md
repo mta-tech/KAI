@@ -1,864 +1,682 @@
-# KAI: AI Agent for Intelligent Query
+<div align="center">
 
+# KAI
+### Knowledge Agent for Intelligence Query
 
-**KAI (Knowledge Agent for Intelligence Query)** is an AI-powered agent that lets you query and analyze your database using natural language.
+**Transform natural language into powerful data insights**
 
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-00a393.svg)](https://fastapi.tiangolo.com/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-latest-purple.svg)](https://github.com/langchain-ai/langgraph)
+
+[Documentation](https://mta-3.gitbook.io/kai) • [Getting Started](#quickstart) • [Contributing](CONTRIBUTING.md) • [Architecture](ARCHITECTURE.md)
+
+</div>
+
+---
 
 ## Table of Contents
 
+- [Overview](#overview)
 - [Key Features](#key-features)
-- [Architecture Overview](#architecture-overview)
 - [Quickstart](#quickstart)
-- [CLI Reference](#cli-reference)
-- [Environment Variables](#environment)
-- [API Overview](#api-overview)
-- [Skills System](#skills-system)
-- [LangGraph Deployment](#langgraph-server-deployment)
-- [Development](#development)
+- [Web UI](#web-ui)
+- [Development Setup](#development-setup)
+- [Architecture](#architecture)
+- [CLI Usage & Tutorial](#cli-usage)
+- [Environment Configuration](#environment-configuration)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Overview
+
+KAI (Knowledge Agent for Intelligence Query) is an **AI-powered data agent** that transforms how you interact with databases. Using natural language, you can:
+
+- **Query databases** without writing SQL
+- **Generate insights** with advanced analytics (forecasting, anomaly detection, statistical analysis)
+- **Create dashboards** from natural language descriptions
+- **Search documents** across large datasets
+- **Remember context** across sessions with long-term memory
+
+Built with **FastAPI**, **LangGraph**, and **LangChain**, KAI supports multiple LLM providers (OpenAI, Google Gemini, Ollama, OpenRouter) and integrates seamlessly with your existing data infrastructure.
+
+**Access Options:**
+- **Web UI** - Modern Next.js interface for visual interaction
+- **REST API** - 40+ endpoints for programmatic access
+- **CLI** - Command-line tool for terminal-based workflows
 
 ## Key Features
 
-| Feature | Description |
-|---------|-------------|
-| **Natural Language Querying** | Query databases in plain English or Indonesian—no SQL required |
-| **Autonomous Agents** | Multi-step analysis with 40+ tools for SQL, analysis, and reporting |
-| **Multi-Provider LLM** | OpenAI, Google Gemini, Ollama (local), OpenRouter support |
-| **Long-Term Memory** | Persistent memory with Typesense or Letta backends |
-| **Skills System** | Reusable analysis patterns as Markdown with semantic search |
-| **Business Glossary** | Define metrics and KPIs with SQL for consistent analytics |
-| **RAG Document Search** | Hybrid vector + full-text search via Typesense |
-| **Interactive Sessions** | LangGraph-powered conversations with streaming |
-| **MCP Integration** | Connect external tools via Model Context Protocol |
-| **Multi-Database** | PostgreSQL, MySQL, SQLite, BigQuery support |
+<table>
+<tr>
+<td width="50%">
 
-## Architecture Overview
+### Natural Language Querying
+Ask questions in plain English—no SQL knowledge required. KAI translates your intent into optimized database queries.
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         FastAPI Server (:8015)                          │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌───────────────┐  │
-│  │  REST API   │  │  Sessions   │  │  KAI-Agent  │  │  MCP Client   │  │
-│  │  (40+ eps)  │  │ (LangGraph) │  │ (DeepAgents)│  │  (External)   │  │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └───────┬───────┘  │
-│         │                │                │                  │          │
-│  ┌──────┴────────────────┴────────────────┴──────────────────┴──────┐  │
-│  │                        Core Modules                               │  │
-│  ├───────────────────────────────────────────────────────────────────┤  │
-│  │ SQL Gen │ Analysis │ RAG │ Memory │ Skills │ Glossary │ Context  │  │
-│  └──────────────────────────────────┬────────────────────────────────┘  │
-│                                     │                                   │
-└─────────────────────────────────────┼───────────────────────────────────┘
-                                      │
-              ┌───────────────────────┼───────────────────────┐
-              │                       │                       │
-    ┌─────────▼─────────┐   ┌─────────▼─────────┐   ┌─────────▼─────────┐
-    │     Typesense     │   │   Your Database   │   │   LLM Providers   │
-    │  (Vector + Search)│   │ (PG/MySQL/SQLite) │   │ (OpenAI/Gemini/..)│
-    └───────────────────┘   └───────────────────┘   └───────────────────┘
-```
+### Advanced Analytics
+- Statistical analysis (correlation, regression)
+- Time series forecasting
+- Anomaly detection
+- Automated insights generation
 
-**Core Modules:**
+### Dashboard Creation
+Generate interactive dashboards from natural language descriptions using natural language.
 
-| Module | Purpose |
-|--------|---------|
-| `session` | LangGraph-based interactive query sessions with streaming |
-| `autonomous_agent` | Fully autonomous analysis via DeepAgents |
-| `sql_generation` | Natural language to SQL conversion |
-| `analysis` | Query execution and data analysis |
-| `memory` | Long-term persistent memory (Typesense/Letta) |
-| `skill` | Reusable analysis patterns with semantic search |
-| `business_glossary` | Metric definitions and lookups |
-| `rag` | Document embedding and semantic search |
-| `context_store` | Rich context storage for sessions |
-| `mcp` | External tool integration via MCP |
+</td>
+<td width="50%">
+
+### Long-term Memory
+Persistent memory across sessions using Typesense or Letta backends to maintain context.
+
+### Multi-LLM Support
+Flexible LLM provider support:
+- OpenAI (GPT-4, GPT-3.5)
+- Google Gemini
+- Ollama (local models)
+- OpenRouter
+
+### Production-Ready
+- LangGraph-based agent architecture
+- FastAPI for high-performance APIs
+- Docker deployment support
+- Comprehensive testing suite
+
+</td>
+</tr>
+</table>
 
 ## Quickstart
 
+Get KAI running in **5 minutes** with Docker Compose!
+
 ### Prerequisites
 
-- **Python 3.11+**
-- **[uv](https://docs.astral.sh/uv/)** - Fast Python package manager
-- **Docker** - For running Typesense
+- **Docker** & **Docker Compose** ([Install Docker](https://docs.docker.com/get-docker/))
+- **API Key** from OpenAI, Google, or other LLM provider
 
 ### Setup
 
+**1. Clone the repository**
+
 ```bash
-# Clone and enter the project
-git clone <repo-url> && cd KAI
+git clone https://github.com/your-org/kai.git
+cd kai
+```
 
-# Install dependencies
-uv sync
+**2. Create environment configuration**
 
-# Copy environment template
+```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your configuration:
+**3. Configure your LLM provider**
+
+Edit `.env` and set your LLM configuration:
 
 ```bash
-GOOGLE_API_KEY=AIza...         # Required
-CHAT_FAMILY=google
-CHAT_MODEL=gemini-2.0-flash
-EMBEDDING_FAMILY=google
-EMBEDDING_MODEL=text-embedding-004
+# Choose your LLM provider
+CHAT_FAMILY=openai  # or: google, ollama, openrouter
+CHAT_MODEL=gpt-4o-mini
+OPENAI_API_KEY=your-api-key-here
 
-# Generate encryption key (paste output into .env)
+# Required: Generate encryption key for database credentials
+ENCRYPT_KEY=  # See below
+```
+
+**4. Generate encryption key**
+
+```bash
 uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-### Run
+Copy the output and paste it as `ENCRYPT_KEY` in your `.env` file.
 
-```bash
-# Start Typesense (required for storage)
-docker compose up typesense -d
+### Running with Docker
 
-# Start KAI server
-uv run python -m app.main
-```
-
-Visit http://localhost:8015/docs to access the API.
-
-### Using the CLI
-
-```bash
-# List available commands
-uv run kai-agent --help
-
-# Add a PostgreSQL database connection (only needed once)
-uv run kai-agent create-connection "postgresql://user:pass@localhost:5432/mydb" -a mypg
-
-# Scan the database schema with AI-generated descriptions
-uv run kai-agent scan-all mypg -d
-
-# Start interactive analysis session
-uv run kai-agent interactive --db mypg
-```
-
-### Docker Deployment (Alternative)
-
-For full containerized deployment:
+**Start all services:**
 
 ```bash
 docker compose up -d
 ```
 
-This starts both Typesense and KAI engine. Data persists in `./app/data/dbdata`.
-
-## CLI Reference
-
-KAI includes a powerful CLI for database management and autonomous analysis.
-
-### Core Commands
-
-| Command | Description |
-|---------|-------------|
-| `run <prompt> --db <id>` | Execute a one-shot analysis |
-| `interactive --db <id>` | Start interactive chat session |
-| `create-connection <uri> -a <alias>` | Add a database connection |
-| `list-connections` | List all connections |
-| `scan-all <conn_id> -d` | Scan tables with AI descriptions |
-
-### Database Management
+**Verify services are running:**
 
 ```bash
-# Test a connection string
-uv run kai-agent test-connection "postgresql://user:pass@host:5432/db"
-
-# Create connection with specific schemas
-uv run kai-agent create-connection "postgresql://..." -a mydb -s public -s analytics
-
-# View connection details
-uv run kai-agent show-connection <connection_id>
-
-# Refresh and scan tables
-uv run kai-agent scan-all <connection_id> -d
+docker compose ps
 ```
 
-### Business Glossary
+Expected output:
+```
+NAME         IMAGE                      STATUS          PORTS
+kai_engine   kai-kai_engine             Up 2 minutes    0.0.0.0:8015->8015/tcp
+typesense    typesense/typesense:26.0   Up 2 minutes    0.0.0.0:8108->8108/tcp
+```
+
+**Access the application:**
+
+- **API Documentation**: http://localhost:8015/docs
+- **Typesense**: http://localhost:8108
+
+**Test the API:**
 
 ```bash
-# Add a metric definition
-uv run kai-agent add-glossary <conn_id> --metric "Revenue" --sql "SELECT SUM(amount) FROM orders"
-
-# List all glossary entries
-uv run kai-agent list-glossaries <conn_id>
+curl http://localhost:8015/health
+# Expected: {"status":"healthy"}
 ```
 
-### Custom Instructions
+### Stopping Services
 
 ```bash
-# Add a default instruction
-uv run kai-agent add-instruction <conn_id> -c "Always" -r "Format currency with $" --default
-
-# List instructions
-uv run kai-agent list-instructions <conn_id>
+docker compose down
 ```
 
-### Skills Management
+> **Note**: Data in `./app/data/dbdata` persists across restarts.
 
-```bash
-# Discover skills from directory
-uv run kai-agent discover-skills <conn_id> --path ./.skills
+### Next Steps
 
-# List and search skills
-uv run kai-agent list-skills <conn_id>
-uv run kai-agent search-skills <conn_id> "revenue analysis"
-```
+Now that KAI is running, explore these options:
+- **[Web UI](#web-ui)** - Visual interface with dashboard builder
+- **[Dashboard Tutorial](#creating-dashboards-tutorial)** - Create dashboards from natural language
+- **[CLI Tutorial](#quick-cli-tutorial)** - Terminal-based workflows
+- **[API Documentation](http://localhost:8015/docs)** - Programmatic access
 
-### Memory Management
-
-```bash
-# Store a memory
-uv run kai-agent add-memory <conn_id> user_preferences date_format "Use YYYY-MM-DD"
-
-# List and search memories
-uv run kai-agent list-memories <conn_id>
-uv run kai-agent search-memories <conn_id> "date format"
-```
-
-### Session Management
-
-```bash
-# List all sessions
-uv run kai-agent list-sessions
-
-# Export session to file
-uv run kai-agent export-session <session_id> -f markdown -o chat.md
-```
-
-### Example Session
-
-```bash
-$ uv run kai-agent interactive --db mydb
-
-KAI> What tables contain sales data?
-# Agent explores schema...
-
-KAI> Analyze sales performance by region for Q4
-# Agent generates SQL, executes, analyzes results...
-
-KAI> Create an Excel report with monthly breakdown
-# Agent generates Excel file...
-
-KAI> exit
-```
-
-Sessions are automatically persisted with human-readable IDs (e.g., `brave-falcon-42`). Resume anytime:
-
-```bash
-uv run kai-agent interactive --db mydb --session brave-falcon-42
-```
-
-## Environment
-
-KAI relies on several environment variables to configure and control its behavior. Below is a detailed description of each environment variable used in the project:
-
-```bash
-# Server Configuration
-APP_HOST=0.0.0.0
-APP_PORT=8015
-APP_ENVIRONMENT=LOCAL
-APP_ENABLE_HOT_RELOAD=0
-
-# Typesense Configuration
-TYPESENSE_API_KEY=kai_typesense
-TYPESENSE_HOST=typesense   # Use 'localhost' for local dev
-TYPESENSE_PORT=8108
-TYPESENSE_PROTOCOL=HTTP
-TYPESENSE_TIMEOUT=2
-
-# LLM Provider Configuration
-CHAT_FAMILY=google         # openai, google, ollama, openrouter, model_garden
-CHAT_MODEL=gemini-2.0-flash
-EMBEDDING_FAMILY=google
-EMBEDDING_MODEL=text-embedding-004
-EMBEDDING_DIMENSIONS=768
-
-# API Keys (set based on your CHAT_FAMILY)
-OPENAI_API_KEY=
-GOOGLE_API_KEY=            # Required for google family
-OLLAMA_API_BASE=http://localhost:11434
-OPENROUTER_API_KEY=
-OPENROUTER_API_BASE=https://openrouter.ai/api/v1
-
-# Agent Configuration
-AGENT_MAX_ITERATIONS=20
-AGENT_LANGUAGE=en          # en or id (Indonesian)
-DH_ENGINE_TIMEOUT=150
-SQL_EXECUTION_TIMEOUT=60
-UPPER_LIMIT_QUERY_RETURN_ROWS=50
-ENCRYPT_KEY=               # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-
-# Long-term Memory Configuration
-MEMORY_BACKEND=typesense   # typesense or letta
-LETTA_API_KEY=
-LETTA_BASE_URL=
-
-# Automatic Learning (Agentic-Learning SDK)
-ENABLE_AUTO_LEARNING=false
-AUTO_LEARNING_CAPTURE_ONLY=false
-AUTO_LEARNING_MEMORY_BLOCKS=human,context,user_preferences,corrections
-AUTO_LEARNING_SHARED_MEMORY_BLOCK=shared_knowledge
-
-# MCP Integration
-MCP_ENABLED=false
-MCP_SERVERS_CONFIG=mcp-servers.json
-```
-
-### **Server Configuration**
-
-* **`APP_HOST`**\
-  _Description:_ The host address on which the application will run.\
-  _Example:_ `"0.0.0.0"`
-* **`APP_PORT`**\
-  _Description:_ The port number on which the application will listen for incoming requests.\
-  _Example:_ `"8015"`
-* **`APP_ENABLE_HOT_RELOAD`**\
-  _Description:_ Enables or disables hot reloading of the application. Set to `1` to enable hot reload, or `0` to disable it.\
-  _Example:_ `"0"`
-
-### **Typesense Configuration**
-
-* **`TYPESENSE_API_KEY`**\
-  _Description:_ The API key used to authenticate requests to the Typesense server.\
-  _Example:_ `"kai_typesense"`
-* **`TYPESENSE_HOST`**\
-  _Description:_ The host address of the Typesense server.\
-  _Example:_ `"localhost"`
-* **`TYPESENSE_PORT`**\
-  _Description:_ The port number on which the Typesense server listens.\
-  _Example:_ `"8108"`
-* **`TYPESENSE_PROTOCOL`**\
-  _Description:_ The protocol used to communicate with the Typesense server.\
-  _Example:_ `"HTTP"`
-* **`TYPESENSE_TIMEOUT`**\
-  _Description:_ The timeout value (in seconds) for requests to the Typesense server.\
-  _Example:_ `"2"`
-
-### **LLM Provider Configuration**
-
-KAI supports multiple LLM providers. Configure your preferred provider using these variables:
-
-* **`CHAT_FAMILY`**\
-  _Description:_ The LLM provider family for chat models.\
-  _Options:_ `openai`, `google`, `ollama`, `openrouter`, `model_garden`\
-  _Example:_ `"openai"`
-
-* **`CHAT_MODEL`**\
-  _Description:_ The model used for chat and natural language understanding tasks.\
-  _Example:_ `"gpt-4o-mini"` (OpenAI), `"gemini-2.0-flash"` (Google), `"llama3"` (Ollama)
-
-* **`EMBEDDING_FAMILY`**\
-  _Description:_ The LLM provider family for embedding models.\
-  _Options:_ `openai`, `google`, `ollama`\
-  _Example:_ `"openai"`
-
-* **`EMBEDDING_MODEL`**\
-  _Description:_ The model used for generating embeddings from text data.\
-  _Example:_ `"text-embedding-003-small"`
-
-* **`EMBEDDING_DIMENSIONS`**\
-  _Description:_ The dimension size for embeddings (must match the model).\
-  _Example:_ `768`
-
-### **API Keys**
-
-Set the API key(s) for your chosen LLM provider(s):
-
-* **`OPENAI_API_KEY`**\
-  _Description:_ API key for OpenAI services. Required when `CHAT_FAMILY=openai`.\
-  _Example:_ `"sk-..."`
-
-* **`GOOGLE_API_KEY`**\
-  _Description:_ API key for Google Gemini. Required when `CHAT_FAMILY=google`.\
-  _Example:_ `"AIza..."`
-
-* **`OLLAMA_API_BASE`**\
-  _Description:_ Base URL for Ollama API (local models).\
-  _Example:_ `"http://localhost:11434"`
-
-* **`OPENROUTER_API_KEY`** / **`OPENROUTER_API_BASE`**\
-  _Description:_ API key and base URL for OpenRouter (multi-provider access).\
-  _Example:_ `"sk-or-..."`, `"https://openrouter.ai/api/v1"`
-
-### **Agent Configuration**
-
-* **`AGENT_MAX_ITERATIONS`**\
-  _Description:_ The maximum number of iterations the agent will perform. This is useful for controlling resource usage.\
-  _Example:_ `20`
-
-* **`AGENT_LANGUAGE`**\
-  _Description:_ Language for agent responses and prompts.\
-  _Options:_ `"en"` (English), `"id"` (Indonesian)\
-  _Example:_ `"en"`
-* **`DH_ENGINE_TIMEOUT`**\
-  _Description:_ The timeout value (in seconds) for the engine to return a response.\
-  _Example:_ `"150"`
-* **`SQL_EXECUTION_TIMEOUT`**\
-  _Description:_ The timeout (in seconds) for executing SQL queries. This is important for recovering from errors during execution.\
-  _Example:_ `"60"`
-* **`UPPER_LIMIT_QUERY_RETURN_ROWS`**\
-  _Description:_ The upper limit on the number of rows returned from the query engine. This acts similarly to the `LIMIT` clause in SQL.\
-  _Example:_ `"50"`
-* **`ENCRYPT_KEY`**\
-  _Description:_ The encryption key used for securely storing database connection data in Typesense. Use Fernet Generated key for this.\
-  _Example:_ `"f0KVMZHZPgdMStBmVIn2XD049e6Mun7ZEDhf1W7MRnw="`
-
-### **Long-Term Memory Configuration**
-
-KAI supports multiple backends for long-term memory storage. By default, it uses TypeSense, but you can optionally use Letta AI for more sophisticated memory management.
-
-* **`MEMORY_BACKEND`**\
-  _Description:_ The backend to use for long-term memory storage. Options are `"typesense"` (default) or `"letta"`.\
-  _Example:_ `"typesense"`
-
-* **`LETTA_API_KEY`**\
-  _Description:_ The API key for Letta AI services. Required when `MEMORY_BACKEND` is set to `"letta"`.\
-  _Example:_ `""` _(To be provided)_
-
-* **`LETTA_BASE_URL`**\
-  _Description:_ Optional base URL for self-hosted Letta instances. Leave empty to use the default Letta cloud service.\
-  _Example:_ `""` _(Optional)_
-
-### **Automatic Learning (Agentic-Learning SDK)**
-
-KAI can optionally use Letta's agentic-learning SDK for automatic memory injection and conversation capture. When enabled, memory is automatically injected into LLM calls at the SDK level, and conversations are captured for future learning.
-
-* **`ENABLE_AUTO_LEARNING`**\
-  _Description:_ Enable automatic memory learning via agentic-learning SDK. When enabled, memory is automatically injected into LLM calls and conversations are captured.\
-  _Default:_ `False`
-
-* **`AUTO_LEARNING_CAPTURE_ONLY`**\
-  _Description:_ When True, captures conversations without injecting memory (useful for gradual rollout).\
-  _Default:_ `False`
-
-* **`AUTO_LEARNING_MEMORY_BLOCKS`**\
-  _Description:_ Comma-separated list of memory block labels to inject for session-specific memory.\
-  _Default:_ `"human,context,user_preferences,corrections"`
-
-* **`AUTO_LEARNING_SHARED_MEMORY_BLOCK`**\
-  _Description:_ Shared memory block visible across all sessions (e.g., business facts, data insights).\
-  _Default:_ `"shared_knowledge"`
-
-**Configuration Matrix:**
-
-| ENABLE_AUTO_LEARNING | LETTA_API_KEY | Behavior |
-|---------------------|---------------|----------|
-| False | Any | Manual memory (existing behavior) |
-| True | Not set | Falls back to manual memory with warning |
-| True | Set | Automatic learning via agentic-learning |
-
-### **MCP (Model Context Protocol) Configuration**
-
-KAI supports the Model Context Protocol for integrating external tools and services into agents.
-
-* **`MCP_ENABLED`**\
-  _Description:_ Enable MCP integration to dynamically load tools from external MCP servers.\
-  _Default:_ `false`
-
-* **`MCP_SERVERS_CONFIG`**\
-  _Description:_ Path to MCP servers configuration file.\
-  _Example:_ `"mcp-servers.json"`
-
-**Example `mcp-servers.json`:**
-
-```json
-{
-  "mcpServers": {
-    "filesystem": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": ["mcp-server-filesystem", "./data"]
-    },
-    "github": {
-      "type": "streamable_http",
-      "url": "http://localhost:3001/mcp"
-    }
-  }
-}
-```
-
-**Supported Transport Types:**
-- `stdio` - Launch MCP server as subprocess
-- `streamable_http` - Connect to HTTP-based MCP server
-- `sse` - Connect via Server-Sent Events
-
-## API Overview
-
-KAI exposes a comprehensive REST API on port 8015. Access the interactive documentation at `/docs` (Swagger UI).
-
-### Key Endpoint Groups
-
-| Endpoint Group | Base Path | Description |
-|----------------|-----------|-------------|
-| Database Connections | `/api/v1/database-connections` | Manage database connections |
-| Table Descriptions | `/api/v1/table-descriptions` | Schema discovery and description |
-| SQL Generation | `/api/v1/sql-generations` | Natural language to SQL |
-| Analysis | `/api/v1/analyses` | Query execution and analysis |
-| Business Glossary | `/api/v1/business-glossaries` | Metric definitions |
-| Instructions | `/api/v1/instructions` | Custom query instructions |
-| Context Store | `/api/v1/context-stores` | Rich context storage |
-| Sessions | `/api/v1/sessions` | Interactive query sessions |
-| Agent Sessions | `/api/v1/agent-sessions` | Autonomous agent tasks |
-| Documents | `/api/v1/documents` | RAG document management |
-
-### Common Workflows
-
-**1. Set up a database connection:**
-```bash
-curl -X POST http://localhost:8015/api/v1/database-connections \
-  -H "Content-Type: application/json" \
-  -d '{"alias": "prod_db", "driver": "postgresql", "host": "...", "database": "..."}'
-```
-
-**2. Scan and describe tables:**
-```bash
-curl -X POST http://localhost:8015/api/v1/table-descriptions/sync-schemas \
-  -d '{"db_connection_id": "<connection_id>"}'
-```
-
-**3. Generate SQL from natural language:**
-```bash
-curl -X POST http://localhost:8015/api/v1/sql-generations \
-  -d '{"prompt": "Show top 10 customers by revenue", "db_connection_id": "<id>"}'
-```
-
-**4. Start an interactive session:**
-```bash
-curl -X POST http://localhost:8015/api/v1/sessions \
-  -d '{"db_connection_id": "<id>"}'
-```
-
-## Skills System
-
-Skills are reusable analysis patterns stored as Markdown files. They encode domain expertise and can be discovered and composed by agents.
-
-### Skill Structure
-
-Skills are stored in `.skills/` directories with the following format:
-
-```markdown
----
-name: Revenue Analysis
-category: financial
-tags: [revenue, analysis, trends]
-description: Analyze revenue patterns and trends
-version: 1.0.0
 ---
 
-# Revenue Analysis Skill
+## Web UI
 
-## Overview
-This skill provides patterns for analyzing revenue data.
+KAI includes a **modern web interface** built with Next.js for visual, interactive data analysis.
 
-## SQL Patterns
-...
+### Features
 
-## Analysis Steps
-...
-```
+- **Interactive Chat** - Natural language conversations with your data
+- **Dashboard Builder** - Create visual dashboards from text descriptions
+- **SQL Query Interface** - Write and execute queries with visual results
+- **Analytics Visualizations** - View forecasts, trends, and statistical analysis
+- **Database Management** - Configure connections and settings through UI
 
-### Managing Skills
+### Quick Start
 
-**Via CLI:**
+**1. Ensure the backend is running**
+
 ```bash
-# Discover skills from a directory
-uv run kai-agent discover-skills <connection_id> --path ./.skills
-
-# List all skills
-uv run kai-agent list-skills <connection_id>
-
-# Search skills semantically
-uv run kai-agent search-skills <connection_id> "cohort analysis"
+docker compose up -d
+# Backend available at http://localhost:8015
 ```
+
+**2. Navigate to UI directory**
+
+```bash
+cd ui
+```
+
+**3. Install dependencies**
+
+```bash
+npm install
+# or
+yarn install
+```
+
+**4. Configure environment**
+
+Create `ui/.env.local`:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8015
+NEXT_PUBLIC_API_BASE_PATH=/api/v1
+```
+
+**5. Start the UI**
+
+```bash
+npm run dev
+```
+
+**6. Open in browser**
+
+Visit [http://localhost:3000](http://localhost:3000)
+
+### Using the Web UI
+
+**Create a session:**
+1. Navigate to "New Session"
+2. Select your database connection
+3. Start asking questions in natural language
+
+**Example interactions:**
+- "Show me total sales by month"
+- "Create a dashboard with revenue trends and top products"
+- "What are the customer demographics?"
+- "Forecast sales for next quarter"
+
+**View results:**
+- SQL queries are shown with syntax highlighting
+- Results displayed in interactive tables
+- Charts auto-generated for time series and distributions
+- Download results as CSV or JSON
+
+### Creating Dashboards Tutorial
+
+KAI can automatically generate interactive dashboards from natural language descriptions.
+
+**Step 1: Access Dashboard Builder**
+
+Navigate to the "Dashboards" section in the Web UI.
+
+**Step 2: Describe your dashboard**
+
+Enter a natural language description of what you want to see:
+
+```
+Create a sales dashboard showing:
+- Total revenue this month
+- Top 5 products by sales
+- Revenue trend over the last 12 months
+- Customer distribution by region
+```
+
+**Step 3: Select database**
+
+Choose the database connection to query from.
+
+**Step 4: Generate**
+
+Click "Generate Dashboard" and KAI will:
+1. Analyze your description
+2. Generate appropriate SQL queries
+3. Execute queries against your database
+4. Create visualizations (charts, tables, KPIs)
+5. Arrange components in a responsive layout
+
+**Step 5: Customize**
+
+- Rearrange dashboard components via drag-and-drop
+- Adjust chart types (bar, line, pie, etc.)
+- Modify time ranges and filters
+- Save dashboard for future use
 
 **Via API:**
-```bash
-# List skills
-curl http://localhost:8015/api/v1/skills?db_connection_id=<id>
 
-# Search skills semantically
-curl http://localhost:8015/api/v1/skills/search?query=revenue&db_connection_id=<id>
-```
-
-Agents automatically discover and use relevant skills during analysis based on the user's query.
-
-## LangGraph Server Deployment
-
-KAI-Agent's session and SQL generation capabilities are built on LangGraph and can be deployed to:
-- **Self-hosted LangGraph server** using Docker
-- **LangGraph Platform** (cloud) for managed hosting
-- **LangGraph Studio** for development and debugging
-
-### Available Graphs
-
-KAI includes deployable LangGraph graphs in `app/langgraph_server/`:
-
-| Graph | Entry Point | Description |
-|-------|-------------|-------------|
-| Session Graph | `app.langgraph_server:session_graph` | Multi-turn conversational sessions with context management |
-| SQL Agent | `app.langgraph_server:sql_agent_graph` | Tool-using ReAct agent for SQL generation |
-
-### Graph Architecture
-
-**Session Graph Flow:**
-```
-START → route_query → [process_database | process_reasoning] → save_response → END
-```
-
-**SQL Agent Pattern:**
-```
-START → agent → conditional(tools|END) → tools → agent (loop)
-```
-
-### Self-Hosted Deployment (Docker)
-
-Deploy KAI graphs to a self-hosted LangGraph server using Docker:
+You can also create dashboards programmatically:
 
 ```bash
-# Build the LangGraph container
-docker build -f Dockerfile.langgraph -t kai-langgraph .
-
-# Run with Docker Compose (includes Typesense + Redis)
-docker compose -f docker-compose.langgraph.yml up -d
-
-# Access LangGraph Studio
-open http://localhost:8123
+curl -X POST http://localhost:8015/api/v1/dashboards \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sales Overview",
+    "description": "Show total revenue, top products, and monthly trends",
+    "db_connection_id": "your-connection-id"
+  }'
 ```
 
-**Services started:**
-- **LangGraph Server**: http://localhost:8123 (Studio UI + API)
-- **Typesense**: http://localhost:8108 (vector search, checkpointing)
-- **Redis**: localhost:6379 (state persistence)
+**Via CLI:**
 
-### Quick Start with langgraph CLI
+```bash
+uv run kai-agent create-dashboard \
+  "Sales dashboard with revenue trends and top products" \
+  --db sales
+```
+
+For detailed UI documentation and advanced features, see [ui/README.md](ui/README.md).
+
+---
+
+## Development Setup
 
 For local development without Docker:
 
+### Prerequisites
+
+- **Python 3.11+** ([Download](https://www.python.org/downloads/))
+- **uv** package manager ([Install uv](https://github.com/astral-sh/uv))
+
+### Installation
+
+**1. Install dependencies**
+
 ```bash
+uv sync
+```
+
+**2. Start Typesense (required)**
+
+```bash
+docker compose up typesense -d
+```
+
+**3. Configure environment**
+
+```bash
+cp .env.example .env
+# Edit .env with your settings (use TYPESENSE_HOST=localhost for local dev)
+```
+
+**4. Run the development server**
+
+```bash
+uv run python -m app.main
+```
+
+Or with hot reload:
+
+```bash
+APP_ENABLE_HOT_RELOAD=1 uv run python -m app.main
+```
+
+**5. Access the API**
+
+- API: http://localhost:8015
+- API Docs: http://localhost:8015/docs
+
+### LangGraph Development
+
+For working with LangGraph agents:
+
+```bash
+uv run langgraph dev
+```
+
+This starts the LangGraph Studio interface for debugging agent workflows.
+
+---
+
+## Architecture
+
+KAI follows a modular, layered architecture:
+
+```
+┌─────────────────────────────────────────────────────┐
+│                 FastAPI REST API                     │
+│                  (app/api/)                          │
+├─────────────────────────────────────────────────────┤
+│                 Service Layer                        │
+│  ┌──────────┬──────────┬──────────┬──────────┐     │
+│  │ Session  │   SQL    │Analytics │Dashboard │     │
+│  │  Module  │ Module   │  Module  │  Module  │     │
+│  └──────────┴──────────┴──────────┴──────────┘     │
+├─────────────────────────────────────────────────────┤
+│             Repository Layer                         │
+│        (Data Access via Typesense)                   │
+├─────────────────────────────────────────────────────┤
+│      LangGraph Agents & LLM Adapters                │
+│   ┌────────────────┬──────────────────┐            │
+│   │ Session Graph  │  SQL Agent Graph │            │
+│   └────────────────┴──────────────────┘            │
+├─────────────────────────────────────────────────────┤
+│            Storage & External Services               │
+│   ┌──────────┬───────────┬──────────────┐          │
+│   │Typesense │  Database │  LLM APIs    │          │
+│   │ (Vector) │ (User DB) │ (OpenAI/etc) │          │
+│   └──────────┴───────────┴──────────────┘          │
+└─────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+- **FastAPI Server**: REST API with 40+ endpoints
+- **LangGraph Agents**: Conversational session management and SQL generation
+- **Service Modules**: Domain-specific business logic (analytics, dashboards, visualization)
+- **Typesense**: Vector search and document storage
+- **LLM Adapters**: Unified interface for multiple LLM providers
+
+For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+---
+
+## Testing
+
+Run the test suite:
+
+```bash
+# All tests
+uv run pytest
+
+# With coverage
+uv run pytest --cov=app
+
+# Specific module
+uv run pytest tests/modules/session/
+
+# Single test
+uv run pytest tests/unit/test_deep_agent_adapter.py::test_function_name
+```
+
+> **Note**: Tests require a running Typesense instance. Start it with:
+> ```bash
+> docker compose up typesense -d
+> ```
+
+---
+
+## CLI Usage
+
+KAI provides a powerful command-line interface for database management and natural language analysis.
+
+### Quick CLI Tutorial
+
+Here's a complete workflow from connecting to your database to running queries:
+
+**Step 1: Connect to your database**
+
+```bash
+# PostgreSQL
+uv run kai-agent create-connection \
+  "postgresql://user:password@localhost:5432/sales_db" \
+  -a sales
+
+# MySQL
+uv run kai-agent create-connection \
+  "mysql://user:password@localhost:3306/crm_db" \
+  -a crm
+
+# SQLite
+uv run kai-agent create-connection \
+  "sqlite:///path/to/database.db" \
+  -a local_db
+```
+
+**Step 2: Scan your database schema**
+
+Let KAI understand your database structure:
+
+```bash
+# Basic scan
+uv run kai-agent scan-all sales
+
+# With AI-generated descriptions (recommended)
+uv run kai-agent scan-all sales -d
+```
+
+This analyzes your tables, columns, and relationships, generating descriptions to help the AI understand your data model.
+
+**Step 3: Run your first query**
+
+Try these example queries:
+
+```bash
+# One-shot query
+uv run kai-agent run "Show total sales by month for 2024" --db sales
+
+# Another example
+uv run kai-agent run "List top 10 customers by revenue" --db sales
+
+# Complex analytics
+uv run kai-agent run "Analyze correlation between price and quantity sold" --db sales
+```
+
+**Step 4: Interactive mode**
+
+For back-and-forth conversations:
+
+```bash
+uv run kai-agent interactive --db sales
+```
+
+Then ask questions naturally:
+
+```
+> Show me total revenue this quarter
+> Which products are underperforming?
+> Create a forecast for next month's sales
+> What's the average order value by customer segment?
+```
+
+Type `exit` or press Ctrl+D to quit.
+
+### Available Commands
+
+```bash
+# Connection management
+kai-agent create-connection <uri> -a <alias>    # Add database
+kai-agent list-connections                       # List all connections
+kai-agent delete-connection <alias>              # Remove connection
+
+# Schema management
+kai-agent scan-all <alias>                       # Scan all tables
+kai-agent scan-all <alias> -d                    # Scan with AI descriptions
+kai-agent scan-table <alias> <table_name>        # Scan specific table
+
+# Query execution
+kai-agent run "<question>" --db <alias>          # One-shot query
+kai-agent interactive --db <alias>               # Interactive session
+
+# Help
+kai-agent --help                                 # Show all commands
+kai-agent <command> --help                       # Command-specific help
+```
+
+### Advanced CLI Features
+
+**Custom instructions:**
+
+```bash
+# Add domain-specific guidance
+uv run kai-agent add-instruction \
+  "Always use fiscal year (July-June) for financial queries" \
+  --db sales
+```
+
+**Export results:**
+
+```bash
+# Run query and save to CSV
+uv run kai-agent run "Show monthly sales" --db sales --output sales.csv
+
+# JSON format
+uv run kai-agent run "Show top products" --db sales --format json
+```
+
+**Verbose mode:**
+
+```bash
+# See detailed SQL generation process
+uv run kai-agent run "Show revenue" --db sales --verbose
+```
+
+---
+
+## Environment Configuration
+
+### Required Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `CHAT_FAMILY` | LLM provider | `openai`, `google`, `ollama` |
+| `CHAT_MODEL` | Model name | `gpt-4o-mini`, `gemini-2.0-flash` |
+| `OPENAI_API_KEY` | OpenAI API key | `sk-...` |
+| `ENCRYPT_KEY` | Fernet encryption key | Generate with command above |
+| `TYPESENSE_HOST` | Typesense server host | `localhost` (dev), `typesense` (Docker) |
+
+### Optional Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MEMORY_BACKEND` | Memory backend | `typesense` |
+| `MCP_ENABLED` | Enable Model Context Protocol | `false` |
+| `AGENT_LANGUAGE` | Agent language | `en` |
+| `AGENT_MAX_ITERATIONS` | Max agent iterations | `20` |
+| `DH_ENGINE_TIMEOUT` | Engine timeout (seconds) | `150` |
+| `SQL_EXECUTION_TIMEOUT` | SQL timeout (seconds) | `60` |
+| `UPPER_LIMIT_QUERY_RETURN_ROWS` | Max query rows | `50` |
+
+See `.env.example` for a complete configuration template.
+
+---
+
+## Documentation
+
+- **[API Documentation](docs/apis/README.md)** - Complete REST API reference
+- **[Architecture Guide](ARCHITECTURE.md)** - System design and patterns
+- **[Getting Started](docs/GETTING_STARTED.md)** - Detailed setup guide
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment
+- **[Tutorials](docs/tutorials/)** - Step-by-step guides
+
+---
+
+## Contributing
+
+We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details on:
+
+- Development workflow
+- Code style guidelines
+- Testing requirements
+- Pull request process
+
+### Quick Start for Contributors
+
+```bash
+# Fork and clone the repository
+git clone https://github.com/your-username/kai.git
+cd kai
+
+# Create a feature branch
+git checkout -b feature/amazing-feature
+
 # Install dependencies
 uv sync
 
-# Start LangGraph development server
-uv run langgraph dev
+# Make your changes and test
+uv run pytest
 
-# Or run in production mode
-uv run langgraph up --host 0.0.0.0 --port 8123
+# Commit and push
+git commit -m "Add amazing feature"
+git push origin feature/amazing-feature
+
+# Open a pull request
 ```
 
-### Invoking Graphs via API
-
-Once the server is running, invoke graphs via the LangGraph API:
-
-```bash
-# Create a new thread (session)
-curl -X POST http://localhost:8123/threads \
-  -H "Content-Type: application/json" \
-  -d '{}'
-
-# Run the session graph
-curl -X POST http://localhost:8123/threads/{thread_id}/runs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "assistant_id": "session",
-    "input": {
-      "current_query": "What tables contain customer data?",
-      "db_connection_id": "your-connection-id"
-    }
-  }'
-
-# Stream responses
-curl -X POST http://localhost:8123/threads/{thread_id}/runs/stream \
-  -H "Content-Type: application/json" \
-  -d '{
-    "assistant_id": "sql_agent",
-    "input": {
-      "messages": [{"role": "user", "content": "Show top 10 customers by revenue"}],
-      "question": "Show top 10 customers by revenue",
-      "dialect": "postgresql"
-    }
-  }'
-```
-
-### Using LangGraph SDK
-
-```python
-from langgraph_sdk import get_client
-
-# Connect to self-hosted server
-client = get_client(url="http://localhost:8123")
-
-# List available graphs
-assistants = await client.assistants.list()
-
-# Create a thread
-thread = await client.threads.create()
-
-# Run the session graph
-result = await client.runs.create(
-    thread_id=thread["thread_id"],
-    assistant_id="session",
-    input={
-        "current_query": "Analyze monthly revenue trends",
-        "db_connection_id": "prod_db"
-    }
-)
-
-# Stream responses
-async for event in client.runs.stream(
-    thread_id=thread["thread_id"],
-    assistant_id="sql_agent",
-    input={"messages": [{"role": "user", "content": "List all tables"}]}
-):
-    print(event)
-```
-
-### LangGraph Configuration
-
-The `langgraph.json` file configures which graphs are exposed:
-
-```json
-{
-  "python_version": "3.11",
-  "dependencies": ["."],
-  "graphs": {
-    "session": "./app/langgraph_server:session_graph",
-    "sql_agent": "./app/langgraph_server:sql_agent_graph"
-  },
-  "env": ".env"
-}
-```
-
-### Deploy to LangGraph Platform (Cloud)
-
-For managed cloud deployment:
-
-```bash
-# Login to LangGraph Platform
-uv run langgraph auth login
-
-# Deploy to cloud
-uv run langgraph deploy
-```
-
-### LangGraph Studio
-
-LangGraph Studio provides visual debugging:
-
-1. **Graph Visualization** - See execution flow in real-time
-2. **State Inspection** - Examine state at each node
-3. **Checkpoint History** - Browse conversation threads
-4. **Thread Management** - Manage active sessions
-
-Access Studio at http://localhost:8123 after starting the server.
-
-### State Persistence Options
-
-KAI supports multiple checkpointing strategies:
-
-| Backend | Use Case | Configuration |
-|---------|----------|---------------|
-| MemorySaver | Development/testing | Default (no config needed) |
-| Redis | Production self-hosted | `LANGGRAPH_REDIS_URL=redis://...` |
-| Typesense | KAI-native persistence | Use `get_session_graph_with_typesense()` |
-| LangGraph Platform | Cloud deployment | Automatic |
-
-```python
-from app.langgraph_server.graphs import (
-    create_session_graph,
-    get_session_graph_with_typesense
-)
-
-# Memory-based (default)
-graph = create_session_graph()
-
-# Typesense-based (production)
-graph = get_session_graph_with_typesense()
-```
-
-### Environment Variables for LangGraph
-
-```bash
-# LangGraph Server
-LANGGRAPH_HOST=0.0.0.0
-LANGGRAPH_PORT=8123
-LANGGRAPH_REDIS_URL=redis://localhost:6379  # Optional: persistent state
-
-# LangSmith Tracing (optional)
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_API_KEY=your-langchain-api-key
-LANGCHAIN_PROJECT=kai-langgraph
-```
-
-### Architecture: LangGraph Server + KAI API
-
-For full functionality, run both services:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Client Applications                       │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-          ┌───────────────┴───────────────┐
-          │                               │
-┌─────────▼─────────┐         ┌───────────▼───────────┐
-│  LangGraph Server │         │     KAI FastAPI       │
-│    (:8123)        │         │       (:8015)         │
-│                   │         │                       │
-│ • Session Graph   │◄───────►│ • Database Connections│
-│ • SQL Agent       │         │ • Table Descriptions  │
-│ • Streaming       │         │ • Business Glossary   │
-│ • State Mgmt      │         │ • Skills & RAG        │
-└─────────┬─────────┘         └───────────┬───────────┘
-          │                               │
-          └───────────────┬───────────────┘
-                          │
-              ┌───────────▼───────────┐
-              │      Typesense        │
-              │       (:8108)         │
-              │                       │
-              │ • Vector Search       │
-              │ • Checkpointing       │
-              │ • Schema Storage      │
-              └───────────────────────┘
-```
-
-## Development
-
-### Running Tests
-
-```bash
-uv run pytest                          # Run all tests
-uv run pytest --cov=app                # With coverage
-uv run pytest tests/modules/session/   # Specific module
-```
-
-### Project Structure
-
-```
-KAI/
-├── app/
-│   ├── main.py              # FastAPI application entry
-│   ├── server/              # Server configuration
-│   ├── api/                 # REST API routes
-│   ├── modules/             # Feature modules
-│   │   ├── autonomous_agent/  # KAI-Agent CLI & service
-│   │   ├── session/           # Interactive sessions
-│   │   ├── sql_generation/    # NL-to-SQL
-│   │   ├── analysis/          # Query analysis
-│   │   ├── memory/            # Long-term memory
-│   │   ├── skill/             # Skills system
-│   │   ├── rag/               # Document search
-│   │   └── ...
-│   └── data/                # Database schemas
-├── tests/                   # Test suite
-├── docs/                    # Documentation
-├── docker-compose.yml       # Container orchestration
-└── pyproject.toml          # Dependencies
-```
+---
 
 ## License
 
-This project is licensed under the Apache 2.0 License - see the [LICENSE](./LICENSE) file for details.
+This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Star History
+
+If you find KAI useful, please consider giving it a star on GitHub!
+
+---
+
+## Acknowledgments
+
+Built with:
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- [LangGraph](https://github.com/langchain-ai/langgraph) - Agent orchestration
+- [LangChain](https://github.com/langchain-ai/langchain) - LLM framework
+- [Typesense](https://typesense.org/) - Vector search engine
+
+---
+
+<div align="center">
+
+**Made with love by MTA**
+
+[Report Bug](https://github.com/your-org/kai/issues) • [Request Feature](https://github.com/your-org/kai/issues) • [Join Discussion](https://github.com/your-org/kai/discussions)
+
+</div>

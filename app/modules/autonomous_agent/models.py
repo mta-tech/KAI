@@ -4,24 +4,9 @@ from datetime import datetime
 
 
 @dataclass
-class AgentSession:
-    """Persistent session for autonomous agent."""
-    id: str
-    db_connection_id: str
-    status: Literal["active", "paused", "running", "completed", "failed"]
-    mode: Literal["analysis", "query", "script", "full_autonomy"] = "full_autonomy"
-    recursion_limit: int = 100
-    title: str | None = None
-    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
-    updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
-    metadata: dict | None = None
-
-
-@dataclass
 class AgentTask:
     """Task submitted to the autonomous agent."""
     id: str
-    session_id: str  # Links to AgentSession for resumable execution
     prompt: str
     db_connection_id: str
     mode: Literal["analysis", "query", "script", "full_autonomy"] = "full_autonomy"

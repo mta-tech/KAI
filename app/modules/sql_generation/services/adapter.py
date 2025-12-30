@@ -119,6 +119,7 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
     ) -> dict:
         msg = f"[DEEPAGENT] _invoke_agent called for prompt: {user_prompt.text[:100]}..."
         logger.info(msg)
+        print(msg)
 
         if self.tool_context:
             tool_context = self.tool_context
@@ -150,39 +151,42 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
 
         msg = f"[DEEPAGENT] Invoking agent with prompt: {user_prompt.text}"
         logger.info(msg)
+        print(msg)
 
         result = agent.invoke(initial_state)
 
         msg = f"[DEEPAGENT] Agent invocation complete. Result keys: {list(result.keys())}"
         logger.info(msg)
+        print(msg)
 
         messages = result.get('messages', [])
         msg = f"[DEEPAGENT] Number of messages in result: {len(messages)}"
         logger.info(msg)
+        print(msg)
 
-        # Log all messages with details at debug level
+        # Log all messages with details
         from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-        logger.debug("=" * 80)
-        logger.debug("[DEEPAGENT] MESSAGE TRACE - All Messages from Agent Execution")
-        logger.debug("=" * 80)
+        print("\n" + "="*80)
+        print("[DEEPAGENT] MESSAGE TRACE - All Messages from Agent Execution")
+        print("="*80)
         for i, message in enumerate(messages):
             msg_type = type(message).__name__
             content = message.content if hasattr(message, 'content') else str(message)
 
-            logger.debug(f"[DEEPAGENT] Message {i} | Type: {msg_type}")
+            print(f"\n[DEEPAGENT] Message {i} | Type: {msg_type}")
 
             # Log additional message attributes
             if hasattr(message, 'additional_kwargs') and message.additional_kwargs:
-                logger.debug(f"[DEEPAGENT]   Additional kwargs: {list(message.additional_kwargs.keys())}")
+                print(f"[DEEPAGENT]   Additional kwargs: {list(message.additional_kwargs.keys())}")
 
             if isinstance(message, ToolMessage):
                 tool_name = getattr(message, 'name', 'unknown')
-                logger.debug(f"[DEEPAGENT]   Tool: {tool_name}")
-                logger.debug(f"[DEEPAGENT]   Content: {str(content)[:200]}...")
+                print(f"[DEEPAGENT]   Tool: {tool_name}")
+                print(f"[DEEPAGENT]   Content: {str(content)[:200]}...")
             elif isinstance(message, AIMessage):
                 # Check for tool calls
                 if hasattr(message, 'tool_calls') and message.tool_calls:
-                    logger.debug(f"[DEEPAGENT]   Tool Calls: {len(message.tool_calls)}")
+                    print(f"[DEEPAGENT]   Tool Calls: {len(message.tool_calls)}")
                     for tc in message.tool_calls:
                         tool_name = tc.get('name', 'unknown')
                         tool_args = tc.get('args', {})
@@ -195,19 +199,19 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
                                            tool_args.get('name') or
                                            'unknown')
                             subagent_prompt = tool_args.get('prompt', '')
-                            logger.debug(f"[DEEPAGENT]     SUBAGENT DELEGATION: {subagent_name}")
-                            logger.debug(f"[DEEPAGENT]        Prompt: {str(subagent_prompt)[:150]}...")
-                            logger.debug(f"[DEEPAGENT]        Full args: {str(tool_args)[:200]}...")
+                            print(f"[DEEPAGENT]     ⚡ SUBAGENT DELEGATION: {subagent_name}")
+                            print(f"[DEEPAGENT]        Prompt: {str(subagent_prompt)[:150]}...")
+                            print(f"[DEEPAGENT]        Full args: {str(tool_args)[:200]}...")
                         else:
-                            logger.debug(f"[DEEPAGENT]     - {tool_name}: {str(tool_args)[:100]}...")
+                            print(f"[DEEPAGENT]     - {tool_name}: {str(tool_args)[:100]}...")
                 if content:
-                    logger.debug(f"[DEEPAGENT]   Content: {str(content)[:300]}...")
+                    print(f"[DEEPAGENT]   Content: {str(content)[:300]}...")
             elif isinstance(message, HumanMessage):
-                logger.debug(f"[DEEPAGENT]   Content: {str(content)[:200]}...")
+                print(f"[DEEPAGENT]   Content: {str(content)[:200]}...")
             else:
-                logger.debug(f"[DEEPAGENT]   Content: {str(content)[:200]}...")
+                print(f"[DEEPAGENT]   Content: {str(content)[:200]}...")
 
-        logger.debug("=" * 80)
+        print("="*80 + "\n")
 
         return result
 
@@ -260,10 +264,10 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
             event_count += 1
             logger.info(f"[DEEPAGENT] Stream event {event_count}: {list(event.keys()) if event else 'None'}")
 
-            # Log detailed event information at debug level
+            # Log detailed event information
             if event:
-                logger.debug(f"[DEEPAGENT STREAM] Event {event_count}")
-                logger.debug(f"[DEEPAGENT STREAM]   Keys: {list(event.keys())}")
+                print(f"\n[DEEPAGENT STREAM] Event {event_count}")
+                print(f"[DEEPAGENT STREAM]   Keys: {list(event.keys())}")
 
                 # Log messages in this event
                 if 'messages' in event and event['messages']:
@@ -275,36 +279,36 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
                         if isinstance(msg, AIMessage):
                             if hasattr(msg, 'tool_calls') and msg.tool_calls:
                                 tool_names = [tc.get('name') for tc in msg.tool_calls]
-                                logger.debug(f"[DEEPAGENT STREAM]   AI -> Tool Calls: {tool_names}")
+                                print(f"[DEEPAGENT STREAM]   AI -> Tool Calls: {tool_names}")
 
                                 # Check for subagent delegations
                                 for tc in msg.tool_calls:
                                     if tc.get('name') == 'task':
                                         subagent_name = tc.get('args', {}).get('agent', 'unknown')
                                         subagent_prompt = tc.get('args', {}).get('prompt', '')
-                                        logger.debug(f"[DEEPAGENT STREAM]   SUBAGENT DELEGATION: {subagent_name}")
-                                        logger.debug(f"[DEEPAGENT STREAM]      Prompt: {str(subagent_prompt)[:100]}...")
+                                        print(f"[DEEPAGENT STREAM]   ⚡ SUBAGENT DELEGATION: {subagent_name}")
+                                        print(f"[DEEPAGENT STREAM]      Prompt: {str(subagent_prompt)[:100]}...")
                             if content:
-                                logger.debug(f"[DEEPAGENT STREAM]   AI -> {str(content)[:150]}...")
+                                print(f"[DEEPAGENT STREAM]   AI -> {str(content)[:150]}...")
                         elif isinstance(msg, ToolMessage):
                             tool_name = getattr(msg, 'name', 'unknown')
                             # Highlight subagent results
                             if tool_name == 'task':
-                                logger.debug(f"[DEEPAGENT STREAM]   SUBAGENT RESULT: {str(content)[:150]}...")
+                                print(f"[DEEPAGENT STREAM]   ⚡ SUBAGENT RESULT: {str(content)[:150]}...")
                             else:
-                                logger.debug(f"[DEEPAGENT STREAM]   Tool Result ({tool_name}): {str(content)[:150]}...")
+                                print(f"[DEEPAGENT STREAM]   Tool Result ({tool_name}): {str(content)[:150]}...")
 
                 # Log todos
                 if 'todos' in event and event['todos']:
-                    logger.debug(f"[DEEPAGENT STREAM]   Todos: {len(event['todos'])} items")
+                    print(f"[DEEPAGENT STREAM]   Todos: {len(event['todos'])} items")
                     for todo in event['todos']:
                         status = todo.get('status', 'unknown')
                         text = todo.get('text', '')
-                        logger.debug(f"[DEEPAGENT STREAM]     [{status}] {text}")
+                        print(f"[DEEPAGENT STREAM]     [{status}] {text}")
 
                 # Log files
                 if 'files' in event and event['files']:
-                    logger.debug(f"[DEEPAGENT STREAM]   Files: {event['files']}")
+                    print(f"[DEEPAGENT STREAM]   Files: {event['files']}")
 
             bridge_event_to_queue(
                 event=event,

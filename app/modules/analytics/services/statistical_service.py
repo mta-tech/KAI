@@ -6,6 +6,12 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from app.modules.analytics.exceptions import (
+    CorrelationAnalysisError,
+    InsufficientDataError,
+    InvalidMethodError,
+    StatisticalCalculationError,
+)
 from app.modules.analytics.models import (
     CorrelationMatrixResult,
     CorrelationResult,
@@ -19,20 +25,31 @@ class StatisticalService:
 
     def descriptive_stats(self, series: pd.Series) -> DescriptiveStats:
         """Calculate descriptive statistics for a series."""
-        desc = series.describe()
-        return DescriptiveStats(
-            column=series.name or "value",
-            count=int(desc["count"]),
-            mean=float(desc["mean"]),
-            std=float(desc["std"]),
-            min=float(desc["min"]),
-            q25=float(desc["25%"]),
-            median=float(desc["50%"]),
-            q75=float(desc["75%"]),
-            max=float(desc["max"]),
-            skewness=float(series.skew()) if len(series) > 2 else None,
-            kurtosis=float(series.kurtosis()) if len(series) > 3 else None,
-        )
+        clean_series = series.dropna()
+        if len(clean_series) == 0:
+            raise InsufficientDataError("Cannot calculate statistics on empty data")
+
+        try:
+            desc = clean_series.describe()
+            return DescriptiveStats(
+                column=series.name or "value",
+                count=int(desc["count"]),
+                mean=float(desc["mean"]),
+                std=float(desc["std"]),
+                min=float(desc["min"]),
+                q25=float(desc["25%"]),
+                median=float(desc["50%"]),
+                q75=float(desc["75%"]),
+                max=float(desc["max"]),
+                skewness=float(clean_series.skew()) if len(clean_series) > 2 else None,
+                kurtosis=(
+                    float(clean_series.kurtosis()) if len(clean_series) > 3 else None
+                ),
+            )
+        except Exception as e:
+            raise StatisticalCalculationError(
+                f"Failed to calculate descriptive statistics: {e}"
+            ) from e
 
     def t_test_independent(
         self,
@@ -47,50 +64,67 @@ class StatisticalService:
         if isinstance(group2, np.ndarray):
             group2 = pd.Series(group2)
 
-        stat, p_value = stats.ttest_ind(group1.dropna(), group2.dropna())
+        clean_group1 = group1.dropna()
+        clean_group2 = group2.dropna()
 
-        n1, n2 = len(group1.dropna()), len(group2.dropna())
-        dof = n1 + n2 - 2
-
-        cohens_d = self._cohens_d(group1, group2)
-
-        is_sig = p_value < alpha
-        mean_diff = group1.mean() - group2.mean()
-
-        interpretation = (
-            f"The difference between groups is "
-            f"{'statistically significant' if is_sig else 'not statistically significant'} "
-            f"(t={stat:.3f}, p={p_value:.4f}, df={dof}). "
-        )
-        if is_sig:
-            interpretation += (
-                f"Group 1 (M={group1.mean():.2f}) is "
-                f"{'higher' if mean_diff > 0 else 'lower'} than "
-                f"Group 2 (M={group2.mean():.2f}) by {abs(mean_diff):.2f}. "
-                f"Effect size (Cohen's d): {cohens_d:.3f} "
-                f"({'small' if abs(cohens_d) < 0.5 else 'medium' if abs(cohens_d) < 0.8 else 'large'})."
+        if len(clean_group1) < 2:
+            raise InsufficientDataError(
+                f"Group 1 has insufficient data: {len(clean_group1)} values (need at least 2)"
+            )
+        if len(clean_group2) < 2:
+            raise InsufficientDataError(
+                f"Group 2 has insufficient data: {len(clean_group2)} values (need at least 2)"
             )
 
-        return StatisticalTestResult(
-            test_name="Independent Samples T-Test",
-            test_type="t_test_independent",
-            statistic=float(stat),
-            p_value=float(p_value),
-            degrees_of_freedom=float(dof),
-            is_significant=is_sig,
-            interpretation=interpretation,
-            effect_size=cohens_d,
-            effect_size_name="Cohen's d",
-            details={
-                "group1_mean": float(group1.mean()),
-                "group1_std": float(group1.std()),
-                "group1_n": n1,
-                "group2_mean": float(group2.mean()),
-                "group2_std": float(group2.std()),
-                "group2_n": n2,
-                "mean_difference": float(mean_diff),
-            },
-        )
+        try:
+            stat, p_value = stats.ttest_ind(clean_group1, clean_group2)
+
+            n1, n2 = len(clean_group1), len(clean_group2)
+            dof = n1 + n2 - 2
+
+            cohens_d = self._cohens_d(group1, group2)
+
+            is_sig = p_value < alpha
+            mean_diff = clean_group1.mean() - clean_group2.mean()
+
+            interpretation = (
+                f"The difference between groups is "
+                f"{'statistically significant' if is_sig else 'not statistically significant'} "
+                f"(t={stat:.3f}, p={p_value:.4f}, df={dof}). "
+            )
+            if is_sig:
+                interpretation += (
+                    f"Group 1 (M={clean_group1.mean():.2f}) is "
+                    f"{'higher' if mean_diff > 0 else 'lower'} than "
+                    f"Group 2 (M={clean_group2.mean():.2f}) by {abs(mean_diff):.2f}. "
+                    f"Effect size (Cohen's d): {cohens_d:.3f} "
+                    f"({'small' if abs(cohens_d) < 0.5 else 'medium' if abs(cohens_d) < 0.8 else 'large'})."
+                )
+
+            return StatisticalTestResult(
+                test_name="Independent Samples T-Test",
+                test_type="t_test_independent",
+                statistic=float(stat),
+                p_value=float(p_value),
+                degrees_of_freedom=float(dof),
+                is_significant=is_sig,
+                interpretation=interpretation,
+                effect_size=cohens_d,
+                effect_size_name="Cohen's d",
+                details={
+                    "group1_mean": float(clean_group1.mean()),
+                    "group1_std": float(clean_group1.std()),
+                    "group1_n": n1,
+                    "group2_mean": float(clean_group2.mean()),
+                    "group2_std": float(clean_group2.std()),
+                    "group2_n": n2,
+                    "mean_difference": float(mean_diff),
+                },
+            )
+        except InsufficientDataError:
+            raise
+        except Exception as e:
+            raise StatisticalCalculationError(f"T-test failed: {e}") from e
 
     def anova(
         self,
@@ -98,40 +132,56 @@ class StatisticalService:
         alpha: float = 0.05,
     ) -> StatisticalTestResult:
         """Perform one-way ANOVA."""
+        if len(groups) < 2:
+            raise InsufficientDataError("ANOVA requires at least 2 groups")
+
         # Convert numpy arrays to Series
         groups = tuple(pd.Series(g) if isinstance(g, np.ndarray) else g for g in groups)
         clean_groups = [g.dropna() for g in groups]
-        stat, p_value = stats.f_oneway(*clean_groups)
 
-        k = len(groups)
-        n = sum(len(g) for g in clean_groups)
-        dof_between = k - 1
-        dof_within = n - k
+        # Validate each group has enough data
+        for i, g in enumerate(clean_groups):
+            if len(g) < 2:
+                raise InsufficientDataError(
+                    f"Group {i + 1} has insufficient data: {len(g)} values (need at least 2)"
+                )
 
-        is_sig = p_value < alpha
+        try:
+            stat, p_value = stats.f_oneway(*clean_groups)
 
-        interpretation = (
-            f"One-way ANOVA: F({dof_between}, {dof_within}) = {stat:.3f}, p = {p_value:.4f}. "
-            f"There {'is' if is_sig else 'is no'} statistically significant difference "
-            f"between at least two groups."
-        )
+            k = len(groups)
+            n = sum(len(g) for g in clean_groups)
+            dof_between = k - 1
+            dof_within = n - k
 
-        return StatisticalTestResult(
-            test_name="One-Way ANOVA",
-            test_type="anova",
-            statistic=float(stat),
-            p_value=float(p_value),
-            degrees_of_freedom=float(dof_between),
-            is_significant=is_sig,
-            interpretation=interpretation,
-            details={
-                "num_groups": k,
-                "group_means": [float(g.mean()) for g in clean_groups],
-                "group_sizes": [len(g) for g in clean_groups],
-                "dof_between": dof_between,
-                "dof_within": dof_within,
-            },
-        )
+            is_sig = p_value < alpha
+
+            interpretation = (
+                f"One-way ANOVA: F({dof_between}, {dof_within}) = {stat:.3f}, p = {p_value:.4f}. "
+                f"There {'is' if is_sig else 'is no'} statistically significant difference "
+                f"between at least two groups."
+            )
+
+            return StatisticalTestResult(
+                test_name="One-Way ANOVA",
+                test_type="anova",
+                statistic=float(stat),
+                p_value=float(p_value),
+                degrees_of_freedom=float(dof_between),
+                is_significant=is_sig,
+                interpretation=interpretation,
+                details={
+                    "num_groups": k,
+                    "group_means": [float(g.mean()) for g in clean_groups],
+                    "group_sizes": [len(g) for g in clean_groups],
+                    "dof_between": dof_between,
+                    "dof_within": dof_within,
+                },
+            )
+        except InsufficientDataError:
+            raise
+        except Exception as e:
+            raise StatisticalCalculationError(f"ANOVA failed: {e}") from e
 
     def chi_square(
         self,
@@ -145,29 +195,41 @@ class StatisticalService:
         else:
             observed = contingency_table
 
-        stat, p_value, dof, expected = stats.chi2_contingency(observed)
+        if observed.size == 0:
+            raise InsufficientDataError("Contingency table is empty")
+        if observed.shape[0] < 2 or observed.shape[1] < 2:
+            raise InsufficientDataError(
+                f"Contingency table must be at least 2x2, got {observed.shape}"
+            )
 
-        is_sig = p_value < alpha
+        try:
+            stat, p_value, dof, expected = stats.chi2_contingency(observed)
 
-        interpretation = (
-            f"Chi-square test: \u03c7\u00b2({dof}) = {stat:.3f}, p = {p_value:.4f}. "
-            f"There {'is' if is_sig else 'is no'} statistically significant "
-            f"association between the variables."
-        )
+            is_sig = p_value < alpha
 
-        return StatisticalTestResult(
-            test_name="Chi-Square Test of Independence",
-            test_type="chi_square",
-            statistic=float(stat),
-            p_value=float(p_value),
-            degrees_of_freedom=float(dof),
-            is_significant=is_sig,
-            interpretation=interpretation,
-            details={
-                "expected_frequencies": expected.tolist(),
-                "observed": observed.tolist(),
-            },
-        )
+            interpretation = (
+                f"Chi-square test: \u03c7\u00b2({dof}) = {stat:.3f}, p = {p_value:.4f}. "
+                f"There {'is' if is_sig else 'is no'} statistically significant "
+                f"association between the variables."
+            )
+
+            return StatisticalTestResult(
+                test_name="Chi-Square Test of Independence",
+                test_type="chi_square",
+                statistic=float(stat),
+                p_value=float(p_value),
+                degrees_of_freedom=float(dof),
+                is_significant=is_sig,
+                interpretation=interpretation,
+                details={
+                    "expected_frequencies": expected.tolist(),
+                    "observed": observed.tolist(),
+                },
+            )
+        except InsufficientDataError:
+            raise
+        except Exception as e:
+            raise StatisticalCalculationError(f"Chi-square test failed: {e}") from e
 
     def correlation(
         self,
@@ -177,6 +239,14 @@ class StatisticalService:
         alpha: float = 0.05,
     ) -> CorrelationResult:
         """Calculate correlation between two series."""
+        # Validate method
+        valid_methods = {"pearson", "spearman", "kendall"}
+        if method not in valid_methods:
+            raise InvalidMethodError(
+                f"Invalid correlation method: '{method}'. "
+                f"Valid methods: {', '.join(sorted(valid_methods))}"
+            )
+
         # Convert numpy arrays to Series
         if isinstance(x, np.ndarray):
             x = pd.Series(x)
@@ -190,39 +260,52 @@ class StatisticalService:
         x_final = x_clean.loc[common_idx]
         y_final = y_clean.loc[common_idx]
 
-        if method == "pearson":
-            coef, p_value = stats.pearsonr(x_final, y_final)
-        elif method == "spearman":
-            coef, p_value = stats.spearmanr(x_final, y_final)
-        else:
-            coef, p_value = stats.kendalltau(x_final, y_final)
+        if len(x_final) < 3:
+            raise InsufficientDataError(
+                f"Correlation requires at least 3 paired observations, "
+                f"got {len(x_final)}"
+            )
 
-        is_sig = p_value < alpha
+        try:
+            if method == "pearson":
+                coef, p_value = stats.pearsonr(x_final, y_final)
+            elif method == "spearman":
+                coef, p_value = stats.spearmanr(x_final, y_final)
+            else:
+                coef, p_value = stats.kendalltau(x_final, y_final)
 
-        strength = "no"
-        if abs(coef) > 0.7:
-            strength = "strong"
-        elif abs(coef) > 0.4:
-            strength = "moderate"
-        elif abs(coef) > 0.2:
-            strength = "weak"
+            is_sig = p_value < alpha
 
-        direction = "positive" if coef > 0 else "negative"
+            strength = "no"
+            if abs(coef) > 0.7:
+                strength = "strong"
+            elif abs(coef) > 0.4:
+                strength = "moderate"
+            elif abs(coef) > 0.2:
+                strength = "weak"
 
-        interpretation = (
-            f"{method.title()} correlation: r = {coef:.3f}, p = {p_value:.4f}. "
-            f"There is {'a' if is_sig else 'no'} statistically significant "
-            f"{strength} {direction} correlation between the variables."
-        )
+            direction = "positive" if coef > 0 else "negative"
 
-        return CorrelationResult(
-            method=method,
-            coefficient=float(coef),
-            p_value=float(p_value),
-            is_significant=is_sig,
-            interpretation=interpretation,
-            sample_size=len(x_final),
-        )
+            interpretation = (
+                f"{method.title()} correlation: r = {coef:.3f}, p = {p_value:.4f}. "
+                f"There is {'a' if is_sig else 'no'} statistically significant "
+                f"{strength} {direction} correlation between the variables."
+            )
+
+            return CorrelationResult(
+                method=method,
+                coefficient=float(coef),
+                p_value=float(p_value),
+                is_significant=is_sig,
+                interpretation=interpretation,
+                sample_size=len(x_final),
+            )
+        except (InsufficientDataError, InvalidMethodError):
+            raise
+        except Exception as e:
+            raise CorrelationAnalysisError(
+                f"Correlation calculation failed: {e}"
+            ) from e
 
     def correlation_matrix(
         self,
@@ -230,17 +313,38 @@ class StatisticalService:
         method: str = "pearson",
     ) -> CorrelationMatrixResult:
         """Calculate correlation matrix for numeric columns."""
+        # Validate method
+        valid_methods = {"pearson", "spearman", "kendall"}
+        if method not in valid_methods:
+            raise InvalidMethodError(
+                f"Invalid correlation method: '{method}'. "
+                f"Valid methods: {', '.join(sorted(valid_methods))}"
+            )
+
         numeric_df = df.select_dtypes(include=[np.number])
-        corr_matrix = numeric_df.corr(method=method)
 
-        matrix_dict = corr_matrix.to_dict()
-        columns = corr_matrix.columns.tolist()
+        if numeric_df.empty or len(numeric_df.columns) < 2:
+            raise InsufficientDataError(
+                "Correlation matrix requires at least 2 numeric columns"
+            )
 
-        return CorrelationMatrixResult(
-            method=method,
-            matrix=matrix_dict,
-            columns=columns,
-        )
+        try:
+            corr_matrix = numeric_df.corr(method=method)
+
+            matrix_dict = corr_matrix.to_dict()
+            columns = corr_matrix.columns.tolist()
+
+            return CorrelationMatrixResult(
+                method=method,
+                matrix=matrix_dict,
+                columns=columns,
+            )
+        except (InsufficientDataError, InvalidMethodError):
+            raise
+        except Exception as e:
+            raise CorrelationAnalysisError(
+                f"Correlation matrix calculation failed: {e}"
+            ) from e
 
     def _cohens_d(self, group1: pd.Series, group2: pd.Series) -> float:
         """Calculate Cohen's d effect size."""

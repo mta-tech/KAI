@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.modules.visualization import (
@@ -14,6 +14,12 @@ from app.modules.visualization import (
     ChartType,
     ThemeService,
 )
+from app.modules.visualization.exceptions import (
+    ChartGenerationError,
+    ChartRecommendationError,
+    InvalidChartTypeError,
+)
+from app.server.errors import error_response
 
 
 router = APIRouter(prefix="/api/v2/visualizations", tags=["Visualizations"])
@@ -105,10 +111,24 @@ async def generate_chart(request: GenerateChartRequest) -> ChartResponse:
             title=request.title,
         )
 
+    except InvalidChartTypeError as e:
+        return error_response(
+            e, {"chart_type": request.chart_type, "theme": request.theme}
+        )
+    except ChartGenerationError as e:
+        return error_response(
+            e, {"chart_type": request.chart_type, "theme": request.theme}
+        )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        wrapped_error = InvalidChartTypeError(str(e))
+        return error_response(
+            wrapped_error, {"chart_type": request.chart_type, "theme": request.theme}
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chart generation failed: {e}")
+        wrapped_error = ChartGenerationError(f"Chart generation failed: {e}")
+        return error_response(
+            wrapped_error, {"chart_type": request.chart_type, "theme": request.theme}
+        )
 
 
 @router.post("/recommend", response_model=RecommendChartResponse)
@@ -130,8 +150,15 @@ async def recommend_chart(request: RecommendChartRequest) -> RecommendChartRespo
             y_column=rec.y_column,
         )
 
+    except ChartRecommendationError as e:
+        return error_response(
+            e, {"x_column": request.x_column, "y_column": request.y_column}
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Recommendation failed: {e}")
+        wrapped_error = ChartRecommendationError(f"Recommendation failed: {e}")
+        return error_response(
+            wrapped_error, {"x_column": request.x_column, "y_column": request.y_column}
+        )
 
 
 @router.get("/themes", response_model=ThemeListResponse)

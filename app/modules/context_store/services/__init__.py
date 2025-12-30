@@ -95,7 +95,7 @@ class ContextStoreService:
                     )
                     labels_entities = get_labels_entities(labels_entities_ner)
         except Exception as e:
-            logger.warning(f"NER processing failed: {e}")
+            print(e)
             pass
 
         context_store = ContextStore(

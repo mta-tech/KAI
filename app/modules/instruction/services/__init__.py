@@ -24,8 +24,7 @@ class InstructionService:
         )
         if not db_connection:
             raise HTTPException(
-                status_code=404,
-                detail=f"Database connection {instruction_request.db_connection_id} not found"
+                f"Database connection {instruction_request.db_connection_id} not found"
             )
 
         instruction_embedding = None
@@ -47,7 +46,7 @@ class InstructionService:
     def get_instruction(self, instruction_id) -> Instruction:
         instruction = self.repository.find_by_id(instruction_id)
         if not instruction:
-            raise HTTPException(status_code=404, detail=f"Instruction {instruction_id} not found")
+            raise HTTPException(f"Prompt {instruction_id} not found")
         return instruction
 
     def get_instructions(self, db_connection_id) -> list[Instruction]:
@@ -79,7 +78,7 @@ class InstructionService:
     ) -> Instruction:
         instruction = self.repository.find_by_id(instruction_id)
         if not instruction:
-            raise HTTPException(status_code=404, detail=f"Instruction {instruction_id} not found")
+            raise HTTPException(f"Instruction {instruction_id} not found")
 
         if update_request.condition is not None:
             instruction.condition = update_request.condition
@@ -98,12 +97,12 @@ class InstructionService:
     def delete_instruction(self, instruction_id) -> bool:
         instruction = self.repository.find_by_id(instruction_id)
         if not instruction:
-            raise HTTPException(status_code=404, detail=f"Instruction {instruction_id} not found")
+            raise HTTPException(f"Prompt {instruction_id} not found")
 
         is_deleted = self.repository.delete_by_id(instruction_id)
 
         if not is_deleted:
-            raise HTTPException(status_code=500, detail=f"Failed to delete instruction {instruction_id}")
+            raise HTTPException(f"Failed to delete instruction {instruction_id}")
 
         return True
 

@@ -1,6 +1,6 @@
 [project]
 name = "kai"
-version = "1.0.0"
+version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.112.2",
@@ -22,14 +22,9 @@ dependencies = [
     "langchain-google-genai>=3.0.0,<4.0.0",
     "langgraph>=1.0.0,<2.0.0",
     "langgraph-prebuilt>=0.1.1",
-    "langgraph-cli[inmem]>=0.1.0",
-    "langgraph-sdk>=0.1.0",
-    # Optional: MCP (Model Context Protocol) integration
-    "langchain-mcp-adapters>=0.1.14",
     "deepagents>=0.2.8",
     "overrides>=7.7.0",
     "pandas>=2.2.2",
-    "scikit-learn>=1.4.0",
     "pypdf2>=3.0.1",
     "python-multipart>=0.0.9",
     "llama-index>=0.13.0",
@@ -41,26 +36,22 @@ dependencies = [
     "llama-index-llms-langchain>=0.7.0",
     "llama-index-embeddings-langchain>=0.4.0",
     "click>=8.0.0",
-    "jsonschema>=4.20.0",
     "rich>=13.0.0",
     "matplotlib>=3.8.0",
     "openpyxl>=3.1.0",
-    # Advanced visualization
-    "plotly>=5.18.0",
-    "kaleido>=0.2.1",
-    # Statistical analysis and forecasting
+    "temporalio>=1.4.0",
+    "neo4j>=6.0.3",
+    "plotly>=5.0.0",
+    "jsonschema>=4.0.0",
     "scipy>=1.11.0",
-    "statsmodels>=0.14.0",
-    # SSE streaming support
-    "sse-starlette>=1.6.0",
-    # Optional: Letta AI memory backend and auto-learning
-    # Note: agentic-learning pins letta-client to a pre-release version
-    # Install with: uv pip install agentic-learning --prerelease=allow
-    "agentic-learning>=0.4.0",
+    # Security patches for transitive dependencies
+    "urllib3>=2.6.0",  # CVE: streaming API and decompression chain vulnerabilities
+    "marshmallow>=3.26.2",  # CVE: DoS in Schema.load(many)
 ]
 
 [project.scripts]
 kai-agent = "app.modules.autonomous_agent.cli:cli"
+kai-analytics = "app.modules.analytics.cli:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
@@ -68,7 +59,3 @@ packages = ["app"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.uv]
-# Allow pre-release versions for letta-client (required by agentic-learning)
-prerelease = "allow"

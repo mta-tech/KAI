@@ -1,18 +1,14 @@
-import asyncio
-import logging
-import re
 from typing import List, Optional
-
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import JsonOutputParser
 from langgraph.graph import START, END, StateGraph, MessagesState
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
+import re
+import asyncio
 
 from app.data.db.storage import Storage
-
-logger = logging.getLogger(__name__)
 
 # from app.server.config import Settings
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
@@ -132,7 +128,7 @@ class QuestionGenerationAgent:
         This method examines the table descriptions and context stores to identify
         relevant tables and columns for question generation.
         """
-        logger.info("Analyzing context for question generation...")
+        print("Analyzing context for question generation...")
 
         # Initialize relevant tables and columns
         state["relevant_tables"] = []
@@ -140,7 +136,7 @@ class QuestionGenerationAgent:
 
         # If we have context stores, analyze them to identify relevant tables
         if state["context_stores"]:
-            logger.info(f"Analyzing {len(state['context_stores'])} context stores...")
+            print(f"Analyzing {len(state['context_stores'])} context stores...")
 
             # Extract relevant information from context stores
             for context_store in state["context_stores"]:
@@ -167,13 +163,13 @@ class QuestionGenerationAgent:
         state["relevant_columns"] = list(set(state["relevant_columns"]))
 
         if state["relevant_tables"]:
-            logger.debug("=" * 50)
-            logger.debug("Relevant Tables and Columns")
-            logger.debug(f"Columns: {state['relevant_columns']}")
-            logger.debug(f"Tables: {state['relevant_tables']}")
-            logger.debug("=" * 50)
+            print("=" * 50)
+            print("Relevant Tables and Columns")
+            print(state["relevant_columns"])
+            print(state["relevant_tables"])
+            print("=" * 50)
 
-        logger.info(
+        print(
             f"Identified {len(state['relevant_tables'])} relevant tables, "
             f"{len(state['relevant_columns'])} relevant columns"
         )
@@ -332,7 +328,7 @@ class QuestionGenerationAgent:
         state["generated_questions_sql_pairs"].extend(pairs)
 
         # For debugging
-        logger.info(f"Generated {len(pairs)} question-SQL pairs without tools")
+        print(f"Generated {len(pairs)} question-SQL pairs without tools")
 
         return state
 
@@ -383,7 +379,7 @@ class QuestionGenerationAgent:
         }
 
         # Create and run the graph
-        logger.info("Starting question generation with LLM Agent")
+        print("Starting question generation with LLM Agent")
         graph = self.create_graph()
         final_state = await graph.ainvoke(state)
 
