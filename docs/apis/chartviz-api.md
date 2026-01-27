@@ -102,8 +102,7 @@ ChartWidget
   ],
   "user_prompt": "Tampilkan tren pendapatan bulanan",
   "language": "id"
-}
-```
+}```
 
 **Response:**
 ```json
@@ -485,7 +484,7 @@ async def auto_generate_chart_activity(input: AutoChartInput) -> dict:
                 "user_prompt": input.user_prompt,
                 "language": input.language,
             },
-            timeout=60.0,  # Longer timeout for recommendation + generation
+            timeout=60.0,  // Longer timeout for recommendation + generation
         )
         response.raise_for_status()
         return response.json()
@@ -572,7 +571,7 @@ chart_retry_policy = RetryPolicy(
     initial_interval=timedelta(seconds=1),
     maximum_interval=timedelta(seconds=10),
     maximum_attempts=3,
-    non_retryable_error_types=["ValueError"],  # Don't retry validation errors
+    non_retryable_error_types=["ValueError"],  // Don't retry validation errors
 )
 
 # Usage

@@ -9,7 +9,6 @@ dependencies = [
     "ruff>=0.6.2",
     "pydantic-settings>=2.4.0",
     "SQLAlchemy>=2.0.32",
-    "psycopg2>=2.9.9",
     "uvicorn>=0.30.6",
     "black>=24.8.0",
     "sql-metadata>=2.13.0",
@@ -45,8 +44,9 @@ dependencies = [
     "jsonschema>=4.0.0",
     "scipy>=1.11.0",
     # Security patches for transitive dependencies
-    "urllib3>=2.6.0",  # CVE: streaming API and decompression chain vulnerabilities
-    "marshmallow>=3.26.2",  # CVE: DoS in Schema.load(many)
+    "urllib3>=2.6.0", # CVE: streaming API and decompression chain vulnerabilities
+    "marshmallow>=3.26.2", # CVE: DoS in Schema.load(many)
+    "psycopg2-binary>=2.9.11",
 ]
 
 [project.scripts]
