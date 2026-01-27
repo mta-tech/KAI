@@ -5,7 +5,6 @@ from __future__ import annotations
 
 class DeepAgentRuntimeUnavailable(Exception):
     """Raised when deepagents runtime is unavailable."""
-    pass
 
 
 def create_kai_sql_agent(
@@ -13,9 +12,7 @@ def create_kai_sql_agent(
     sql_generation_id,
     db_connection,
     database,
-    context,
     tool_context,
-    metadata,
     extra_instructions,
     llm_config,
 ):
@@ -26,9 +23,7 @@ def create_kai_sql_agent(
         sql_generation_id: SQL generation session ID
         db_connection: Database connection object
         database: SQLDatabase instance
-        context: Context for SQL generation
         tool_context: KaiToolContext object with schema info
-        metadata: Additional metadata
         extra_instructions: Extra instructions for the agent
         llm_config: LLM configuration
 
@@ -45,21 +40,20 @@ def create_kai_sql_agent(
     # Get LLM instance
     chat_model = ChatModel()
     if llm_config:
-        llm = chat_model.get_model(
-            database_connection=db_connection,
-            model_family=llm_config.model_family,
-            model_name=llm_config.model_name,
-            temperature=0.0
-        )
+        model_family = llm_config.model_family
+        model_name = llm_config.model_name
     else:
-        from app.server.config import get_settings
+        from app.server.config import get_settings  # type: ignore[attr-defined]
         settings = get_settings()
-        llm = chat_model.get_model(
-            database_connection=db_connection,
-            model_family=settings.CHAT_FAMILY,
-            model_name=settings.CHAT_MODEL,
-            temperature=0.0
-        )
+        model_family = settings.CHAT_FAMILY
+        model_name = settings.CHAT_MODEL
+
+    llm = chat_model.get_model(
+        database_connection=db_connection,
+        model_family=model_family,
+        model_name=model_name,
+        temperature=0.0
+    )
 
     # Build system prompt
     dialect = database.dialect if hasattr(database, 'dialect') else 'postgresql'
@@ -79,6 +73,13 @@ def create_kai_sql_agent(
     tool_specs = build_tool_specs(tool_context)
     tools = [spec.build() for spec in tool_specs]
 
+    # Create tool mapping by name for subagent configuration
+    tools_by_name = {tool.name: tool for tool in tools}
+
+    def get_tools(*names):
+        """Get tools by name, filtering out missing ones."""
+        return [tools_by_name[n] for n in names if n in tools_by_name]
+
     # Define subagents inline to avoid circular import
     subagents = [
         {
@@ -88,7 +89,7 @@ def create_kai_sql_agent(
                 "You are responsible for identifying the smallest schema subset that"
                 " satisfies the question. Output concise notes for the main agent."
             ),
-            "tools": ["table_schema", "tables_with_scores"],
+            "tools": get_tools("table_schema", "tables_with_scores"),
         },
         {
             "name": "sql_drafter",
@@ -97,7 +98,7 @@ def create_kai_sql_agent(
                 "Focus on generating syntactically valid, read-only SQL. Use"
                 " filesystem files for schema context and respect tenant isolation."
             ),
-            "tools": ["sql_db_query", "fewshot_examples"],
+            "tools": get_tools("sql_db_query", "fewshot_examples"),
         },
         {
             "name": "sql_validator",
@@ -106,25 +107,25 @@ def create_kai_sql_agent(
                 "Run the SQL safely, capture errors, and iteratively refine. Do not"
                 " return until the query succeeds or you have an actionable error."
             ),
-            "tools": ["sql_db_query"],
+            "tools": get_tools("sql_db_query"),
         },
     ]
 
     # Create backend factory
     def backend_factory(runtime):
         return CompositeBackend(
-            default=StateBackend(runtime),
+            default=StateBackend(runtime),  # type: ignore[abstract]
             routes={},
         )
 
     # Create the deep agent
     agent = create_deep_agent(
         model=llm,
-        tools=tools,  # Use actual tool instances, not ToolSpec objects
+        tools=tools,
         system_prompt=system_prompt,
-        subagents=subagents,
+        subagents=subagents,  # type: ignore[arg-type]
         backend=backend_factory,
-        checkpointer=None,  # Use None for stateless agents
+        checkpointer=None,
     )
 
     return agent

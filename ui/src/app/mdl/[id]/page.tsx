@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { useParams } from 'next/navigation';
 import { useManifest, useExportManifest } from '@/hooks/use-mdl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,8 +17,9 @@ import {
 import { Download, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
-export default function MDLDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function MDLDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
   const { data: manifest, isLoading } = useManifest(id);
   const exportMutation = useExportManifest();
 

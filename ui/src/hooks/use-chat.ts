@@ -29,21 +29,12 @@ export function useChat() {
     async (content: string) => {
       // Get current state directly from store to avoid stale closure
       const storeState = useChatStore.getState();
-      const currentlyStreaming = storeState.isStreaming;
-      const currentSessionId = storeState.sessionId;
-      console.log('[useChat] sendMessage called:', {
-        content,
-        currentSessionId,
-        currentlyStreaming,
-        messageCount: storeState.messages.length
-      });
+      const { isStreaming: currentlyStreaming, sessionId: currentSessionId } = storeState;
 
       if (!currentSessionId || currentlyStreaming) {
-        console.log('[useChat] sendMessage blocked:', { currentSessionId, currentlyStreaming });
         return;
       }
 
-      console.log('[useChat] sendMessage starting:', { currentSessionId, content });
       addUserMessage(content);
       const assistantId = `assistant-${Date.now()}`;
       startAssistantMessage(assistantId);
@@ -54,31 +45,48 @@ export function useChat() {
         switch (event.type) {
           case 'token':
             if (event.content) {
-              // Check if this is a structured chunk
               const chunkType = event.chunk_type as ChunkType;
               if (chunkType && chunkType !== 'text') {
-                // Route to structured content handler
                 appendStructuredContent(assistantId, chunkType, event.content);
               } else {
-                // Plain text content
                 appendToAssistantMessage(assistantId, event.content);
               }
             }
             break;
+
+          // Structured chunk types from backend SSE
+          case 'sql':
+          case 'summary':
+          case 'insights':
+          case 'chart_recommendations':
+          case 'reasoning':
+            if (event.content) {
+              appendStructuredContent(assistantId, event.type as ChunkType, event.content);
+            }
+            break;
+
+          case 'text':
+            if (event.content) {
+              appendToAssistantMessage(assistantId, event.content);
+            }
+            break;
+
           case 'status':
-            // Process status updates (e.g., "Analyzing query...", "Generating SQL...")
             if (event.message) {
               updateProcessStatus(assistantId, event.message);
             }
             break;
+
           case 'todo_update':
             if (event.todos) {
               updateTodos(event.todos);
             }
             break;
+
           case 'done':
             finishAssistantMessage(assistantId);
             break;
+
           case 'error':
             appendToAssistantMessage(assistantId, `\n\nError: ${event.error || event.message}`);
             finishAssistantMessage(assistantId);

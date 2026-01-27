@@ -12,10 +12,49 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 import httpx
+import uvicorn
+from fastapi import FastAPI
 from temporalio.client import Client
 from temporalio.worker import Worker
 
 from app.temporal.activities import KaiActivities
+
+
+# Health check server
+health_app = FastAPI()
+_worker_healthy = False
+
+
+@health_app.get("/healthz")
+async def healthz():
+    """Health check endpoint."""
+    from fastapi.responses import JSONResponse
+
+    if _worker_healthy:
+        return {"status": "healthy"}
+    return JSONResponse({"status": "starting"}, status_code=503)
+
+
+@health_app.get("/readyz")
+async def readyz():
+    """Readiness check endpoint."""
+    from fastapi.responses import JSONResponse
+
+    if _worker_healthy:
+        return {"status": "ready"}
+    return JSONResponse({"status": "not_ready"}, status_code=503)
+
+
+async def run_health_server():
+    """Run the health check HTTP server."""
+    config = uvicorn.Config(
+        health_app,
+        host="0.0.0.0",
+        port=8091,
+        log_level="warning",
+    )
+    server = uvicorn.Server(config)
+    await server.serve()
 
 
 def redact_secret(secret: Optional[str], visible_chars: int = 4) -> str:
@@ -39,6 +78,7 @@ class WorkerConfig:
 
         # Control plane configuration
         self.control_plane_url = os.getenv("CONTROL_PLANE_URL", "http://localhost:8001")
+        self.control_plane_api_prefix = os.getenv("CONTROL_PLANE_API_PREFIX", "/services/kcenter")
 
         # Worker identity
         self.hostname = socket.gethostname()
@@ -90,7 +130,7 @@ class WorkerRegistry:
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.config.control_plane_url}/api/v4/kai/worker/register",
+                f"{self.config.control_plane_url}{self.config.control_plane_api_prefix}/v4/kai/worker/register",
                 json={
                     "task_queue": self.config.task_queue,
                     "hostname": self.config.hostname,
@@ -99,7 +139,7 @@ class WorkerRegistry:
                         "temporal_host": self.config.temporal_host,
                     },
                 },
-                headers={"X-Org-Api-Key": self.config.api_key},
+                headers={"X-Org-Api-Key": self.config.api_key or ""},
                 timeout=30.0,
             )
             response.raise_for_status()
@@ -108,7 +148,7 @@ class WorkerRegistry:
             print(f"Registered with control plane")
             print(f"  Worker ID: {self.worker_id}")
             print(f"  Task Queue: {self.config.task_queue}")
-            return self.worker_id
+            return self.worker_id or ""
 
     async def heartbeat(self, active_sessions: int = 0) -> bool:
         """Send heartbeat to the control plane.
@@ -125,9 +165,9 @@ class WorkerRegistry:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.config.control_plane_url}/api/v4/kai/worker/{self.worker_id}/heartbeat",
+                    f"{self.config.control_plane_url}{self.config.control_plane_api_prefix}/v4/kai/worker/{self.worker_id}/heartbeat",
                     json={"active_sessions": active_sessions},
-                    headers={"X-Org-Api-Key": self.config.api_key},
+                    headers={"X-Org-Api-Key": self.config.api_key or ""},
                     timeout=10.0,
                 )
                 return response.status_code == 200
@@ -147,8 +187,8 @@ class WorkerRegistry:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.config.control_plane_url}/api/v4/kai/worker/{self.worker_id}/disconnect",
-                    headers={"X-Org-Api-Key": self.config.api_key},
+                    f"{self.config.control_plane_url}{self.config.control_plane_api_prefix}/v4/kai/worker/{self.worker_id}/disconnect",
+                    headers={"X-Org-Api-Key": self.config.api_key or ""},
                     timeout=10.0,
                 )
                 print(f"Disconnected from control plane: {response.status_code}")
@@ -206,6 +246,8 @@ async def managed_worker(config: WorkerConfig, registry: WorkerRegistry):
 
 async def main():
     """Main entry point for the KAI Temporal worker."""
+    global _worker_healthy
+
     config = WorkerConfig()
     registry = WorkerRegistry(config)
 
@@ -218,8 +260,12 @@ async def main():
         print(f"  API Key: {redact_secret(config.api_key)}")
         print(f"  Worker Identity: {config.worker_identity}")
 
+    # Start health server in background
+    print(f"\nStarting health server on port 8091...")
+    health_task = asyncio.create_task(run_health_server())
+
     # Connect to Temporal
-    print(f"\nConnecting to Temporal at {config.temporal_host}...")
+    print(f"Connecting to Temporal at {config.temporal_host}...")
     client = await Client.connect(config.temporal_host)
 
     # Initialize activities
@@ -255,6 +301,10 @@ async def main():
     async with managed_worker(config, registry):
         print(f"\nStarting KAI Temporal Worker on queue '{config.task_queue}'...")
 
+        # Mark as healthy once worker starts
+        _worker_healthy = True
+        print("Worker is healthy and ready to process tasks")
+
         # Run worker until shutdown signal
         worker_task = asyncio.create_task(worker.run())
 
@@ -262,12 +312,14 @@ async def main():
         await shutdown_event.wait()
 
         # Graceful shutdown
+        _worker_healthy = False
         print("Shutting down worker...")
-        worker_task.cancel()
-        try:
-            await worker_task
-        except asyncio.CancelledError:
-            pass
+        for task in (worker_task, health_task):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     print("Worker shutdown complete")
 

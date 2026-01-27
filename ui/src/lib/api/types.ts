@@ -10,7 +10,7 @@ export interface Connection {
   schemas?: string[];
 }
 
-// Alias for backwards compatibility
+/** @deprecated Use Connection instead */
 export type DatabaseConnection = Connection;
 
 export interface CreateConnectionRequest {
@@ -162,8 +162,10 @@ export interface Instruction {
 export type ChunkType = 'text' | 'sql' | 'summary' | 'insights' | 'chart_recommendations' | 'reasoning';
 
 // Agent event types for streaming
+// Note: Backend sends "chunk" events with type field in data, which gets spread into the event
+// So the final type can be: text, sql, summary, insights, chart_recommendations, reasoning
 export interface AgentEvent {
-  type: 'tool_start' | 'tool_end' | 'text' | 'todo_update' | 'token' | 'done' | 'error' | 'status';
+  type: 'tool_start' | 'tool_end' | 'text' | 'todo_update' | 'token' | 'done' | 'error' | 'status' | 'chunk' | ChunkType;
   tool?: string;
   input?: Record<string, unknown>;
   output?: string | Record<string, unknown>;
