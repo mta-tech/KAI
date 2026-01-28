@@ -260,8 +260,44 @@ All 6 stories in Phase 1 (Foundation) are complete:
 
 **Next story:** M1-E2-S2 - Extract query group to cli/query.py
 
-### M1-E2-S2: Pending
-Extract query group to cli/query.py
+### M1-E2-S2: Extract query group to cli/query.py ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Created cli/query.py with Click group structure
+- Extracted 4 commands and remapped to new group structure:
+  - run → query run
+  - interactive → query interactive
+  - resume → query resume
+  - debug-memory → query debug
+- Registered query group in main.py: cli.add_command(query)
+- Removed all 4 old commands from main.py
+- Removed 4 helper functions: _render_todos, _render_stream, _run_task, _interactive_session
+
+**Files created:**
+- app/modules/autonomous_agent/cli/query.py (~500 lines)
+
+**Files modified:**
+- app/modules/autonomous_agent/main.py (added import, registration, removed old commands)
+
+**Command examples:**
+- kai query run "Analyze sales by region" --db <conn_id>
+- kai query interactive --db <conn_id>
+- kai query resume <session_id>
+- kai query debug <session_id>
+
+**Acceptance criteria:**
+✓ Query group created with all 4 commands
+✓ All commands work in new structure
+✓ Old commands removed from main CLI
+✓ CLI loads without errors
+✓ Breaking changes verified
+
+**Migration path for users:**
+- Old: kai run "analyze sales" --db <conn_id>
+- New: kai query run "analyze sales" --db <conn_id>
+
+**Next story:** M1-E2-S3 - Extract session group to cli/session.py
 
 ### M1-E2-S3: Pending
 Extract session group to cli/session.py
