@@ -448,3 +448,48 @@ All 6 stories in Phase 2 (Core Query Workflow) are complete:
 
 ## Phase 3: Advanced Features (M1-E3)
 ### (Stories not yet defined)
+
+### M1-E3-S1: Extract dashboard group to cli/dashboard.py ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Created cli/dashboard.py with Click group structure (~500 lines)
+- Extracted 7 commands and remapped to new group structure:
+  - create-dashboard → dashboard create
+  - list-dashboards → dashboard list
+  - show-dashboard → dashboard show
+  - execute-dashboard → dashboard execute
+  - render-dashboard → dashboard render
+  - delete-dashboard → dashboard delete
+  - refine-dashboard → dashboard refine
+- Registered dashboard group in main.py: cli.add_command(dashboard)
+- Removed all 7 old commands from main.py (~330 lines removed)
+
+**Files created:**
+- app/modules/autonomous_agent/cli/dashboard.py (~500 lines)
+
+**Files modified:**
+- app/modules/autonomous_agent/main.py (added import, registration, removed ~330 lines)
+
+**Command examples:**
+- kai dashboard create "Sales dashboard" --db <conn_id> [--title] [--description]
+- kai dashboard list --db <conn_id> [-v]
+- kai dashboard show <dashboard_id>
+- kai dashboard execute <dashboard_id> [--save] [--format markdown]
+- kai dashboard render <dashboard_id> -f <file> [--format html|json]
+- kai dashboard delete <dashboard_id> [-f]
+- kai dashboard refine <dashboard_id> <request>
+
+**Acceptance criteria:**
+✓ Dashboard group created with all 7 commands
+✓ All commands work in new structure
+✓ Old commands removed from main CLI
+✓ CLI loads without errors
+✓ Breaking changes verified
+
+**Migration path for users:**
+- Old: kai create-dashboard "Sales dashboard" --db <conn_id>
+- New: kai dashboard create "Sales dashboard" --db <conn_id>
+
+**Next story:** M1-E3-S2 - Extract knowledge glossary sub-group
+
