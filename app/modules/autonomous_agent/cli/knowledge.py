@@ -663,8 +663,348 @@ def delete_instruction(instruction_id: str, force: bool):
         console.print(f"\n[red]✖ Failed to delete instruction:[/red] {str(e)}")
 
 
+@click.group()
+def skill():
+    """AI skill management - reusable analysis patterns."""
+    pass
+
+
+@skill.command("discover")
+@click.argument("db_connection_id")
+@click.option("--path", "-p", default="./.skills", help="Path to skills directory")
+@click.option("--sync/--no-sync", "sync_to_storage", default=True, help="Sync discovered skills to storage")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed output")
+def discover_skills(db_connection_id: str, path: str, sync_to_storage: bool, verbose: bool):
+    """Discover and sync skills from a directory.
+
+    Scans the specified directory (default: ./.skills) for SKILL.md files
+    and syncs them to TypeSense storage.
+
+    Examples:
+
+        # Discover skills from default path
+        kai knowledge skill discover abc123
+
+        # Discover from custom path
+        kai knowledge skill discover abc123 --path /path/to/skills
+
+        # Preview without syncing
+        kai knowledge skill discover abc123 --no-sync
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from pathlib import Path
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.skill.services import SkillService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = SkillService(storage)
+
+    skills_path = Path(path)
+    console.print(f"[bold]Discovering skills in:[/bold] {skills_path.absolute()}")
+    console.print(f"[dim]Sync to storage: {'Yes' if sync_to_storage else 'No (preview only)'}[/dim]")
+
+    try:
+        result = service.discover_skills(
+            db_connection_id, skills_path, sync_to_storage=sync_to_storage
+        )
+
+        if result.total_found == 0:
+            console.print("\n[yellow]No skills found[/yellow]")
+            console.print(f"[dim]Expected SKILL.md files in subdirectories of {path}[/dim]")
+            return
+
+        console.print(f"\n[green]✔ Discovered {result.total_found} skill(s)[/green]")
+
+        for skill in result.skills:
+            status = "[green]active[/green]" if skill.is_active else "[dim]inactive[/dim]"
+            console.print(f"  • [bold]{skill.skill_id}[/bold] ({skill.name}) {status}")
+            console.print(f"    [dim]{skill.description}[/dim]")
+            if verbose:
+                console.print(f"    [dim]File: {skill.file_path}[/dim]")
+
+        if result.total_errors > 0:
+            console.print(f"\n[yellow]⚠ {result.total_errors} error(s):[/yellow]")
+            for error in result.errors:
+                console.print(f"  [red]✖[/red] {error}")
+
+    except Exception as e:
+        console.print(f"\n[red]✖ Discovery failed:[/red] {str(e)}")
+
+
+@skill.command("list")
+@click.argument("db_connection_id")
+@click.option("--active-only", "-a", is_flag=True, help="Show only active skills")
+@click.option("--category", "-c", help="Filter by category")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed output")
+def list_skills(db_connection_id: str, active_only: bool, category: str, verbose: bool):
+    """List all skills for a database connection.
+
+    Examples:
+
+        kai knowledge skill list abc123
+
+        kai knowledge skill list abc123 --active-only
+
+        kai knowledge skill list abc123 --category analysis
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.skill.services import SkillService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = SkillService(storage)
+
+    if active_only:
+        skills = service.get_active_skills(db_connection_id)
+    else:
+        skills = service.get_skills(db_connection_id)
+
+    # Filter by category if specified
+    if category:
+        skills = [s for s in skills if s.category == category]
+
+    if not skills:
+        console.print("[yellow]No skills found[/yellow]")
+        console.print(f"[dim]Discover skills with: kai knowledge skill discover {db_connection_id}[/dim]")
+        return
+
+    console.print(f"[bold]Skills ({len(skills)} total):[/bold]\n")
+
+    # Group by category
+    by_category: dict = {}
+    for skill in skills:
+        cat = skill.category or "uncategorized"
+        if cat not in by_category:
+            by_category[cat] = []
+        by_category[cat].append(skill)
+
+    for cat, cat_skills in sorted(by_category.items()):
+        console.print(f"[cyan]{cat.upper()}[/cyan]")
+        for skill in cat_skills:
+            status = "[green]●[/green]" if skill.is_active else "[dim]○[/dim]"
+            tags_str = f" [dim]({', '.join(skill.tags)})[/dim]" if skill.tags else ""
+            console.print(f"  {status} [bold]{skill.skill_id}[/bold]: {skill.name}{tags_str}")
+            desc = skill.description[:80] + "..." if len(skill.description) > 80 else skill.description
+            console.print(f"      [dim]{desc}[/dim]")
+            if verbose:
+                console.print(f"      [dim]File: {skill.file_path}[/dim]")
+        console.print()
+
+
+@skill.command("show")
+@click.argument("skill_id")
+@click.option("--content", "-c", is_flag=True, help="Show full content")
+def show_skill(skill_id: str, content: bool):
+    """Show details of a specific skill.
+
+    Example:
+
+        kai knowledge skill show analysis/revenue
+
+        kai knowledge skill show data-quality --content
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.skill.services import SkillService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = SkillService(storage)
+
+    try:
+        # Need to extract db_connection_id from skill_id or ask user
+        # For now, we'll search across all connections
+        console.print("[yellow]Warning:[/yellow] This command requires knowing the database connection ID.")
+        console.print("[dim]Please use 'kai knowledge skill list <db_connection_id>' to find skills.[/dim]")
+        console.print("[dim]Alternatively, use the search command to find skills.[/dim]")
+        return
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+        return
+
+
+@skill.command("search")
+@click.argument("query")
+@click.option("--db-connection-id", "-d", help="Database connection ID (optional)")
+@click.option("--limit", "-l", default=5, help="Maximum number of results")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed output")
+def search_skills(query: str, db_connection_id: str, limit: int, verbose: bool):
+    """Search for skills by keyword or description.
+
+    Uses semantic search to find relevant skills.
+
+    Examples:
+
+        kai knowledge skill search "revenue analysis"
+
+        kai knowledge skill search "data quality" --limit 10
+
+        kai knowledge skill search "revenue" -d abc123
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.skill.services import SkillService
+
+    if not db_connection_id:
+        console.print("[yellow]Warning:[/yellow] Searching across all connections may be slow.")
+        console.print("[dim]Specify --db-connection-id for faster results.[/dim]")
+        return
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = SkillService(storage)
+
+    console.print(f"[bold]Searching for:[/bold] {query}")
+
+    try:
+        skills = service.find_relevant_skills(db_connection_id, query, limit=limit)
+
+        if not skills:
+            console.print("\n[yellow]No skills found matching your query[/yellow]")
+            console.print("[dim]Try different keywords or use list to see all available[/dim]")
+            return
+
+        console.print(f"\n[green]Found {len(skills)} skill(s):[/green]\n")
+
+        for i, skill in enumerate(skills, 1):
+            status = "[green]●[/green]" if skill.is_active else "[dim]○[/dim]"
+            console.print(f"{i}. {status} [bold]{skill.skill_id}[/bold]: {skill.name}")
+            console.print(f"   [dim]{skill.description}[/dim]")
+            if verbose:
+                console.print(f"   [dim]Category: {skill.category or 'None'}[/dim]")
+                console.print(f"   [dim]Tags: {', '.join(skill.tags) if skill.tags else 'None'}[/dim]")
+            console.print()
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+
+
+@skill.command("reload")
+@click.argument("skill_id")
+@click.option("--db-connection-id", "-d", required=True, help="Database connection ID")
+@click.option("--path", "-p", default="./.skills", help="Path to skills directory")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed output")
+def reload_skill(skill_id: str, db_connection_id: str, path: str, verbose: bool):
+    """Reload a skill from its file.
+
+    Use this after modifying a SKILL.md file to sync changes to storage.
+
+    Examples:
+
+        kai knowledge skill reload analysis/revenue -d abc123
+
+        kai knowledge skill reload data-quality -d abc123 --path /custom/path
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from pathlib import Path
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.skill.services import SkillService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = SkillService(storage)
+
+    skills_path = Path(path)
+    console.print(f"[bold]Reloading skill:[/bold] {skill_id}")
+    console.print(f"[dim]From: {skills_path.absolute()}/{skill_id}/SKILL.md[/dim]")
+
+    try:
+        skill = service.reload_skill_from_file(db_connection_id, skill_id, skills_path)
+
+        console.print(f"\n[green]✔ Skill reloaded successfully![/green]")
+        console.print(Panel(
+            f"[bold]Skill ID:[/bold] {skill.skill_id}\n"
+            f"[bold]Name:[/bold] {skill.name}\n"
+            f"[bold]Description:[/bold] {skill.description}\n"
+            f"[bold]Updated:[/bold] {skill.updated_at}",
+            title="Reloaded Skill",
+            border_style="green"
+        ))
+
+    except Exception as e:
+        console.print(f"\n[red]✖ Failed to reload skill:[/red] {str(e)}")
+
+
+@skill.command("delete")
+@click.argument("skill_id")
+@click.option("--db-connection-id", "-d", required=True, help="Database connection ID")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+def delete_skill(skill_id: str, db_connection_id: str, force: bool):
+    """Delete a skill from storage.
+
+    This removes the skill from TypeSense storage. The SKILL.md file is not deleted.
+
+    Examples:
+
+        kai knowledge skill delete analysis/revenue -d abc123
+
+        kai knowledge skill delete data-quality -d abc123 --force
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.skill.services import SkillService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = SkillService(storage)
+
+    try:
+        skill = service.get_skill_by_skill_id(db_connection_id, skill_id)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+        return
+
+    console.print(f"[bold]Skill to delete:[/bold]")
+    console.print(f"  ID: {skill.skill_id}")
+    console.print(f"  Name: {skill.name}")
+    console.print(f"  Category: {skill.category or 'None'}")
+
+    if not force:
+        console.print("\n[dim]Note: This only removes the skill from storage.")
+        console.print("The SKILL.md file will not be deleted.[/dim]")
+        if not click.confirm("\nAre you sure you want to delete this skill?"):
+            console.print("[dim]Cancelled[/dim]")
+            return
+
+    try:
+        service.delete_skill(db_connection_id, skill_id)
+        console.print(f"\n[green]✔ Skill deleted successfully![/green]")
+
+    except Exception as e:
+        console.print(f"\n[red]✖ Failed to delete skill:[/red] {str(e)}")
+
+
 # Register glossary sub-group under knowledge
 knowledge.add_command(glossary)
 
 # Register instruction sub-group under knowledge
 knowledge.add_command(instruction)
+
+# Register skill sub-group under knowledge
+knowledge.add_command(skill)

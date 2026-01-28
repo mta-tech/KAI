@@ -576,3 +576,45 @@ All 6 stories in Phase 2 (Core Query Workflow) are complete:
 
 **Next story:** M1-E3-S4 - Extract knowledge skill sub-group
 
+
+### M1-E3-S4: Extract knowledge skill sub-group ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Added skill sub-group to existing cli/knowledge.py (~300 lines added)
+- Created skill sub-group with @click.group()
+- Extracted 6 commands and remapped to new nested structure:
+  - discover-skills → knowledge skill discover
+  - list-skills → knowledge skill list
+  - show-skill → knowledge skill show
+  - search-skills → knowledge skill search
+  - reload-skill → knowledge skill reload
+  - delete-skill → knowledge skill delete
+- Registered skill sub-group under knowledge group
+- Removed all 6 old skill commands from main.py (~317 lines removed)
+
+**Files modified:**
+- app/modules/autonomous_agent/cli/knowledge.py (added ~300 lines)
+- app/modules/autonomous_agent/main.py (removed ~317 lines)
+
+**Command examples:**
+- kai knowledge skill discover <db_id> [--auto-add] [-v]
+- kai knowledge skill list <db_id> [--active-only] [-v]
+- kai knowledge skill show <skill_id>
+- kai knowledge skill search <query> [-d <db_id>] [-v]
+- kai knowledge skill reload <skill_id> -d <db_id> [-v]
+- kai knowledge skill delete <skill_id> -d <db_id> [-f]
+
+**Acceptance criteria:**
+✓ Skill sub-group added to knowledge.py
+✓ All 6 skill commands work in new structure
+✓ Old commands removed from main CLI
+✓ CLI loads without errors
+✓ Breaking changes verified
+
+**Migration path for users:**
+- Old: kai discover-skills <db_id>
+- New: kai knowledge skill discover <db_id>
+
+**Next story:** M1-E3-S5 - Extract knowledge memory sub-group
+
