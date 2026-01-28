@@ -213,11 +213,67 @@ All 6 stories in Phase 1 (Foundation) are complete:
 - Extract query group (4 commands)
 - Extract session group (6 commands)
 
-## M1-E1-S4: Pending
-Extract connection group to cli/connection.py
+## Phase 2: Core Query Workflow (M1-E2)
 
-## M1-E1-S5: Pending
-Add tests for connection and config groups
+### M1-E2-S1: Extract table group to cli/table.py ✅
+**Completed:** 2026-01-29
 
-## M1-E1-S6: Pending
-Verify old commands no longer work, new groups work
+**Summary:**
+- Created cli/table.py with Click group structure (~1,009 lines)
+- Extracted 7 commands and remapped to new group structure:
+  - list-tables → table list
+  - show-table → table show
+  - refresh-tables → table refresh
+  - scan-tables → table scan
+  - scan-all → table scan-all
+  - db-context → table context
+  - search-tables → table search
+- Registered table group in main.py: cli.add_command(table)
+- Removed all 7 old commands from main.py (~299 lines removed)
+- Removed 3 helper functions: _build_json_context, _build_markdown_context, _build_text_context
+
+**Files created:**
+- app/modules/autonomous_agent/cli/table.py (~1,009 lines)
+
+**Files modified:**
+- app/modules/autonomous_agent/main.py (added import, registration, removed ~299 lines)
+
+**Command examples:**
+- kai table list <conn_id>
+- kai table show <table_id>
+- kai table refresh <conn_id>
+- kai table scan <conn_id> [-t table_id]
+- kai table scan-all <conn_id> [-d] [-m]
+- kai table context <conn_id>
+- kai table search <conn_id> <pattern>
+
+**Acceptance criteria:**
+✓ Table group created with all 7 commands
+✓ All commands work in new structure
+✓ Old commands removed from main CLI
+✓ CLI loads without errors
+✓ Breaking changes verified (old commands fail)
+
+**Migration path for users:**
+- Old: kai list-tables <conn_id>
+- New: kai table list <conn_id>
+
+**Next story:** M1-E2-S2 - Extract query group to cli/query.py
+
+### M1-E2-S2: Pending
+Extract query group to cli/query.py
+
+### M1-E2-S3: Pending
+Extract session group to cli/session.py
+
+### M1-E2-S4: Pending
+Update cross-group dependencies
+
+### M1-E2-S5: Pending
+Test end-to-end query workflow
+
+### M1-E2-S6: Pending
+Update help text with workflow examples
+
+## Phase 3: Advanced Features (M1-E3)
+### (Stories not yet defined)
