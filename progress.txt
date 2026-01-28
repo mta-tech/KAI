@@ -343,8 +343,59 @@ All 6 stories in Phase 1 (Foundation) are complete:
 ### M1-E2-S4: Pending
 Update cross-group dependencies
 
-### M1-E2-S5: Pending
-Test end-to-end query workflow
+### M1-E2-S5: Test end-to-end query workflow ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Verified all 6 command groups are registered and accessible
+- Tested CLI loads without errors
+- Verified help text uses new syntax for all extracted commands
+- Tested end-to-end workflow functionality
+- Created comprehensive verification report
+
+**Verification results:**
+✓ All command groups work: config, connection, table, query, session, mdl
+✓ CLI loads successfully with no import errors
+✓ Help text uses new syntax (kai <group> <command>)
+✓ End-to-end workflow functional (can list connections, sessions, etc.)
+
+**Files created:**
+- docs/verification/2026-01-29-cli-refactor-phase2-verification.md
+
+**Breaking changes summary for Phase 2:**
+Table commands (7):
+- kai list-tables → kai table list
+- kai show-table → kai table show
+- kai refresh-tables → kai table refresh
+- kai scan-tables → kai table scan
+- kai scan-all → kai table scan-all
+- kai db-context → kai table context
+- kai search-tables → kai table search
+
+Query commands (4):
+- kai run → kai query run
+- kai interactive → kai query interactive
+- kai resume → kai query resume
+- kai debug-memory → kai query debug
+
+Session commands (5):
+- kai list-sessions → kai session list
+- kai show-session → kai session show
+- kai export-session → kai session export
+- kai delete-session → kai session delete
+- kai clear-sessions → kai session clear
+
+**Acceptance criteria:**
+✓ Complete workflow works: connection → table → query → session
+✓ All command groups accessible
+✓ No cross-group dependency issues
+✓ Help text uses correct syntax
+
+**Issues identified (non-blocking):**
+- Main docstring still uses old kai-agent syntax (update in M1-E2-S6)
+- 30+ commands not yet extracted (glossary, instruction, memory, skill, dashboard)
+
+**Next story:** M1-E2-S6 - Update help text with workflow examples
 
 ### M1-E2-S6: Pending
 Update help text with workflow examples
