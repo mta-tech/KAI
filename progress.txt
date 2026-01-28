@@ -299,8 +299,46 @@ All 6 stories in Phase 1 (Foundation) are complete:
 
 **Next story:** M1-E2-S3 - Extract session group to cli/session.py
 
-### M1-E2-S3: Pending
-Extract session group to cli/session.py
+### M1-E2-S3: Extract session group to cli/session.py ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Created cli/session.py with Click group structure
+- Extracted 5 commands and remapped to new group structure:
+  - list-sessions → session list
+  - show-session → session show
+  - export-session → session export
+  - delete-session → session delete
+  - clear-sessions → session clear
+- Registered session group in main.py: cli.add_command(session)
+- Removed all 5 old commands from main.py
+- Removed 5 async implementation functions
+
+**Files created:**
+- app/modules/autonomous_agent/cli/session.py (~400 lines)
+
+**Files modified:**
+- app/modules/autonomous_agent/main.py (added import, registration, removed old commands)
+
+**Command examples:**
+- kai session list [--db <conn_id>]
+- kai session show <session_id>
+- kai session export <session_id> -o <file>
+- kai session delete <session_id>
+- kai session clear [--db <conn_id>]
+
+**Acceptance criteria:**
+✓ Session group created with all 5 commands
+✓ All commands work in new structure
+✓ Old commands removed from main CLI
+✓ CLI loads without errors
+✓ Breaking changes verified
+
+**Migration path for users:**
+- Old: kai list-sessions
+- New: kai session list
+
+**Next story:** M1-E2-S4 - Update cross-group dependencies
 
 ### M1-E2-S4: Pending
 Update cross-group dependencies
