@@ -764,6 +764,12 @@ def debug_memory(session_id: str, db_connection_id: str):
         console.print(f"[red]Error deleting connection:[/red] {e}")
         raise click.Abort()
 
+@cli.command()
+@click.argument("db_connection_id")
+@click.option("--alias", "-a", help="New alias for the connection")
+@click.option("--schema", "-s", "schemas", multiple=True, help="New schema(s) to use (replaces existing)")
+@cli.command()
+@click.argument("db_connection_id")
 @click.option("--table", "-t", "table_ids", multiple=True, help="Specific table ID(s) to scan (scans all if not specified)")
 @click.option("--with-descriptions", "-d", is_flag=True, help="Generate AI descriptions for tables and columns")
 @click.option("--model-family", default="google", help="LLM model family (openai, google, ollama)")

@@ -764,6 +764,85 @@ def debug_memory(session_id: str, db_connection_id: str):
         console.print(f"[red]Error deleting connection:[/red] {e}")
         raise click.Abort()
 
+@cli.command()
+@click.argument("db_connection_id")
+@click.option("--alias", "-a", help="New alias for the connection")
+@click.option("--schema", "-s", "schemas", multiple=True, help="New schema(s) to use (replaces existing)")
+@click.option("--metadata", "-m", type=str, help="JSON metadata for the connection")
+@click.option("--uri", "-u", "connection_uri", help="New connection URI")
+def update_connection(db_connection_id: str, alias: str, schemas: tuple, metadata: str, connection_uri: str):
+    """Update an existing database connection.
+
+    Examples:
+
+        kai-agent update-connection abc123 --alias new_name
+
+        kai-agent update-connection abc123 -s public -s analytics
+
+        kai-agent update-connection abc123 --uri "postgresql://user:pass@newhost:5432/db"
+    """
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.api.requests import DatabaseConnectionRequest
+    from app.modules.database_connection.services import DatabaseConnectionService
+    from app.modules.database_connection.repositories import DatabaseConnectionRepository
+    from app.utils.sql_database.scanner import SqlAlchemyScanner
+    from app.utils.core.encrypt import FernetEncrypt
+
+    settings = Settings()
+    storage = Storage(settings)
+    scanner = SqlAlchemyScanner()
+    service = DatabaseConnectionService(scanner, storage)
+    db_repo = DatabaseConnectionRepository(storage)
+
+    # Get existing connection
+    db_connection = db_repo.find_by_id(db_connection_id)
+    if not db_connection:
+        console.print(f"[red]Error:[/red] Connection '{db_connection_id}' not found")
+        return
+
+    # Parse metadata if provided
+    meta_dict = db_connection.metadata
+    if metadata:
+        try:
+            meta_dict = json.loads(metadata)
+        except json.JSONDecodeError:
+            console.print("[red]Error:[/red] Invalid JSON in metadata")
+            return
+
+    # Use existing values if not provided
+    fernet = FernetEncrypt()
+    existing_uri = fernet.decrypt(db_connection.connection_uri) if not connection_uri else connection_uri
+
+    request = DatabaseConnectionRequest(
+        alias=alias or db_connection.alias,
+        connection_uri=existing_uri,
+        schemas=list(schemas) if schemas else db_connection.schemas,
+        metadata=meta_dict,
+    )
+
+    console.print(f"[bold]Updating connection '{db_connection.alias}'...[/bold]")
+
+    try:
+        with console.status("[bold cyan]Updating connection and rescanning tables...[/bold cyan]"):
+            updated_connection = service.update_database_connection(db_connection_id, request)
+
+        console.print(f"\n[green]✔ Connection updated successfully![/green]")
+        console.print(Panel(
+            f"[bold]ID:[/bold] {updated_connection.id}\n"
+            f"[bold]Alias:[/bold] {updated_connection.alias}\n"
+            f"[bold]Dialect:[/bold] {updated_connection.dialect}\n"
+            f"[bold]Schemas:[/bold] {', '.join(updated_connection.schemas)}",
+            title="Updated Connection",
+            border_style="green"
+        ))
+
+    except Exception as e:
+        console.print(f"\n[red]✖ Failed to update connection:[/red] {str(e)}")
+
+
+@cli.command()
+@click.argument("db_connection_id")
 @click.option("--table", "-t", "table_ids", multiple=True, help="Specific table ID(s) to scan (scans all if not specified)")
 @click.option("--with-descriptions", "-d", is_flag=True, help="Generate AI descriptions for tables and columns")
 @click.option("--model-family", default="google", help="LLM model family (openai, google, ollama)")

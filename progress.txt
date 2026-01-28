@@ -80,8 +80,46 @@
 
 **Next story:** M1-E1-S4 - Extract connection group to cli/connection.py
 
-## M1-E1-S4: Pending
-Extract connection group to cli/connection.py
+## M1-E1-S4: Extract connection group to cli/connection.py ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Created cli/connection.py with Click group structure (~460 lines)
+- Extracted 6 commands and remapped to new group structure:
+  - create-connection → connection create
+  - list-connections → connection list
+  - show-connection → connection show
+  - update-connection → connection update
+  - delete-connection → connection delete
+  - test-connection → connection test
+- Registered connection group in main.py: cli.add_command(connection)
+- Removed old commands from main.py (~180 lines removed)
+- All commands use ensure_typesense_or_prompt() for Typesense dependency
+
+**Files created:**
+- app/modules/autonomous_agent/cli/connection.py (~460 lines)
+
+**Files modified:**
+- app/modules/autonomous_agent/main.py (added import, registration, removed old commands)
+
+**Command examples:**
+- kai connection create "postgresql://..." -a mydb
+- kai connection list
+- kai connection show abc123
+- kai connection update abc123 --alias new_name
+- kai connection delete abc123
+- kai connection test "postgresql://..."
+
+**Acceptance criteria:**
+✓ Connection group created with all 6 commands
+✓ All commands work in new structure
+✓ Old commands removed from main CLI
+✓ CLI loads without errors
+
+**Next story:** M1-E1-S5 - Add tests for connection and config groups
+
+## M1-E1-S5: Pending
+Add tests for connection and config groups
 
 ## M1-E1-S4: Pending
 Extract connection group to cli/connection.py
