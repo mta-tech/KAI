@@ -671,3 +671,41 @@ All 6 stories in Phase 2 (Core Query Workflow) are complete:
 
 **Next story:** M1-E3-S6 - Extract MDL group to cli/mdl.py
 
+
+### M1-E3-S6: Extract MDL group to cli/mdl.py ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Created cli/mdl.py with Click group structure (~300 lines)
+- Extracted 2 commands from inline MDL group in main.py:
+  - mdl list → mdl list (same structure, now in separate module)
+  - mdl show → mdl show (same structure, now in separate module)
+- Registered MDL group in main.py: cli.add_command(mdl)
+- Removed inline MDL commands from main.py (~433 lines removed)
+- Moved helper functions: _resolve_manifest_identifier, _display_manifest_terminal, _manifest_to_markdown
+
+**Files created:**
+- app/modules/autonomous_agent/cli/mdl.py (~300 lines)
+
+**Files modified:**
+- app/modules/autonomous_agent/main.py (added import, registration, removed ~433 lines)
+
+**Command examples:**
+- kai mdl list [--db <db_id>] [--manifest <manifest_id>] [-v]
+- kai mdl show <manifest_id> [--summary] [-f terminal|json|markdown] [-o <file>]
+
+**Acceptance criteria:**
+✓ MDL group created with all 2 commands
+✓ All commands work in new structure
+✓ Old inline commands removed from main CLI
+✓ CLI loads without errors
+✓ Helper functions properly migrated
+
+**Migration path for users:**
+- Old: kai mdl list (still works, same syntax)
+- New: kai mdl list (same, but now from separate module)
+
+**Note:** MCP list command remains in main.py (not part of MDL extraction)
+
+**Next story:** M1-E3-S7 - Final cleanup and verification
+
