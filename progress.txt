@@ -397,8 +397,54 @@ Session commands (5):
 
 **Next story:** M1-E2-S6 - Update help text with workflow examples
 
-### M1-E2-S6: Pending
-Update help text with workflow examples
+### M1-E2-S6: Update help text with workflow examples ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Updated main.py module docstring with new grouped command syntax
+- Added complete query workflow example at top of docstring
+- Updated all connection command examples: kai-agent → kai connection
+- Updated all config command examples: kai-agent → kai config
+- Updated all MDL command examples: kai-agent → kai mdl
+- Marked unrefactored commands (glossary, instruction, skill, memory) for future phases
+- Added explanatory note about command reorganization
+
+**Files modified:**
+- app/modules/autonomous_agent/main.py (docstring updated)
+
+**Docstring improvements:**
+- Clear workflow example: connection → table → query → session
+- Consistent syntax throughout: kai <group> <command>
+- Migration path visible for users
+- Future work clearly marked
+
+**Acceptance criteria:**
+✓ Help text uses correct syntax for all extracted commands
+✓ Workflow examples guide users through complete process
+✓ Old syntax references removed where applicable
+✓ Future phases clearly documented
+
+**Phase 2 Status:** ✅ COMPLETE
+
+All 6 stories in Phase 2 (Core Query Workflow) are complete:
+- M1-E2-S1: Extract table group ✅
+- M1-E2-S2: Extract query group ✅
+- M1-E2-S3: Extract session group ✅
+- M1-E2-S4: Update cross-group dependencies ✅ (already working)
+- M1-E2-S5: Test end-to-end query workflow ✅
+- M1-E2-S6: Update help text with workflow examples ✅
+
+**Total commands extracted in Phase 2:** 16 commands
+- Table: 7 commands
+- Query: 4 commands
+- Session: 5 commands
+
+**Breaking changes in Phase 2:** 16 old commands no longer work
+
+**Next Phase:** M1-E3 - Advanced Features
+- Extract dashboard group (7 commands)
+- Extract knowledge group with sub-groups (24 commands)
+- Complete remaining command extractions
 
 ## Phase 3: Advanced Features (M1-E3)
 ### (Stories not yet defined)
