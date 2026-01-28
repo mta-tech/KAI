@@ -17,29 +17,28 @@ Before you begin, ensure you have the following installed:
 
 ### Required
 
-1. **Python 3.11+**
-   ```bash
-   python --version  # Should be 3.11 or higher
-   ```
-   [Download Python](https://www.python.org/downloads/)
+1.  **Python 3.11+**
+    ```bash
+    python --version  # Should be 3.11 or higher
+    ```    [Download Python](https://www.python.org/downloads/)
 
-2. **uv Package Manager**
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-   [uv Documentation](https://github.com/astral-sh/uv)
+2.  **uv Package Manager**
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
+    [uv Documentation](https://github.com/astral-sh/uv)
 
-3. **Docker & Docker Compose**
-   ```bash
-   docker --version
-   docker compose version
-   ```
-   [Install Docker](https://docs.docker.com/get-docker/)
+3.  **Docker & Docker Compose**
+    ```bash
+    docker --version
+    docker compose version
+    ```
+    [Install Docker](https://docs.docker.com/get-docker/)
 
-4. **Git**
-   ```bash
-   git --version
-   ```
+4.  **Git**
+    ```bash
+    git --version
+    ```
 
 ### Optional
 
@@ -166,7 +165,7 @@ Copy the output (e.g., `4Mbe2GYx0Hk94o_f-irVHk1fKkCGAt1R7LLw5wHVghI=`) and set i
 
 ### 1. Verify Installation
 
-Check that all services are running:
+Check that the API and Typesense services are running:
 
 ```bash
 # API health check
@@ -179,177 +178,133 @@ curl http://localhost:8108/health
 open http://localhost:8015/docs
 ```
 
-### 2. Create Your First Database Connection
+### 2. Create a Database Connection
 
-Using the API:
+All interactions with KAI require a database connection. You can create one via the API.
 
 ```bash
+# Example for PostgreSQL
+DB_ID="my_postgres_db"
 curl -X POST http://localhost:8015/api/v1/database-connections \
   -H "Content-Type: application/json" \
   -d '{
-    "alias": "my_postgres",
+    "id": "'"$DB_ID"'",
+    "alias": "My PostgreSQL DB",
     "connection_uri": "postgresql://user:pass@localhost:5432/mydb",
-    "use_ssh": false
+    "schemas": ["public"]
   }'
 ```
+**Note:** Replace `"id"`, `"alias"`, `"connection_uri"`, and `"schemas"` with your actual database details. The `id` you provide will be used in subsequent CLI commands.
 
-Or using the CLI:
+### 3. Using the KAI Agent CLI
 
+The `kai-agent` CLI is the primary way to interact with the autonomous agent.
+
+#### List Connections
+Verify that your newly created connection is available:
 ```bash
-uv run kai-agent create-connection \
-  "postgresql://user:pass@localhost:5432/mydb" \
-  -a my_postgres
-```
+uv run kai-agent list-connections
+```You should see `my_postgres_db` (or the ID you chose) in the output.
 
-### 3. Scan Database Schema
-
-Let KAI learn about your database structure:
-
+#### Interactive Mode
+Start an interactive session to ask questions conversationally:
 ```bash
-# Scan all tables
-uv run kai-agent scan-all my_postgres
-
-# With AI-generated descriptions (recommended)
-uv run kai-agent scan-all my_postgres -d
+uv run kai-agent interactive --db my_postgres_db
+```
+Once in the session, you can ask questions like:
+```
+> Show me total sales by month.
+> Which products are the most popular?
+> Analyze customer churn patterns.
 ```
 
-This analyzes your tables and generates descriptions to help the AI understand your data.
-
-### 4. Your First Query
-
-#### Via API
-
+#### Run a Single Task
+Execute a single, one-off analysis task:
 ```bash
-curl -X POST http://localhost:8015/api/v1/prompts/sql-generations/nl-generations \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt_text": "Show me the top 10 customers by revenue",
-    "db_connection_id": "your-connection-id"
-  }'
+uv run kai-agent run "Show top 10 customers by revenue" --db my_postgres_db
 ```
 
-#### Via CLI (Interactive Mode)
+You can specify different modes for the agent:
+- `full_autonomy` (default): The agent has full control to achieve the goal.
+- `analysis`: The agent focuses on generating insights and visualizations.
+- `query`: The agent primarily generates and executes SQL queries.
+- `script`: The agent writes and executes scripts (e.g., for data cleaning).
 
+Example with a specific mode:
 ```bash
-uv run kai-agent interactive --db my_postgres
+uv run kai-agent run "Analyze customer churn patterns" --db my_postgres_db --mode analysis
 ```
 
-Then ask questions naturally:
-```
-> Show me total sales by month
-> Which products are most popular?
-> Forecast sales for next 30 days
-```
+### 4. Starting the Temporal Worker
 
-#### Via CLI (One-Shot)
-
+The Temporal worker is required for certain asynchronous background tasks.
 ```bash
-uv run kai-agent run "Show top 10 customers by revenue" --db my_postgres
-```
-
-### 5. View Results
-
-The response includes:
-- **Generated SQL** - The query KAI created
-- **Results** - Query execution results
-- **Natural Language** - Human-readable explanation
-
-Example response:
-```json
-{
-  "sql": "SELECT customer_name, SUM(amount) as revenue FROM orders GROUP BY customer_name ORDER BY revenue DESC LIMIT 10",
-  "results": [...],
-  "explanation": "Here are the top 10 customers ranked by total revenue..."
-}
+uv run kai-agent worker
 ```
 
 ## Example Workflows
 
-### Workflow 1: Database Analysis
+### Workflow 1: Quick Analysis with the CLI
+
+This workflow is ideal for developers and analysts who want to quickly get insights from their data.
 
 ```bash
-# 1. Connect to database
-uv run kai-agent create-connection \
-  "postgresql://localhost:5432/sales" \
-  -a sales_db
+# 1. List available database connections
+uv run kai-agent list-connections
 
-# 2. Scan schema
-uv run kai-agent scan-all sales_db -d
+# 2. Start an interactive session with your desired database
+uv run kai-agent interactive --db your_db_id
 
-# 3. Ask analytical questions
-uv run kai-agent run "What's the distribution of orders by status?" --db sales_db
-uv run kai-agent run "Show monthly revenue trend" --db sales_db
-uv run kai-agent run "Identify top 5 products by profit margin" --db sales_db
+# 3. Ask analytical questions within the interactive session
+> What's the distribution of orders by status?
+> Show the monthly revenue trend for the last year.
+> Identify the top 5 products by profit margin.
 ```
 
-### Workflow 2: Dashboard Creation
+### Workflow 2: Integrating with Applications via API
 
-Using the API to create a dashboard from natural language:
-
-```bash
-curl -X POST http://localhost:8015/api/v1/dashboards \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Sales Overview",
-    "description": "Create a dashboard showing total revenue, top products, monthly trends, and customer distribution",
-    "db_connection_id": "your-connection-id"
-  }'
-```
-
-### Workflow 3: Advanced Analytics
+This workflow is for developers building KAI into their own applications.
 
 ```bash
-# Time series forecasting
-curl -X POST http://localhost:8015/api/v1/analytics/forecast \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sql_generation_id": "your-sql-id",
-    "periods": 30,
-    "confidence_level": 0.95
-  }'
+# 1. Create a database connection via API
+curl -X POST http://localhost:8015/api/v1/database-connections -d '{...}'
 
-# Anomaly detection
-curl -X POST http://localhost:8015/api/v1/analytics/detect-anomalies \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sql_generation_id": "your-sql-id",
-    "sensitivity": 0.05
-  }'
+# 2. Trigger an autonomous agent task via API
+curl -X POST http://localhost:8015/api/v2/agent/execute -d '{
+  "prompt": "Create a dashboard showing total revenue, top products, and monthly trends.",
+  "db_connection_id": "your_db_id"
+}'
 
-# Statistical analysis
-curl -X POST http://localhost:8015/api/v1/analytics/statistical-summary \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sql_generation_id": "your-sql-id"
-  }'
+# 3. The API will stream back events, including the final result,
+# which could be a dashboard configuration, a chart, or a natural language answer.
 ```
 
 ## Next Steps
 
 ### Explore Features
 
-1. **Learn the CLI**
-   ```bash
-   uv run kai-agent --help
-   ```
+1.  **Learn the CLI**
+    ```bash
+    uv run kai-agent --help
+    ```
 
-2. **Try Different LLM Providers**
-   - Google Gemini: Set `CHAT_FAMILY=google`
-   - Local with Ollama: Set `CHAT_FAMILY=ollama`
-   - OpenRouter: Set `CHAT_FAMILY=openrouter`
+2.  **Try Different LLM Providers**
+    - Google Gemini: Set `CHAT_FAMILY=google`
+    - Local with Ollama: Set `CHAT_FAMILY=ollama`
+    - OpenRouter: Set `CHAT_FAMILY=openrouter`
 
-3. **Enable Long-term Memory**
-   ```bash
-   # In .env
-   MEMORY_BACKEND=letta  # or typesense (default)
-   ```
+3.  **Enable Long-term Memory**
+    ```bash
+    # In .env
+    MEMORY_BACKEND=letta  # or typesense (default)
+    ```
 
-4. **Set Up the Web UI**
-   ```bash
-   cd ui
-   npm install
-   npm run dev
-   ```
+4.  **Set Up the Web UI**
+    ```bash
+    cd ui
+    npm install
+    npm run dev
+    ```
 
 ### Learn More
 
@@ -362,9 +317,7 @@ curl -X POST http://localhost:8015/api/v1/analytics/statistical-summary \
 
 **Add More Databases**
 ```bash
-uv run kai-agent create-connection \
-  "mysql://user:pass@localhost:3306/crm" \
-  -a crm_db
+# This should be done via the API as shown in the "First Steps" section.
 ```
 
 **Update Table Descriptions**
