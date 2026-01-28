@@ -315,7 +315,7 @@ curl -X POST http://localhost:8015/api/v1/dashboards \
 **Via CLI:**
 
 ```bash
-uv run kai-agent create-dashboard \
+uv run kai create-dashboard \
   "Sales dashboard with revenue trends and top products" \
   --db sales
 ```
@@ -463,17 +463,17 @@ Here's a complete workflow from connecting to your database to running queries:
 
 ```bash
 # PostgreSQL
-uv run kai-agent create-connection \
+uv run kai create-connection \
   "postgresql://user:password@localhost:5432/sales_db" \
   -a sales
 
 # MySQL
-uv run kai-agent create-connection \
+uv run kai create-connection \
   "mysql://user:password@localhost:3306/crm_db" \
   -a crm
 
 # SQLite
-uv run kai-agent create-connection \
+uv run kai create-connection \
   "sqlite:///path/to/database.db" \
   -a local_db
 ```
@@ -484,10 +484,10 @@ Let KAI understand your database structure:
 
 ```bash
 # Basic scan
-uv run kai-agent scan-all sales
+uv run kai scan-all sales
 
 # With AI-generated descriptions (recommended)
-uv run kai-agent scan-all sales -d
+uv run kai scan-all sales -d
 ```
 
 This analyzes your tables, columns, and relationships, generating descriptions to help the AI understand your data model.
@@ -498,13 +498,13 @@ Try these example queries:
 
 ```bash
 # One-shot query
-uv run kai-agent run "Show total sales by month for 2024" --db sales
+uv run kai run "Show total sales by month for 2024" --db sales
 
 # Another example
-uv run kai-agent run "List top 10 customers by revenue" --db sales
+uv run kai run "List top 10 customers by revenue" --db sales
 
 # Complex analytics
-uv run kai-agent run "Analyze correlation between price and quantity sold" --db sales
+uv run kai run "Analyze correlation between price and quantity sold" --db sales
 ```
 
 **Step 4: Interactive mode**
@@ -512,7 +512,7 @@ uv run kai-agent run "Analyze correlation between price and quantity sold" --db 
 For back-and-forth conversations:
 
 ```bash
-uv run kai-agent interactive --db sales
+uv run kai interactive --db sales
 ```
 
 Then ask questions naturally:
@@ -530,22 +530,22 @@ Type `exit` or press Ctrl+D to quit.
 
 ```bash
 # Connection management
-kai-agent create-connection <uri> -a <alias>    # Add database
-kai-agent list-connections                       # List all connections
-kai-agent delete-connection <alias>              # Remove connection
+kai create-connection <uri> -a <alias>    # Add database
+kai list-connections                       # List all connections
+kai delete-connection <alias>              # Remove connection
 
 # Schema management
-kai-agent scan-all <alias>                       # Scan all tables
-kai-agent scan-all <alias> -d                    # Scan with AI descriptions
-kai-agent scan-table <alias> <table_name>        # Scan specific table
+kai scan-all <alias>                       # Scan all tables
+kai scan-all <alias> -d                    # Scan with AI descriptions
+kai scan-table <alias> <table_name>        # Scan specific table
 
 # Query execution
-kai-agent run "<question>" --db <alias>          # One-shot query
-kai-agent interactive --db <alias>               # Interactive session
+kai run "<question>" --db <alias>          # One-shot query (supports alias or ID)
+kai interactive --db <alias>               # Interactive session (supports alias or ID)
 
 # Help
-kai-agent --help                                 # Show all commands
-kai-agent <command> --help                       # Command-specific help
+kai --help                                 # Show all commands
+kai <command> --help                       # Command-specific help
 ```
 
 ### Advanced CLI Features
@@ -554,7 +554,7 @@ kai-agent <command> --help                       # Command-specific help
 
 ```bash
 # Add domain-specific guidance
-uv run kai-agent add-instruction \
+uv run kai add-instruction \
   "Always use fiscal year (July-June) for financial queries" \
   --db sales
 ```
@@ -563,17 +563,17 @@ uv run kai-agent add-instruction \
 
 ```bash
 # Run query and save to CSV
-uv run kai-agent run "Show monthly sales" --db sales --output sales.csv
+uv run kai run "Show monthly sales" --db sales --output sales.csv
 
 # JSON format
-uv run kai-agent run "Show top products" --db sales --format json
+uv run kai run "Show top products" --db sales --format json
 ```
 
 **Verbose mode:**
 
 ```bash
 # See detailed SQL generation process
-uv run kai-agent run "Show revenue" --db sales --verbose
+uv run kai run "Show revenue" --db sales --verbose
 ```
 
 ---

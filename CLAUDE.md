@@ -96,20 +96,20 @@ Tests require a running Typesense instance. The test suite uses `pytest-asyncio`
 
 ```bash
 # List CLI commands
-uv run kai-agent --help
+uv run kai --help
 
 # Database management
-uv run kai-agent create-connection "postgresql://user:pass@host:5432/db" -a mydb
-uv run kai-agent scan-all mydb -d  # Scan with AI descriptions
+uv run kai create-connection "postgresql://user:pass@host:5432/db" -a mydb
+uv run kai scan-all mydb -d  # Scan with AI descriptions
 
 # Interactive session
-uv run kai-agent interactive --db mydb
+uv run kai interactive --db mydb
 
 # One-shot analysis
-uv run kai-agent run "Analyze sales by region" --db mydb
+uv run kai run "Analyze sales by region" --db mydb
 ```
 
-CLI entry point: `app/modules/autonomous_agent/cli.py` (registered as `kai-agent` in pyproject.toml).
+CLI entry point: `app/modules/autonomous_agent/cli.py` (registered as `kai` in pyproject.toml).
 
 ## Architecture
 

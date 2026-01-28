@@ -369,6 +369,134 @@ def list_connections():
         console.print(f"  {conn.id}: {conn.alias or conn.dialect} ({conn.dialect})")
 
 
+
+@cli.command("create-connection")
+@click.argument("connection_uri")
+@click.option("-a", "--alias", required=True, help="Connection alias (required)")
+@click.option("-d", "--description", help="Connection description")
+@click.option("-s", "--schemas", multiple=True, help="Schemas to scan (default: public)")
+@click.option("--metadata", help="JSON metadata for the connection")
+def create_connection(connection_uri: str, alias: str, description: str | None, schemas: tuple, metadata: str | None):
+    """Create a new database connection.
+
+    CONNECTION_URI: Database connection URI (e.g., postgresql://user:pass@host:5432/db)
+
+    Examples:
+
+        kai-agent create-connection "postgresql://user:pass@localhost:5432/mydb" -a production
+
+        kai-agent create-connection "mysql://user:pass@localhost:3306/crm" -a crm -d "CRM Database"
+
+        kai-agent create-connection "sqlite:///path/to/db.sqlite" -a local -s main -s temp
+    """
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.database_connection.services import DatabaseConnectionService
+    from app.api.requests import DatabaseConnectionRequest
+
+    storage = Storage(Settings())
+    service = DatabaseConnectionService(storage)
+
+    try:
+        import json
+        metadata_dict = json.loads(metadata) if metadata else None
+    except json.JSONDecodeError:
+        console.print(f"[red]Error:[/red] Invalid JSON in --metadata")
+        return
+
+    request = DatabaseConnectionRequest(
+        alias=alias,
+        connection_uri=connection_uri,
+        schemas=list(schemas) if schemas else None,
+        metadata=metadata_dict,
+    )
+
+    try:
+        with console.status("[bold]Creating connection and scanning schemas...[/bold]"):
+            conn = service.create_database_connection(request)
+
+        console.print(Panel(
+            f"[bold green]✔ Connection created successfully![/bold green]\n\n"
+            f"[cyan]ID:[/cyan] {conn.id}\n"
+            f"[cyan]Alias:[/cyan] {conn.alias}\n"
+            f"[cyan]Dialect:[/cyan] {conn.dialect}\n"
+            f"[cyan]Schemas:[/cyan] {', '.join(conn.schemas)}\n"
+            f"[cyan]Created:[/cyan] {conn.created_at}",
+            title="Connection Created",
+            border_style="green"
+        ))
+
+        # Show next steps
+        console.print("\n[bold]Next steps:[/bold]")
+        console.print(f"  Run analysis: [cyan]kai-agent run \"Your question\" --db {conn.id}[/cyan]")
+        console.print(f"  Interactive mode: [cyan]kai-agent interactive --db {conn.id}[/cyan]")
+        console.print(f"  Scan with descriptions: [cyan]kai-agent scan-all {conn.id} -d[/cyan]")
+
+    except Exception as e:
+        console.print(f"[red]Error creating connection:[/red] {e}")
+        raise click.Abort()
+
+
+@cli.command("delete-connection")
+@click.argument("connection_id")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation")
+def delete_connection(connection_id: str, force: bool):
+    """Delete a database connection.
+
+    CONNECTION_ID: Connection ID or alias to delete
+
+    Examples:
+
+        kai-agent delete-connection conn_123
+
+        kai-agent delete-connection production -f
+    """
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.database_connection.repositories import DatabaseConnectionRepository
+    from app.modules.database_connection.services import DatabaseConnectionService
+
+    storage = Storage(Settings())
+    db_repo = DatabaseConnectionRepository(storage)
+    service = DatabaseConnectionService(storage)
+
+    # Find connection by ID or alias
+    conn = db_repo.find_by_id(connection_id)
+    if not conn:
+        # Try to find by alias
+        all_conns = db_repo.find_all()
+        conn = next((c for c in all_conns if c.alias == connection_id), None)
+
+    if not conn:
+        console.print(f"[red]Error:[/red] Connection '{connection_id}' not found")
+        console.print("\nAvailable connections:")
+        for c in all_conns:
+            console.print(f"  {c.id}: {c.alias} ({c.dialect})")
+        raise click.Abort()
+
+    # Confirm unless forced
+    if not force:
+        console.print(f"[yellow]About to delete connection:[/yellow]")
+        console.print(f"  ID: {conn.id}")
+        console.print(f"  Alias: {conn.alias}")
+        console.print(f"  Dialect: {conn.dialect}")
+        if not click.confirm("\nDo you want to continue?"):
+            console.print("[dim]Cancelled[/dim]")
+            return
+
+    try:
+        deleted = service.delete_database_connection(conn.id)
+        console.print(Panel(
+            f"[bold green]✔ Connection deleted[/bold green]\n\n"
+            f"[cyan]Alias:[/cyan] {deleted.alias}\n"
+            f"[cyan]ID:[/cyan] {deleted.id}",
+            title="Connection Deleted",
+            border_style="green"
+        ))
+    except Exception as e:
+        console.print(f"[red]Error deleting connection:[/red] {e}")
+        raise click.Abort()
+
 @cli.command()
 def worker():
     """Start the KAI Temporal Worker."""

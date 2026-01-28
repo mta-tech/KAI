@@ -47,8 +47,41 @@
 
 **Next story:** M1-E1-S3 - Refactor main cli.py to register config group
 
-## M1-E1-S3: Pending
-Refactor main cli.py to ~200 lines (router only)
+## M1-E1-S3: Refactor main cli.py to register config group ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Renamed main cli.py to main.py to avoid package naming conflict
+- Registered config group: `cli.add_command(config)`
+- Removed 4 old commands from main.py (~70 lines removed):
+  - config (now: kai config show)
+  - env_check (now: kai config check)
+  - version (now: kai config version)
+  - worker (now: kai config worker)
+- Updated entry point in pyproject.toml: app.modules.autonomous_agent.main:cli
+- Verified new grouped commands work: kai config --help, kai config version
+- Verified old commands no longer work as expected
+
+**Files modified:**
+- app/modules/autonomous_agent/cli.py → main.py (renamed)
+- pyproject.toml (entry point updated)
+- ~70 lines removed (old command definitions)
+
+**Acceptance criteria:**
+✓ Config group registered with main CLI
+✓ All config commands work in new structure (kai config show/check/version/worker)
+✓ Old commands removed from main command list
+✓ CLI loads without errors
+
+**Notes:**
+- Naming conflict resolved: cli directory package vs. cli.py module
+- Renamed to main.py follows standard Python practice
+- Breaking change achieved: old commands like `kai config` now show help instead of config
+
+**Next story:** M1-E1-S4 - Extract connection group to cli/connection.py
+
+## M1-E1-S4: Pending
+Extract connection group to cli/connection.py
 
 ## M1-E1-S4: Pending
 Extract connection group to cli/connection.py

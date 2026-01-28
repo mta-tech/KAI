@@ -51,7 +51,7 @@ dependencies = [
 ]
 
 [project.scripts]
-kai-agent = "app.modules.autonomous_agent.cli:cli"
+kai = "app.modules.autonomous_agent.main:cli"
 kai-analytics = "app.modules.analytics.cli:cli"
 
 [tool.hatch.build.targets.wheel]

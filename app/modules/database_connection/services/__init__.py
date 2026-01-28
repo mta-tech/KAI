@@ -162,6 +162,13 @@ class DatabaseConnectionService:
 
     def add_schema_in_uri(self, connection_uri: str, schema: str, dialect: str) -> str:
         if dialect in ["postgresql"]:
+            # Neon pooled connections don't support options=-csearch_path
+            # Detect pooled connections (contain -pooler in hostname)
+            if "-pooler." in connection_uri or ".pooler." in connection_uri:
+                # For pooled connections, skip adding search_path option
+                # Users should use fully qualified names (schema.table) in queries
+                return connection_uri
+            
             # Check if URI already has query parameters
             separator = "&" if "?" in connection_uri else "?"
             return f"{connection_uri}{separator}options=-csearch_path={schema}"

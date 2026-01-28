@@ -39,6 +39,13 @@ logger = logging.getLogger(__name__)
 
 class PostgreSqlScanner:
     def cardinality_values(self, column: Column, db_engine: Engine) -> list | None:
+        # Skip unsupported types that don't support ordering (like aclitem)
+        column_type = str(column.type).lower()
+        unsupported_types = ['aclitem', 'pg_node_tree', 'pg_dependencies', 'pg_lsn', 'null']
+        if any(unsupported in column_type for unsupported in unsupported_types):
+            logger.debug(f"Skipping cardinality analysis for column '{column.name}' with unsupported type '{column.type}'")
+            return None
+        
         if str(db_engine.__dict__.get("url")).startswith("sqlite"):
             query = text(
                 f"""
