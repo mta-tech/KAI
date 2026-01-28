@@ -1,0 +1,38 @@
+# CLI Refactor Progress
+
+## M1-E1-S1: Create cli/ directory structure ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Created `app/modules/autonomous_agent/cli/` directory
+- Created `cli/__init__.py` with shared utilities extracted from main cli.py:
+  - `check_typesense_running()` - Check if Typesense is accessible
+  - `offer_typesense_deployment()` - Offer to deploy Typesense via Docker
+  - `ensure_typesense_or_prompt()` - Check Typesense and offer deployment if needed
+  - `_run_async()` - Bridge async functions in synchronous Click context
+  - `resolve_db_identifier()` - Resolve database identifier (ID or alias)
+
+**Files created:**
+- app/modules/autonomous_agent/cli/__init__.py (175 lines)
+
+**Next story:** M1-E1-S2 - Extract config group to cli/config.py (simpler than connection, validates pattern)
+
+**Notes:**
+- Shared utilities are now in place for all command groups to use
+- This foundation enables extracting individual command groups
+- No breaking changes yet - old commands still work
+
+## M1-E1-S2: Pending
+Extract config group to cli/config.py
+
+## M1-E1-S3: Pending
+Refactor main cli.py to ~200 lines (router only)
+
+## M1-E1-S4: Pending
+Extract connection group to cli/connection.py
+
+## M1-E1-S5: Pending
+Add tests for connection and config groups
+
+## M1-E1-S6: Pending
+Verify old commands no longer work, new groups work
