@@ -536,3 +536,43 @@ All 6 stories in Phase 2 (Core Query Workflow) are complete:
 
 **Next story:** M1-E3-S3 - Extract knowledge instruction sub-group
 
+
+### M1-E3-S3: Extract knowledge instruction sub-group ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Added instruction sub-group to existing cli/knowledge.py (~250 lines added)
+- Created instruction sub-group with @click.group()
+- Extracted 5 commands and remapped to new nested structure:
+  - add-instruction → knowledge instruction add
+  - list-instructions → knowledge instruction list
+  - show-instruction → knowledge instruction show
+  - update-instruction → knowledge instruction update
+  - delete-instruction → knowledge instruction delete
+- Registered instruction sub-group under knowledge group
+- Removed all 5 old instruction commands from main.py (~315 lines removed)
+
+**Files modified:**
+- app/modules/autonomous_agent/cli/knowledge.py (added ~250 lines)
+- app/modules/autonomous_agent/main.py (removed ~315 lines)
+
+**Command examples:**
+- kai knowledge instruction add <db_id> -c <category> -r <rule> [-i <instruction>] [-s <scope>]
+- kai knowledge instruction list <db_id> [-v]
+- kai knowledge instruction show <instruction_id>
+- kai knowledge instruction update <instruction_id> [-c] [-r] [-i] [-s]
+- kai knowledge instruction delete <instruction_id> [-f]
+
+**Acceptance criteria:**
+✓ Instruction sub-group added to knowledge.py
+✓ All 5 instruction commands work in new structure
+✓ Old commands removed from main CLI
+✓ CLI loads without errors
+✓ Breaking changes verified
+
+**Migration path for users:**
+- Old: kai add-instruction <db_id> -c "Always" -r "Format currency"
+- New: kai knowledge instruction add <db_id> --category "Always" --rule "Format currency"
+
+**Next story:** M1-E3-S4 - Extract knowledge skill sub-group
+

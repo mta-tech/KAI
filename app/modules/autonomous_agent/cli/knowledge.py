@@ -329,5 +329,342 @@ def delete_glossary(glossary_id: str, force: bool):
         console.print(f"\n[red]✖ Failed to delete glossary entry:[/red] {str(e)}")
 
 
+@click.group()
+def instruction():
+    """Business instruction management.
+
+    Business instructions define rules and conditions for SQL generation.
+    The agent uses these to apply business-specific constraints and logic.
+    """
+    pass
+
+
+@instruction.command("add")
+@click.argument("db_connection_id")
+@click.option("--category", "-c", required=True, help="Instruction category/condition (when to apply)")
+@click.option("--rule", "-r", required=True, help="Business rule to apply")
+@click.option("--instruction", "-i", help="Additional instruction/description")
+@click.option("--scope", "-s", help="Instruction scope (e.g., 'default' for is_default)")
+@click.option("--metadata", type=str, help="JSON metadata for the instruction")
+def add_instruction(db_connection_id: str, category: str, rule: str, instruction: str, scope: str, metadata: str):
+    """Add a new business instruction.
+
+    Business instructions define rules and conditions for SQL generation.
+    The agent uses these to apply business-specific constraints and logic.
+
+    Examples:
+
+        # Simple instruction
+        kai knowledge instruction add abc123 --category "Revenue queries" --rule "Always filter by active subscriptions"
+
+        # Instruction with description
+        kai knowledge instruction add abc123 -c "Time-based analysis" -r "Use last 30 days when no time range specified" -i "Default to recent data"
+
+        # Default instruction (applies to all queries)
+        kai knowledge instruction add abc123 -c "General" -r "Exclude test accounts" -s "default"
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.api.requests import InstructionRequest
+    from app.modules.instruction.services import InstructionService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = InstructionService(storage)
+
+    # Parse metadata if provided
+    meta_dict = None
+    if metadata:
+        try:
+            meta_dict = json.loads(metadata)
+        except json.JSONDecodeError:
+            console.print("[red]Error:[/red] Invalid JSON in metadata")
+            return
+
+    # Handle scope parameter
+    is_default = False
+    if scope and scope.lower() == "default":
+        is_default = True
+
+    # Combine rule and instruction if both provided
+    rules_text = rule
+    if instruction:
+        rules_text = f"{rule}. {instruction}"
+
+    request = InstructionRequest(
+        db_connection_id=db_connection_id,
+        condition=category,
+        rules=rules_text,
+        is_default=is_default,
+        metadata=meta_dict,
+    )
+
+    console.print(f"[bold]Adding business instruction...[/bold]")
+    console.print(f"[dim]Category: {category}[/dim]")
+    console.print(f"[dim]Rule: {rule[:80]}...[/dim]" if len(rule) > 80 else f"[dim]Rule: {rule}[/dim]")
+
+    try:
+        instr = service.create_instruction(request)
+
+        console.print(f"\n[green]✔ Instruction created successfully![/green]")
+        console.print(Panel(
+            f"[bold]ID:[/bold] {instr.id}\n"
+            f"[bold]Category:[/bold] {instr.condition}\n"
+            f"[bold]Rules:[/bold] {instr.rules[:100]}...[/dim]\n" if len(instr.rules) > 100 else f"[bold]Rules:[/bold] {instr.rules}\n"
+            f"[bold]Is Default:[/bold] {instr.is_default}\n"
+            f"[bold]Created:[/bold] {instr.created_at}",
+            title="Business Instruction",
+            border_style="green"
+        ))
+
+    except Exception as e:
+        console.print(f"\n[red]✖ Failed to create instruction:[/red] {str(e)}")
+
+
+@instruction.command("list")
+@click.argument("db_connection_id")
+@click.option("--verbose", "-v", is_flag=True, help="Show full rule descriptions")
+def list_instructions(db_connection_id: str, verbose: bool):
+    """List all business instructions for a connection.
+
+    Examples:
+
+        kai knowledge instruction list abc123
+
+        kai knowledge instruction list abc123 --verbose
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.instruction.services import InstructionService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = InstructionService(storage)
+
+    instructions = service.get_instructions(db_connection_id)
+
+    if not instructions:
+        console.print("[yellow]No business instructions found[/yellow]")
+        console.print(f"[dim]Add one with: kai knowledge instruction add {db_connection_id} -c 'Category' -r 'Rule'[/dim]")
+        return
+
+    console.print(f"[bold]Business Instructions ({len(instructions)} entries):[/bold]\n")
+
+    for instr in instructions:
+        default_tag = " [dim](default)[/dim]" if instr.is_default else ""
+        console.print(f"  [cyan]●[/cyan] [bold]{instr.condition}[/bold]{default_tag}")
+        console.print(f"      [dim]ID: {instr.id}[/dim]")
+
+        if verbose:
+            console.print(f"      [dim]Rules: {instr.rules}[/dim]")
+        else:
+            rules_preview = instr.rules[:80] + "..." if len(instr.rules) > 80 else instr.rules
+            console.print(f"      [dim]Rules: {rules_preview}[/dim]")
+
+        if instr.metadata:
+            console.print(f"      [dim]Metadata: {instr.metadata}[/dim]")
+
+        console.print()
+
+
+@instruction.command("show")
+@click.argument("instruction_id")
+def show_instruction(instruction_id: str):
+    """Show details of a business instruction.
+
+    Example:
+
+        kai knowledge instruction show instruction_abc123
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.instruction.services import InstructionService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = InstructionService(storage)
+
+    try:
+        instr = service.get_instruction(instruction_id)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+        return
+
+    default_tag = "Yes" if instr.is_default else "No"
+
+    console.print(Panel(
+        f"[bold]ID:[/bold] {instr.id}\n"
+        f"[bold]Category:[/bold] {instr.condition}\n"
+        f"[bold]Connection ID:[/bold] {instr.db_connection_id}\n"
+        f"[bold]Is Default:[/bold] {default_tag}\n"
+        f"[bold]Created:[/bold] {instr.created_at}\n"
+        f"[bold]Metadata:[/bold] {instr.metadata or 'None'}",
+        title=f"Business Instruction: {instr.condition}",
+        border_style="cyan"
+    ))
+
+    console.print(f"\n[bold]Rules:[/bold]")
+    console.print(Panel(instr.rules, border_style="dim"))
+
+
+@instruction.command("update")
+@click.argument("instruction_id")
+@click.option("--category", "-c", help="New category/condition")
+@click.option("--rule", "-r", help="New rule")
+@click.option("--instruction", "-i", help="New additional instruction/description")
+@click.option("--scope", "-s", help="New scope (e.g., 'default' for is_default)")
+@click.option("--metadata", type=str, help="New JSON metadata (replaces existing)")
+def update_instruction(instruction_id: str, category: str, rule: str, instruction: str, scope: str, metadata: str):
+    """Update an existing business instruction.
+
+    Examples:
+
+        # Update rule
+        kai knowledge instruction update instruction_abc123 --rule "Always filter by active paid subscriptions"
+
+        # Update category
+        kai knowledge instruction update instruction_abc123 --category "Revenue queries - updated"
+
+        # Set as default instruction
+        kai knowledge instruction update instruction_abc123 --scope "default"
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.api.requests import UpdateInstructionRequest
+    from app.modules.instruction.services import InstructionService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = InstructionService(storage)
+
+    # Check if instruction exists
+    try:
+        existing = service.get_instruction(instruction_id)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+        return
+
+    # Parse metadata if provided
+    meta_dict = None
+    if metadata:
+        try:
+            meta_dict = json.loads(metadata)
+        except json.JSONDecodeError:
+            console.print("[red]Error:[/red] Invalid JSON in metadata")
+            return
+
+    # Build update request with only provided fields
+    update_data = {}
+    if category is not None:
+        update_data["condition"] = category
+    if rule is not None:
+        # Combine with instruction if provided
+        rules_text = rule
+        if instruction:
+            rules_text = f"{rule}. {instruction}"
+        update_data["rules"] = rules_text
+    elif instruction is not None:
+        # Only instruction provided, append to existing rules
+        update_data["rules"] = f"{existing.rules}. {instruction}"
+    if scope is not None:
+        update_data["is_default"] = scope.lower() == "default"
+    if meta_dict is not None:
+        update_data["metadata"] = meta_dict
+
+    if not update_data:
+        console.print("[yellow]No updates provided[/yellow]")
+        return
+
+    request = UpdateInstructionRequest(**update_data)
+
+    console.print(f"[bold]Updating instruction '{existing.condition}'...[/bold]")
+
+    try:
+        updated = service.update_instruction(instruction_id, request)
+
+        console.print(f"\n[green]✔ Instruction updated successfully![/green]")
+        console.print(Panel(
+            f"[bold]ID:[/bold] {updated.id}\n"
+            f"[bold]Category:[/bold] {updated.condition}\n"
+            f"[bold]Rules:[/bold] {updated.rules[:100]}...[/dim]\n" if len(updated.rules) > 100 else f"[bold]Rules:[/bold] {updated.rules}\n"
+            f"[bold]Is Default:[/bold] {updated.is_default}",
+            title="Updated Instruction",
+            border_style="green"
+        ))
+
+    except Exception as e:
+        console.print(f"\n[red]✖ Failed to update instruction:[/red] {str(e)}")
+
+
+@instruction.command("delete")
+@click.argument("instruction_id")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+def delete_instruction(instruction_id: str, force: bool):
+    """Delete a business instruction.
+
+    Examples:
+
+        kai knowledge instruction delete instruction_abc123
+
+        kai knowledge instruction delete instruction_abc123 --force
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.instruction.services import InstructionService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = InstructionService(storage)
+
+    # Check if instruction exists
+    try:
+        instr = service.get_instruction(instruction_id)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {str(e)}")
+        return
+
+    default_tag = " (default)" if instr.is_default else ""
+
+    console.print(f"[bold]Instruction to delete:[/bold]")
+    console.print(f"  ID: {instr.id}")
+    console.print(f"  Category: {instr.condition}{default_tag}")
+    console.print(f"  Rules: {instr.rules[:80]}..." if len(instr.rules) > 80 else f"  Rules: {instr.rules}")
+
+    if not force:
+        if not click.confirm("\nAre you sure you want to delete this instruction?"):
+            console.print("[dim]Cancelled[/dim]")
+            return
+
+    try:
+        service.delete_instruction(instruction_id)
+        console.print(f"\n[green]✔ Instruction '{instr.condition}' deleted successfully![/green]")
+
+    except Exception as e:
+        console.print(f"\n[red]✖ Failed to delete instruction:[/red] {str(e)}")
+
+
 # Register glossary sub-group under knowledge
 knowledge.add_command(glossary)
+
+# Register instruction sub-group under knowledge
+knowledge.add_command(instruction)
