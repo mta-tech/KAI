@@ -22,8 +22,30 @@
 - This foundation enables extracting individual command groups
 - No breaking changes yet - old commands still work
 
-## M1-E1-S2: Pending
-Extract config group to cli/config.py
+## M1-E1-S2: Extract config group to cli/config.py ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Created `cli/config.py` with Click group structure
+- Extracted 4 commands: config→show, env_check→check, version→version, worker→worker
+- Commands remapped to new grouped structure (kai config show, kai config check, etc.)
+- All command logic moved from main cli.py to dedicated module
+- Fixed missing Settings attributes using `getattr()` for optional settings
+
+**Files created:**
+- app/modules/autonomous_agent/cli/config.py (~225 lines)
+
+**Blockers/Notes:**
+- Used `getattr(settings, "ATTR", default)` pattern for optional settings that don't exist in current Settings class:
+  - AGENT_LANGUAGE (default: "en")
+  - MEMORY_BACKEND (default: "typesense")
+  - ENABLE_AUTO_LEARNING (default: False)
+  - AUTO_LEARNING_CAPTURE_ONLY (default: False)
+  - MCP_ENABLED (default: False)
+  - MCP_SERVERS_CONFIG (default: None)
+  - LETTA_API_KEY (default: None)
+
+**Next story:** M1-E1-S3 - Refactor main cli.py to register config group
 
 ## M1-E1-S3: Pending
 Refactor main cli.py to ~200 lines (router only)
