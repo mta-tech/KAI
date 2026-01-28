@@ -1000,6 +1000,369 @@ def delete_skill(skill_id: str, db_connection_id: str, force: bool):
         console.print(f"\n[red]✖ Failed to delete skill:[/red] {str(e)}")
 
 
+@click.group()
+def memory():
+    """Long-term memory management - conversation history and context.
+
+    Memory stores important insights, preferences, and context from conversations
+    that help the agent provide better responses in future interactions.
+    """
+    pass
+
+
+@memory.command("list")
+@click.argument("db_connection_id")
+@click.option("--namespace", "-n", help="Filter by namespace")
+@click.option("--limit", "-l", default=50, help="Maximum number of memories to show")
+def list_memories_cmd(db_connection_id: str, namespace: str, limit: int):
+    """List all memories for a database connection.
+
+    Examples:
+
+        kai knowledge memory list abc123
+
+        kai knowledge memory list abc123 --namespace user_preferences
+
+        kai knowledge memory list abc123 -n business_facts --limit 20
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.memory.services import MemoryService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = MemoryService(storage)
+
+    memories = service.list_memories(db_connection_id, namespace=namespace, limit=limit)
+
+    if not memories:
+        console.print("[yellow]No memories found[/yellow]")
+        console.print("[dim]Memories are created when the agent stores insights from conversations.[/dim]")
+        return
+
+    console.print(f"[bold]Memories ({len(memories)} total):[/bold]\n")
+
+    # Group by namespace
+    by_namespace: dict = {}
+    for memory in memories:
+        ns = memory.namespace
+        if ns not in by_namespace:
+            by_namespace[ns] = []
+        by_namespace[ns].append(memory)
+
+    for ns, ns_memories in sorted(by_namespace.items()):
+        console.print(f"[cyan]{ns.upper()}[/cyan]")
+        for memory in ns_memories:
+            importance_color = "green" if memory.importance >= 0.7 else "yellow" if memory.importance >= 0.4 else "dim"
+            console.print(f"  • [bold]{memory.key}[/bold] [{importance_color}]{memory.importance:.1f}[/{importance_color}]")
+            content = memory.value.get("content", str(memory.value))
+            content_preview = content[:100] + "..." if len(content) > 100 else content
+            console.print(f"    [dim]{content_preview}[/dim]")
+            console.print(f"    [dim]Accessed: {memory.access_count}x | Created: {memory.created_at}[/dim]")
+        console.print()
+
+
+@memory.command("show")
+@click.argument("memory_id")
+def show_memory_cmd(memory_id: str):
+    """Show details of a specific memory.
+
+    The memory_id should be in the format: <namespace>/<key>
+
+    Example:
+
+        kai knowledge memory show user_preferences/date_format
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.memory.services import MemoryService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = MemoryService(storage)
+
+    # Parse memory_id (format: namespace/key)
+    parts = memory_id.split("/", 1)
+    if len(parts) != 2:
+        console.print("[red]Error:[/red] Memory ID must be in format: namespace/key")
+        console.print("[dim]Example: kai knowledge memory show user_preferences/date_format[/dim]")
+        return
+
+    namespace, key = parts
+
+    # We need db_connection_id to get the memory
+    console.print("[yellow]Warning:[/yellow] This command requires knowing the database connection ID.")
+    console.print("[dim]Please use 'kai knowledge memory list <db_connection_id>' to find memories.[/dim]")
+    console.print(f"[dim]Then use: kai knowledge memory show <db_connection_id> {namespace} {key}[/dim]")
+
+
+@memory.command("search")
+@click.argument("query")
+@click.option("--db-connection-id", "-d", help="Database connection ID (optional)")
+@click.option("--namespace", "-n", help="Search within a specific namespace")
+@click.option("--limit", "-l", default=10, help="Maximum number of results")
+def search_memories_cmd(query: str, db_connection_id: str, namespace: str, limit: int):
+    """Search memories semantically.
+
+    Uses semantic search to find relevant memories.
+
+    Examples:
+
+        kai knowledge memory search "date format preferences"
+
+        kai knowledge memory search "revenue" -d abc123 --namespace business_facts
+
+        kai knowledge memory search "data issues" -d abc123 --limit 5
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.memory.services import MemoryService
+
+    if not db_connection_id:
+        console.print("[yellow]Warning:[/yellow] Database connection ID is required for memory search.")
+        console.print("[dim]Use --db-connection-id or -d to specify the connection.[/dim]")
+        return
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = MemoryService(storage)
+
+    console.print(f"[bold]Searching memories for:[/bold] {query}")
+
+    results = service.recall(db_connection_id, query, namespace=namespace, limit=limit)
+
+    if not results:
+        console.print("\n[yellow]No memories found matching your query[/yellow]")
+        return
+
+    console.print(f"\n[green]Found {len(results)} memory(ies):[/green]\n")
+
+    for i, result in enumerate(results, 1):
+        memory = result.memory
+        score_color = "green" if result.score >= 0.7 else "yellow" if result.score >= 0.4 else "dim"
+        console.print(f"{i}. [bold]{memory.namespace}/{memory.key}[/bold] [{score_color}]score: {result.score:.2f}[/{score_color}]")
+        content = memory.value.get("content", str(memory.value))
+        content_preview = content[:150] + "..." if len(content) > 150 else content
+        console.print(f"   [dim]{content_preview}[/dim]")
+        console.print()
+
+
+@memory.command("add")
+@click.argument("db_connection_id")
+@click.argument("namespace")
+@click.argument("key")
+@click.argument("content")
+@click.option("--importance", "-i", default=0.5, type=float, help="Importance (0-1)")
+def add_memory_cmd(db_connection_id: str, namespace: str, key: str, content: str, importance: float):
+    """Manually add a memory.
+
+    Useful for pre-populating important facts or preferences.
+
+    Examples:
+
+        kai knowledge memory add abc123 user_preferences date_format "Use YYYY-MM-DD format"
+
+        kai knowledge memory add abc123 business_facts fiscal_year "Fiscal year ends in June" -i 0.9
+
+        kai knowledge memory add abc123 corrections revenue_calc "Revenue should exclude refunds" -i 0.8
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.memory.services import MemoryService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = MemoryService(storage)
+
+    if importance < 0 or importance > 1:
+        console.print("[red]Error:[/red] Importance must be between 0 and 1")
+        return
+
+    try:
+        memory = service.remember(
+            db_connection_id=db_connection_id,
+            namespace=namespace,
+            key=key,
+            value={"content": content},
+            importance=importance,
+        )
+
+        console.print(f"\n[green]✔ Memory stored successfully![/green]")
+        console.print(Panel(
+            f"[bold]Namespace:[/bold] {memory.namespace}\n"
+            f"[bold]Key:[/bold] {memory.key}\n"
+            f"[bold]Importance:[/bold] {memory.importance}\n"
+            f"[bold]Content:[/bold] {content}",
+            title="New Memory",
+            border_style="green"
+        ))
+
+    except Exception as e:
+        console.print(f"\n[red]✖ Failed to store memory:[/red] {str(e)}")
+
+
+@memory.command("delete")
+@click.argument("db_connection_id")
+@click.argument("namespace")
+@click.argument("key")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+def delete_memory_cmd(db_connection_id: str, namespace: str, key: str, force: bool):
+    """Delete a specific memory.
+
+    Examples:
+
+        kai knowledge memory delete abc123 user_preferences old_format
+
+        kai knowledge memory delete abc123 business_facts outdated_rule --force
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.memory.services import MemoryService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = MemoryService(storage)
+
+    memory = service.get_memory(db_connection_id, namespace, key)
+
+    if not memory:
+        console.print(f"[red]Memory not found:[/red] {namespace}/{key}")
+        return
+
+    console.print(f"[bold]Memory to delete:[/bold]")
+    console.print(f"  Namespace: {namespace}")
+    console.print(f"  Key: {key}")
+    content = memory.value.get("content", str(memory.value))
+    content_preview = content[:100] + "..." if len(content) > 100 else content
+    console.print(f"  Content: {content_preview}")
+
+    if not force:
+        if not click.confirm("\nAre you sure you want to delete this memory?"):
+            console.print("[dim]Cancelled[/dim]")
+            return
+
+    try:
+        success = service.forget(db_connection_id, namespace, key)
+        if success:
+            console.print(f"\n[green]✔ Memory deleted successfully![/green]")
+        else:
+            console.print(f"\n[red]✖ Failed to delete memory[/red]")
+
+    except Exception as e:
+        console.print(f"\n[red]✖ Failed to delete memory:[/red] {str(e)}")
+
+
+@memory.command("clear")
+@click.argument("db_connection_id")
+@click.option("--namespace", "-n", help="Clear only this namespace")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+def clear_memories_cmd(db_connection_id: str, namespace: str, force: bool):
+    """Clear all memories for a database connection.
+
+    Examples:
+
+        kai knowledge memory clear abc123
+
+        kai knowledge memory clear abc123 --namespace user_preferences
+
+        kai knowledge memory clear abc123 --force
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.memory.services import MemoryService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = MemoryService(storage)
+
+    if namespace:
+        console.print(f"[bold]Clearing memories in namespace:[/bold] {namespace}")
+        memories = service.list_memories(db_connection_id, namespace=namespace)
+    else:
+        console.print(f"[bold]Clearing ALL memories for connection:[/bold] {db_connection_id}")
+        memories = service.list_memories(db_connection_id)
+
+    if not memories:
+        console.print("[yellow]No memories to clear[/yellow]")
+        return
+
+    console.print(f"[yellow]This will delete {len(memories)} memory(ies)[/yellow]")
+
+    if not force:
+        if not click.confirm("\nAre you sure you want to delete these memories?"):
+            console.print("[dim]Cancelled[/dim]")
+            return
+
+    try:
+        if namespace:
+            count = service.clear_namespace(db_connection_id, namespace)
+        else:
+            count = service.clear_all(db_connection_id)
+
+        console.print(f"\n[green]✔ Cleared {count} memory(ies)[/green]")
+
+    except Exception as e:
+        console.print(f"\n[red]✖ Failed to clear memories:[/red] {str(e)}")
+
+
+@memory.command("namespaces")
+@click.argument("db_connection_id")
+def list_namespaces_cmd(db_connection_id: str):
+    """List all memory namespaces for a database connection.
+
+    Examples:
+
+        kai knowledge memory namespaces abc123
+    """
+    # Check Typesense first
+    if not ensure_typesense_or_prompt(required=True):
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.memory.services import MemoryService
+
+    settings = Settings()
+    storage = Storage(settings)
+    service = MemoryService(storage)
+
+    namespaces = service.list_namespaces(db_connection_id)
+
+    if not namespaces:
+        console.print("[yellow]No namespaces found[/yellow]")
+        console.print("[dim]Standard namespaces: user_preferences, business_facts, data_insights, corrections[/dim]")
+        return
+
+    console.print(f"[bold]Memory Namespaces:[/bold]\n")
+    for ns in sorted(namespaces):
+        memories = service.list_memories(db_connection_id, namespace=ns)
+        console.print(f"  • [cyan]{ns}[/cyan] ({len(memories)} memories)")
+
+
 # Register glossary sub-group under knowledge
 knowledge.add_command(glossary)
 
@@ -1008,3 +1371,6 @@ knowledge.add_command(instruction)
 
 # Register skill sub-group under knowledge
 knowledge.add_command(skill)
+
+# Register memory sub-group under knowledge
+knowledge.add_command(memory)

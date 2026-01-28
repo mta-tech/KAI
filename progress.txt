@@ -618,3 +618,56 @@ All 6 stories in Phase 2 (Core Query Workflow) are complete:
 
 **Next story:** M1-E3-S5 - Extract knowledge memory sub-group
 
+
+### M1-E3-S5: Extract knowledge memory sub-group ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Added memory sub-group to existing cli/knowledge.py (~360 lines added)
+- Created memory sub-group with @click.group()
+- Extracted 7 commands and remapped to new nested structure:
+  - list-memories → knowledge memory list
+  - show-memory → knowledge memory show
+  - search-memories → knowledge memory search
+  - add-memory → knowledge memory add
+  - delete-memory → knowledge memory delete
+  - clear-memories → knowledge memory clear
+  - list-namespaces → knowledge memory namespaces
+- Registered memory sub-group under knowledge group
+- Removed all 7 old memory commands from main.py (~335 lines removed)
+- Updated help text examples to show new command structure
+
+**Files modified:**
+- app/modules/autonomous_agent/cli/knowledge.py (now ~1,376 lines total)
+- app/modules/autonomous_agent/main.py (removed ~335 lines, updated help text)
+
+**Command examples:**
+- kai knowledge memory list <db_id> [--namespace] [-v]
+- kai knowledge memory show <memory_id>
+- kai knowledge memory search <query> [-d <db_id>] [--namespace] [--limit]
+- kai knowledge memory add <db_id> <namespace> <key> <value> [--metadata]
+- kai knowledge memory delete <memory_id> [-f]
+- kai knowledge memory clear <db_id> [--namespace] [-f]
+- kai knowledge memory namespaces <db_id>
+
+**Acceptance criteria:**
+✓ Memory sub-group added to knowledge.py
+✓ All 7 memory commands work in new structure
+✓ Old commands removed from main CLI
+✓ CLI loads without errors
+✓ Breaking changes verified
+✓ Help text updated with new examples
+
+**Migration path for users:**
+- Old: kai list-memories <db_id>
+- New: kai knowledge memory list <db_id>
+
+**Knowledge group summary:**
+- Glossary: 5 commands ✅
+- Instruction: 5 commands ✅
+- Skill: 6 commands ✅
+- Memory: 7 commands ✅
+- Total: 23 commands extracted
+
+**Next story:** M1-E3-S6 - Extract MDL group to cli/mdl.py
+
