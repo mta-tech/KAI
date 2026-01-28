@@ -118,8 +118,42 @@
 
 **Next story:** M1-E1-S5 - Add tests for connection and config groups
 
-## M1-E1-S5: Pending
-Add tests for connection and config groups
+## M1-E1-S5: Add tests for connection and config groups ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Updated test_cli.py to import from new main.py location
+- Added 17 new tests for config and connection groups:
+  - Config group: help, show, check, version, worker commands (6 tests)
+  - Connection group: help, create, list, show, update, delete, test commands (7 tests)
+  - CLI structure: config group registered, connection group registered, mdl group present (3 tests)
+  - Breaking changes: old commands no longer available (1 test)
+- Total: 19 tests pass (2 existing + 17 new)
+
+**Test coverage:**
+- All config commands have help tests
+- All connection commands have help tests
+- Config version output test
+- Breaking change verification (old commands fail)
+- Group registration verification
+
+**Files modified:**
+- tests/modules/autonomous_agent/test_cli.py (added 17 tests)
+
+**Test results:**
+✓ All 19 tests pass in 0.41s
+✓ No test failures or errors
+✓ Breaking changes verified (old commands not available)
+
+**Acceptance criteria:**
+✓ Tests added for config group
+✓ Tests added for connection group
+✓ All tests pass
+
+**Next story:** M1-E1-S6 - Verify old commands no longer work, new groups work
+
+## M1-E1-S6: Pending
+Verify old commands no longer work, new groups work
 
 ## M1-E1-S4: Pending
 Extract connection group to cli/connection.py
