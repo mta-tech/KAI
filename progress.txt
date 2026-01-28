@@ -152,8 +152,66 @@
 
 **Next story:** M1-E1-S6 - Verify old commands no longer work, new groups work
 
-## M1-E1-S6: Pending
-Verify old commands no longer work, new groups work
+## M1-E1-S6: Verify old commands no longer work, new groups work ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Verified breaking changes: 10 old commands no longer work
+- Verified new groups: 10 new grouped commands work correctly
+- Created comprehensive verification report documenting all changes
+- Tested command discovery improvements in help output
+- All automated tests pass (19/19)
+
+**Breaking changes verified:**
+Config commands (4):
+- kai config → fails (now: kai config show)
+- kai env-check → fails (now: kai config check)
+- kai version → fails (now: kai config version)
+- kai worker → fails (now: kai config worker)
+
+Connection commands (6):
+- kai create-connection → fails (now: kai connection create)
+- kai list-connections → fails (now: kai connection list)
+- kai show-connection → fails (now: kai connection show)
+- kai update-connection → fails (now: kai connection update)
+- kai delete-connection → fails (now: kai connection delete)
+- kai test-connection → fails (now: kai connection test)
+
+**New functionality verified:**
+- kai config --help shows all 4 subcommands
+- kai connection --help shows all 6 subcommands
+- kai mdl --help shows all 2 subcommands
+- All command options preserved from original implementation
+- Help text displays correctly with descriptions
+
+**Command discovery improvements:**
+- Main command list reduced from 59 to 53 commands
+- Related commands organized into logical groups
+- Better user experience through hierarchical structure
+
+**Files created:**
+- docs/verification/2026-01-29-cli-refactor-phase1-verification.md
+
+**Acceptance criteria:**
+✓ Old commands no longer work (breaking changes achieved)
+✓ New groups work correctly
+✓ Command structure matches plan
+✓ All tests pass
+
+**Phase 1 Status:** ✅ COMPLETE
+
+All 6 stories in Phase 1 (Foundation) are complete:
+- M1-E1-S1: Create cli/ directory structure ✅
+- M1-E1-S2: Extract config group ✅
+- M1-E1-S3: Register config group ✅
+- M1-E1-S4: Extract connection group ✅
+- M1-E1-S5: Add tests ✅
+- M1-E1-S6: Verify breaking changes ✅
+
+**Next Phase:** M1-E2 - Core Query Workflow
+- Extract table group (5 commands)
+- Extract query group (4 commands)
+- Extract session group (6 commands)
 
 ## M1-E1-S4: Pending
 Extract connection group to cli/connection.py
