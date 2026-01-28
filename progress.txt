@@ -493,3 +493,46 @@ All 6 stories in Phase 2 (Core Query Workflow) are complete:
 
 **Next story:** M1-E3-S2 - Extract knowledge glossary sub-group
 
+
+### M1-E3-S2: Extract knowledge glossary sub-group ✅
+**Completed:** 2026-01-29
+
+**Summary:**
+- Created cli/knowledge.py with nested Click group structure (~400 lines)
+- Created main knowledge group and glossary sub-group
+- Extracted 5 commands and remapped to new nested structure:
+  - add-glossary → knowledge glossary add
+  - list-glossaries → knowledge glossary list
+  - show-glossary → knowledge glossary show
+  - update-glossary → knowledge glossary update
+  - delete-glossary → knowledge glossary delete
+- Registered glossary sub-group under knowledge group
+- Registered knowledge group in main.py: cli.add_command(knowledge)
+- Removed all 5 old glossary commands from main.py (~280 lines removed)
+
+**Files created:**
+- app/modules/autonomous_agent/cli/knowledge.py (~400 lines)
+
+**Files modified:**
+- app/modules/autonomous_agent/main.py (added import, registration, removed ~280 lines)
+
+**Command examples:**
+- kai knowledge glossary add <db_id> --metric "Revenue" --sql "SELECT..."
+- kai knowledge glossary list <db_id> [-v]
+- kai knowledge glossary show <glossary_id>
+- kai knowledge glossary update <glossary_id> [--metric] [--sql] [--alias] [--metadata]
+- kai knowledge glossary delete <glossary_id> [-f]
+
+**Acceptance criteria:**
+✓ Knowledge group created with glossary sub-group
+✓ All 5 glossary commands work in new structure
+✓ Old commands removed from main CLI
+✓ CLI loads without errors
+✓ Breaking changes verified
+
+**Migration path for users:**
+- Old: kai add-glossary <db_id> --metric "Revenue" --sql "SELECT..."
+- New: kai knowledge glossary add <db_id> --metric "Revenue" --sql "SELECT..."
+
+**Next story:** M1-E3-S3 - Extract knowledge instruction sub-group
+
