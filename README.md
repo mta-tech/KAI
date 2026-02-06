@@ -453,7 +453,7 @@ uv run pytest tests/unit/test_deep_agent_adapter.py::test_function_name
 
 ## CLI Usage
 
-KAI provides a powerful command-line interface for database management and natural language analysis.
+KAI provides a powerful command-line interface organized into logical command groups for database management, knowledge curation, and natural language analysis.
 
 ### Quick CLI Tutorial
 
@@ -463,17 +463,17 @@ Here's a complete workflow from connecting to your database to running queries:
 
 ```bash
 # PostgreSQL
-uv run kai create-connection \
+uv run kai connection create \
   "postgresql://user:password@localhost:5432/sales_db" \
   -a sales
 
 # MySQL
-uv run kai create-connection \
+uv run kai connection create \
   "mysql://user:password@localhost:3306/crm_db" \
   -a crm
 
 # SQLite
-uv run kai create-connection \
+uv run kai connection create \
   "sqlite:///path/to/database.db" \
   -a local_db
 ```
@@ -484,10 +484,13 @@ Let KAI understand your database structure:
 
 ```bash
 # Basic scan
-uv run kai scan-all sales
+uv run kai table scan-all sales
 
 # With AI-generated descriptions (recommended)
-uv run kai scan-all sales -d
+uv run kai table scan-all sales -d
+
+# With MDL semantic layer generation
+uv run kai table scan-all sales -d --generate-mdl
 ```
 
 This analyzes your tables, columns, and relationships, generating descriptions to help the AI understand your data model.
@@ -498,13 +501,13 @@ Try these example queries:
 
 ```bash
 # One-shot query
-uv run kai run "Show total sales by month for 2024" --db sales
+uv run kai query run "Show total sales by month for 2024" --db sales
 
 # Another example
-uv run kai run "List top 10 customers by revenue" --db sales
+uv run kai query run "List top 10 customers by revenue" --db sales
 
 # Complex analytics
-uv run kai run "Analyze correlation between price and quantity sold" --db sales
+uv run kai query run "Analyze correlation between price and quantity sold" --db sales
 ```
 
 **Step 4: Interactive mode**
@@ -512,7 +515,7 @@ uv run kai run "Analyze correlation between price and quantity sold" --db sales
 For back-and-forth conversations:
 
 ```bash
-uv run kai interactive --db sales
+uv run kai query interactive --db sales
 ```
 
 Then ask questions naturally:
@@ -526,54 +529,176 @@ Then ask questions naturally:
 
 Type `exit` or press Ctrl+D to quit.
 
-### Available Commands
+### Command Reference
+
+The CLI is organized into 8 command groups:
+
+```
+kai
+├── config              # Configuration and system utilities
+├── connection          # Database connection management
+├── table               # Table management and schema scanning
+├── query               # Query execution and interactive sessions
+├── session             # Session management and export
+├── dashboard           # Dashboard creation and management
+├── knowledge           # Knowledge management
+│   ├── glossary        #   Business metric definitions
+│   ├── instruction     #   SQL generation rules
+│   ├── skill           #   Reusable analysis patterns
+│   └── memory          #   Long-term memory store
+└── mdl                 # Semantic layer (MDL) management
+```
+
+**Connection management:**
 
 ```bash
-# Connection management
-kai create-connection <uri> -a <alias>    # Add database
-kai list-connections                       # List all connections
-kai delete-connection <alias>              # Remove connection
+kai connection create <uri> -a <alias>     # Add database connection
+kai connection list                        # List all connections
+kai connection show <id_or_alias>          # Show connection details
+kai connection test <uri>                  # Test without saving
+kai connection update <id> --alias <name>  # Update connection
+kai connection delete <id> [-f]            # Remove connection
+```
 
-# Schema management
-kai scan-all <alias>                       # Scan all tables
-kai scan-all <alias> -d                    # Scan with AI descriptions
-kai scan-table <alias> <table_name>        # Scan specific table
+**Table management:**
 
-# Query execution
-kai run "<question>" --db <alias>          # One-shot query (supports alias or ID)
-kai interactive --db <alias>               # Interactive session (supports alias or ID)
+```bash
+kai table list <connection_id>             # List tables
+kai table show <table_id>                  # Show table details
+kai table scan <connection_id> -d          # Scan with AI descriptions
+kai table scan-all <connection_id> -d      # Scan all tables
+kai table search <connection_id> "pattern" # Search tables/columns
+kai table context <connection_id>          # Display database context
+```
 
-# Help
-kai --help                                 # Show all commands
-kai <command> --help                       # Command-specific help
+**Query and analysis:**
+
+```bash
+kai query run "<question>" --db <alias>    # One-shot analysis
+kai query interactive --db <alias>         # Interactive session
+kai query resume <session_id> "<prompt>" --db <alias>  # Resume session
+```
+
+**Session management:**
+
+```bash
+kai session list [--db <alias>]            # List sessions
+kai session show <session_id>              # Show session details
+kai session export <session_id> -f markdown -o chat.md  # Export session
+kai session delete <session_id> [-f]       # Delete session
+```
+
+**Dashboard management:**
+
+```bash
+kai dashboard create "Sales overview" --db <alias>      # Create from NL
+kai dashboard list --db <alias>                         # List dashboards
+kai dashboard execute <dashboard_id> --save             # Run all widgets
+kai dashboard render <dashboard_id> -f html -o report.html  # Render to HTML
+kai dashboard refine <dashboard_id> "Add revenue chart" # Refine with NL
+```
+
+**Knowledge management:**
+
+```bash
+# Business glossary (metric definitions)
+kai knowledge glossary add <conn_id> -m "Revenue" -s "SELECT SUM(amount) FROM orders"
+kai knowledge glossary list <conn_id>
+
+# Business instructions (SQL generation rules)
+kai knowledge instruction add <conn_id> -c "General" -r "Exclude test accounts"
+kai knowledge instruction list <conn_id>
+
+# Skills (reusable analysis patterns)
+kai knowledge skill discover <conn_id> --path ./skills
+kai knowledge skill list <conn_id>
+
+# Long-term memory
+kai knowledge memory list <conn_id>
+kai knowledge memory search "date format" -d <conn_id>
+kai knowledge memory add <conn_id> user_preferences date_format "Use YYYY-MM-DD"
+```
+
+**MDL (semantic layer):**
+
+```bash
+kai mdl list [--db <alias>]                # List MDL manifests
+kai mdl show <manifest_id> [--summary]     # Show manifest details
+kai mdl show <manifest_id> -f json         # Export as JSON
+```
+
+**Configuration:**
+
+```bash
+kai config show [--json]                   # Show current settings
+kai config check                           # Check environment/API keys
+kai config version                         # Show version info
+```
+
+**Help:**
+
+```bash
+kai --help                                 # Show all command groups
+kai <group> --help                         # Group-specific help
+kai <group> <command> --help               # Command-specific help
+```
+
+### Common Workflows
+
+**Setup workflow** (connection, scan, query):
+
+```bash
+uv run kai connection create "postgresql://user:pass@host:5432/db" -a mydb
+uv run kai table scan-all mydb -d
+uv run kai query run "Show top customers" --db mydb
+```
+
+**Knowledge workflow** (teach KAI your business context):
+
+```bash
+uv run kai knowledge glossary add mydb -m "MRR" -s "SELECT SUM(amount) FROM subscriptions WHERE status='active'"
+uv run kai knowledge instruction add mydb -c "Revenue" -r "Always filter by active subscriptions"
+uv run kai knowledge skill discover mydb --path ./skills
+uv run kai query run "What's our MRR?" --db mydb  # Now uses business context
+```
+
+**Dashboard workflow** (create, execute, export):
+
+```bash
+uv run kai dashboard create "Sales performance dashboard" --db mydb --theme ocean
+uv run kai dashboard execute <dashboard_id> --save
+uv run kai dashboard render <dashboard_id> -f html -o dashboard.html
 ```
 
 ### Advanced CLI Features
 
-**Custom instructions:**
+**Session management:**
 
 ```bash
-# Add domain-specific guidance
-uv run kai add-instruction \
-  "Always use fiscal year (July-June) for financial queries" \
-  --db sales
+# Resume a previous conversation
+uv run kai query resume <session_id> "Break it down by region" --db sales
+
+# Export session to markdown
+uv run kai session export <session_id> -f markdown -o conversation.md
 ```
 
-**Export results:**
+**Search and exploration:**
 
 ```bash
-# Run query and save to CSV
-uv run kai run "Show monthly sales" --db sales --output sales.csv
+# Search tables and columns by pattern
+uv run kai table search mydb "revenue"
+uv run kai table search mydb "*_id" -i columns
 
-# JSON format
-uv run kai run "Show top products" --db sales --format json
+# Display full database context
+uv run kai table context mydb -s -d -f markdown -o context.md
 ```
 
-**Verbose mode:**
+**Memory management:**
 
 ```bash
-# See detailed SQL generation process
-uv run kai run "Show revenue" --db sales --verbose
+# Store preferences the AI remembers across sessions
+uv run kai knowledge memory add mydb user_preferences date_format "Use YYYY-MM-DD"
+uv run kai knowledge memory search "preferences" -d mydb
 ```
 
 ---
