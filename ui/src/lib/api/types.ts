@@ -8,6 +8,8 @@ export interface Connection {
   database_type?: string;
   status?: string;
   schemas?: string[];
+  connection_string?: string;
+  connection_uri?: string;
 }
 
 /** @deprecated Use Connection instead */

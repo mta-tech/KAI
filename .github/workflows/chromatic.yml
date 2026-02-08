@@ -1,0 +1,74 @@
+name: Chromatic Visual Regression
+
+on:
+  pull_request:
+    branches: [main, fix/kai-v1-ui-fix]
+  push:
+    branches: [main, fix/kai-v1-ui-fix]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  chromatic:
+    name: Chromatic Visual Regression Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./ui
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ./ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Storybook
+        run: npm run build-storybook
+
+      - name: Publish to Chromatic
+        id: chromatic
+        uses: chromaui/action@v1
+        with:
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          workingDir: ./ui
+          exitZeroOnChanges: true
+          autoAcceptChanges: 'none'
+          buildScriptName: 'build-storybook'
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `### Visual Regression Results 🎨
+
+            Chromatic has completed visual regression testing for this PR.
+
+            ${steps.chromatic.outputs.chromaticUrl ? `**View Results:** [Chromatic Build](${steps.chromatic.outputs.chromaticUrl})` : ''}
+
+            Please review any visual changes and approve or reject them accordingly.
+
+            ✅ No changes needed if all tests pass
+            ⚠️ Review intentional changes and approve them
+            ❌ Fix unintended visual regressions`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

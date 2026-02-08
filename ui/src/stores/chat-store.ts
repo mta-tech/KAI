@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import type { AgentEvent, AgentTodo, ChunkType } from '@/lib/api/types';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('ChatStore');
 
 // Structured content from SSE events
 export interface StructuredContent {
@@ -64,10 +67,9 @@ export const useChatStore = create<ChatState>((set) => ({
   },
 
   startAssistantMessage: (id) => {
-    console.log('[Chat Store] startAssistantMessage called:', { id });
+    logger.debug('startAssistantMessage called:', { id });
     set((state) => {
       const newMessage = { id, role: 'assistant' as const, content: '', timestamp: new Date(), events: [], isStreaming: true };
-      console.log('[Chat Store] Creating new message:', newMessage);
       return {
         messages: [...state.messages, newMessage],
         isStreaming: true,
@@ -76,31 +78,16 @@ export const useChatStore = create<ChatState>((set) => ({
   },
 
   appendToAssistantMessage: (id, content) => {
-    console.log('[Chat Store] appendToAssistantMessage called:', { id, content, contentLength: content.length });
     set((state) => {
       const message = state.messages.find((m) => m.id === id);
-      console.log('[Chat Store] Current message:', {
-        messageId: message?.id,
-        currentContentLength: message?.content.length,
-        isStreaming: message?.isStreaming
-      });
-
       const updatedMessages = state.messages.map((m) =>
         m.id === id ? { ...m, content: m.content + content } : m
       );
-
-      const updatedMessage = updatedMessages.find((m) => m.id === id);
-      console.log('[Chat Store] Updated message:', {
-        messageId: updatedMessage?.id,
-        newContentLength: updatedMessage?.content.length
-      });
-
       return { messages: updatedMessages };
     });
   },
 
   appendStructuredContent: (id, chunkType, content) => {
-    console.log('[Chat Store] appendStructuredContent called:', { id, chunkType, contentLength: content.length });
     set((state) => ({
       messages: state.messages.map((m) => {
         if (m.id !== id) return m;
@@ -129,7 +116,6 @@ export const useChatStore = create<ChatState>((set) => ({
   },
 
   updateProcessStatus: (id, status) => {
-    console.log('[Chat Store] updateProcessStatus called:', { id, status });
     set((state) => ({
       messages: state.messages.map((m) => {
         if (m.id !== id) return m;
@@ -150,9 +136,7 @@ export const useChatStore = create<ChatState>((set) => ({
   },
 
   finishAssistantMessage: (id) => {
-    console.log('[Chat Store] finishAssistantMessage called:', { id });
     set((state) => {
-      console.log('[Chat Store] Setting isStreaming to false, current state:', { isStreaming: state.isStreaming });
       return {
         messages: state.messages.map((m) =>
           m.id === id ? { ...m, isStreaming: false, todos: state.currentTodos } : m

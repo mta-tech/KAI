@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { LoadingButton } from '@/components/ui/loading-button';
 import {
   Dialog,
   DialogContent,
@@ -128,9 +129,9 @@ export function CreateManifestDialog() {
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={buildMutation.isPending}>
-              {buildMutation.isPending ? 'Creating...' : 'Create'}
-            </Button>
+            <LoadingButton type="submit" isLoading={buildMutation.isPending} loadingText="Creating...">
+              Create
+            </LoadingButton>
           </div>
         </form>
       </DialogContent>

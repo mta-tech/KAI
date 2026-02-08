@@ -50,34 +50,36 @@ export default function ChatPage() {
         onNewSession={handleNewSession}
       />
 
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col min-w-0">
         {!sessionId ? (
-          <div className="flex flex-1 items-center justify-center text-muted-foreground">
+          <div className="flex flex-1 items-center justify-center text-muted-foreground px-4">
             Select or create a session to start chatting
           </div>
         ) : (
           <>
             {isStreaming && currentTodos.length > 0 && (
-              <div className="border-b p-4">
+              <div className="border-b p-2 sm:p-4 bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
                 <TodoList todos={currentTodos} />
               </div>
             )}
 
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-4">
+            <ScrollArea className="flex-1">
+              <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 max-w-4xl mx-auto">
                 {messages.map((message) => (
                   <AgentMessage key={message.id} message={message} />
                 ))}
               </div>
             </ScrollArea>
 
-            <div className="border-t p-4">
-              <ChatInput
-                onSend={sendMessage}
-                onStop={stopStreaming}
-                isStreaming={isStreaming}
-                disabled={!sessionId}
-              />
+            <div className="border-t p-2 sm:p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky bottom-0">
+              <div className="max-w-4xl mx-auto">
+                <ChatInput
+                  onSend={sendMessage}
+                  onStop={stopStreaming}
+                  isStreaming={isStreaming}
+                  disabled={!sessionId}
+                />
+              </div>
             </div>
           </>
         )}

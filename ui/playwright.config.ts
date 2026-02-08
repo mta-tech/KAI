@@ -47,21 +47,48 @@ export default defineConfig({
     timeout: 60000,
   },
 
-  // Configure projects for major browsers
+  // Configure projects for major browsers and devices
+  // Cross-browser testing matrix: Chrome, Firefox, Safari (webkit)
+  // Mobile device testing: iPhone, iPad, Android phones
   projects: [
+    // Desktop browsers - Primary testing targets
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    // Uncomment to add more browsers for cross-browser testing
-    // {
-    //   name: 'firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
-    // {
-    //   name: 'webkit',
-    //   use: { ...devices['Desktop Safari'] },
-    // },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
+
+    // Mobile devices - iOS testing (Safari on iPhone/iPad)
+    {
+      name: 'Mobile Safari - iPhone',
+      use: { ...devices['iPhone 13'] },
+    },
+    {
+      name: 'Mobile Safari - iPad',
+      use: { ...devices['iPad Pro'] },
+    },
+
+    // Mobile devices - Android testing (Chrome on Android)
+    {
+      name: 'Mobile Chrome - Android',
+      use: { ...devices['Pixel 5'] },
+    },
+
+    // Mobile viewport testing for responsiveness validation
+    {
+      name: 'Mobile Small',
+      use: {
+        ...devices['iPhone SE'],
+        viewport: { width: 375, height: 667 },
+      },
+    },
   ],
 
   // Run your local dev server before starting the tests
