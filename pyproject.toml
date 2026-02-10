@@ -14,7 +14,7 @@ typesense = "^0.19.0"
 ruff = "^0.6.2"
 pydantic-settings = "^2.4.0"
 SQLAlchemy = "^2.0.32"
-psycopg2 = "^2.9.9"
+psycopg2-binary = "^2.9.9"
 uvicorn = "^0.30.6"
 black = "^24.8.0"
 sql-metadata = "^2.13.0"
@@ -39,6 +39,7 @@ llama-index-llms-langchain = "^0.6.0"
 llama-index-embeddings-langchain = "^0.3.0"
 langgraph-prebuilt = "^0.1.1"
 langgraph = "0.2.73"
+google-genai = "^1.62.0"
 
 [build-system]
 requires = ["poetry-core"]
