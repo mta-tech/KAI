@@ -48,6 +48,7 @@ dependencies = [
     "urllib3>=2.6.0", # CVE: streaming API and decompression chain vulnerabilities
     "marshmallow>=3.26.2", # CVE: DoS in Schema.load(many)
     "psycopg2-binary>=2.9.11",
+    "google-genai>=1.62.0",
 ]
 
 [project.scripts]

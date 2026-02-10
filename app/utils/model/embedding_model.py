@@ -1,14 +1,13 @@
 from typing import Any
 
-# from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_openai import OpenAIEmbeddings
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_ollama import OllamaEmbeddings
 from langchain_core.embeddings import Embeddings
 from overrides import override
 
 from app.modules.database_connection.models import DatabaseConnection
 from app.utils.model import LLMModel
+from app.utils.model.google_genai_embeddings import GoogleGenAIEmbeddingsOfficial
 
 
 class EmbeddingModel(LLMModel):
@@ -24,6 +23,7 @@ class EmbeddingModel(LLMModel):
         model_family = model_family or self.settings.require("EMBEDDING_FAMILY")
         model_name = model_name or self.settings.require("EMBEDDING_MODEL")
         dimensions = self.settings.require("EMBEDDING_DIMENSIONS")
+
         if model_family == "openai":
             return OpenAIEmbeddings(
                 model=model_name,
@@ -32,12 +32,12 @@ class EmbeddingModel(LLMModel):
                 **kwargs,
             )
         if model_family == "google":
-            return GoogleGenerativeAIEmbeddings(
+            # Use the official Google GenAI SDK wrapper
+            return GoogleGenAIEmbeddingsOfficial(
                 model=model_name,
                 api_key=self.settings.require("GOOGLE_API_KEY"),
                 dimensions=dimensions,
-                task_type='RETRIEVAL_QUERY',
-                **kwargs,
+                task_type="RETRIEVAL_QUERY",
             )
         if model_family == "ollama":
             return OllamaEmbeddings(
