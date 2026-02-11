@@ -84,7 +84,7 @@ app/data/dbdata
 data_*/
 temp/
 app/data/dbdata/generated_csv/*
-
+migration/backups/*
 app/automation
 
 # Ignore testing files

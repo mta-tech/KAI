@@ -166,12 +166,12 @@ class ContextStoreService:
     def delete_context_store(self, context_store_id) -> bool:
         context_store = self.repository.find_by_id(context_store_id)
         if not context_store:
-            raise HTTPException(f"Prompt {context_store_id} not found")
+            raise HTTPException(status_code=404, detail=f"Prompt {context_store_id} not found")
 
         is_deleted = self.repository.delete_by_id(context_store_id)
 
         if not is_deleted:
-            raise HTTPException(f"Failed to delete context_store {context_store_id}")
+            raise HTTPException(status_code=500, detail=f"Failed to delete context_store {context_store_id}")
 
         return True
 

@@ -4,24 +4,33 @@ HTTP-based embedding migration script.
 
 Migrates embeddings by calling the existing API endpoints instead of direct database access:
 - Instructions: Uses PUT endpoint (auto-regenerates embeddings)
-- Context stores: Uses DELETE + POST (recreate records)
+- Context stores: Uses POST + DELETE (create new first, then delete old - safer approach)
 
 Usage:
     python -m migration.embedding_migration_http
     python -m migration.embedding_migration_http --base-url http://localhost:8000
     python -m migration.embedding_migration_http --collections instructions
     python -m migration.embedding_migration_http --dry-run
+    python -m migration.embedding_migration_http --backup-before  # Backup before migration
 """
 
 import argparse
 import os
 import sys
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, cast
 
 import requests  # type: ignore
 from tqdm import tqdm  # type: ignore
 from urllib.parse import urljoin
+
+# Import backup manager for pre-migration backup
+from migration.backup_http import (
+    BackupRestoreHTTP,
+    generate_backup_path,
+    DEFAULT_BACKUP_DIR,
+)
 
 
 @dataclass
@@ -159,7 +168,7 @@ class EmbeddingMigrationHTTP:
         return stats
 
     def migrate_context_stores(self, db_connection_id: str) -> MigrationStats:
-        """Migrate context stores using DELETE + POST (recreate)."""
+        """Migrate context stores using POST + DELETE (safer: creates new before deleting old)."""
         stats = MigrationStats()
 
         try:
@@ -194,17 +203,19 @@ class EmbeddingMigrationHTTP:
                         continue
 
                     try:
-                        # Delete the existing record
-                        self._delete(f"/api/v1/context-stores/{store_id}")
+                        # POST first: Create new record with fresh embedding
+                        new_store = self._post("/api/v1/context-stores", data=store_data)
+                        new_id = new_store.get("id", "")
 
-                        # Recreate with same data - service generates new embedding
-                        self._post("/api/v1/context-stores", data=store_data)
+                        # Then DELETE the old record (safer: if delete fails, we have a duplicate)
+                        self._delete(f"/api/v1/context-stores/{store_id}")
                         stats.success += 1
                         pbar.set_postfix_str(f"ID: {store_id[:8]}... ✓")
 
-                    except Exception:
+                    except Exception as e:
                         stats.failed += 1
                         pbar.set_postfix_str(f"ID: {store_id[:8]}... ✗")
+                        self._log(f"    ERROR: {e}", force=True)
 
                     pbar.update(1)
 
@@ -305,11 +316,44 @@ def main() -> None:
         action="store_true",
         help="Reduce output verbosity"
     )
+    parser.add_argument(
+        "--backup-before",
+        action="store_true",
+        help="Create a backup before running migration"
+    )
+    parser.add_argument(
+        "--backup-output",
+        type=str,
+        default="",
+        help="Custom path for backup file (default: auto-generated in migration/backups/)"
+    )
 
     args = parser.parse_args()
 
     if args.dry_run:
         print("[DRY RUN MODE] No changes will be made\n")
+
+    # Create backup if requested
+    backup_file = None
+    if args.backup_before and not args.dry_run:
+        print("\n" + "=" * 60)
+        print("Creating backup before migration...")
+        print("=" * 60 + "\n")
+
+        backup_manager = BackupRestoreHTTP(
+            base_url=args.base_url,
+            verbose=not args.quiet
+        )
+
+        output_path = args.backup_output
+        if not output_path:
+            output_path = generate_backup_path(DEFAULT_BACKUP_DIR)
+
+        backup_data = backup_manager.create_backup()
+        backup_file = backup_manager.save_backup(backup_data, output_path)
+
+        print(f"\nBackup created successfully: {backup_file}")
+        print("You can restore from this backup if migration fails.\n")
 
     migration = EmbeddingMigrationHTTP(
         base_url=args.base_url,
@@ -319,6 +363,11 @@ def main() -> None:
 
     results = migration.run(args.collections)
     migration.print_final_summary(results)
+
+    # Print backup info after migration completes
+    if backup_file:
+        print(f"\nBackup file: {backup_file}")
+        print("To restore if needed: python -m migration.backup_http restore --input <backup-file>")
 
 
 if __name__ == "__main__":
