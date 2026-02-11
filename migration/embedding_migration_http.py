@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 import requests  # type: ignore
+from tqdm import tqdm  # type: ignore
 from urllib.parse import urljoin
 
 
@@ -48,6 +49,7 @@ class EmbeddingMigrationHTTP:
         self.verbose = verbose
         self.stats: dict[str, Any] = {}
         self.session = requests.Session()
+        self.disable_pbar = not verbose
 
     def _log(self, message: str, force: bool = False) -> None:
         """Print log message if verbose or forced."""
@@ -110,42 +112,46 @@ class EmbeddingMigrationHTTP:
 
             self._log(f"  Found {stats.total} non-default instructions")
 
-            for instruction in non_default:
-                instr_id = instruction["id"]
-                condition = instruction.get("condition", "")
-                rules = instruction.get("rules", "")
-                is_default = instruction.get("is_default", False)
-                metadata = instruction.get("metadata")
+            with tqdm(total=stats.total, desc="  Migrating instructions", disable=self.disable_pbar) as pbar:
+                for instruction in non_default:
+                    instr_id = instruction["id"]
+                    condition = instruction.get("condition", "")
+                    rules = instruction.get("rules", "")
+                    is_default = instruction.get("is_default", False)
+                    metadata = instruction.get("metadata")
 
-                # Skip default instructions (they don't have embeddings)
-                if is_default:
-                    stats.skipped += 1
-                    continue
+                    # Skip default instructions (they don't have embeddings)
+                    if is_default:
+                        stats.skipped += 1
+                        pbar.update(1)
+                        continue
 
-                self._log(f"  Migrating instruction: {instr_id}")
+                    pbar.set_postfix_str(f"ID: {instr_id[:8]}...")
 
-                if self.dry_run:
-                    self._log("    [DRY RUN] Would update instruction")
-                    stats.success += 1
-                    continue
+                    if self.dry_run:
+                        stats.success += 1
+                        pbar.update(1)
+                        continue
 
-                try:
-                    # PUT with same data - service auto-regenerates embedding
-                    self._put(
-                        f"/api/v1/instructions/{instr_id}",
-                        data={
-                            "condition": condition,
-                            "rules": rules,
-                            "is_default": is_default,
-                            "metadata": metadata,
-                        }
-                    )
-                    stats.success += 1
-                    self._log("    Migrated successfully")
+                    try:
+                        # PUT with same data - service auto-regenerates embedding
+                        self._put(
+                            f"/api/v1/instructions/{instr_id}",
+                            data={
+                                "condition": condition,
+                                "rules": rules,
+                                "is_default": is_default,
+                                "metadata": metadata,
+                            }
+                        )
+                        stats.success += 1
+                        pbar.set_postfix_str(f"ID: {instr_id[:8]}... ✓")
 
-                except Exception as e:
-                    stats.failed += 1
-                    self._log(f"    Failed: {e}", force=True)
+                    except Exception:
+                        stats.failed += 1
+                        pbar.set_postfix_str(f"ID: {instr_id[:8]}... ✗")
+
+                    pbar.update(1)
 
         except Exception as e:
             self._log(f"  Failed to fetch instructions: {e}", force=True)
@@ -169,36 +175,38 @@ class EmbeddingMigrationHTTP:
 
             self._log(f"  Found {stats.total} context stores")
 
-            for store in context_stores:
-                store_id = store["id"]
-                self._log(f"  Migrating context store: {store_id}")
+            with tqdm(total=stats.total, desc="  Migrating context stores", disable=self.disable_pbar) as pbar:
+                for store in context_stores:
+                    store_id = store["id"]
+                    pbar.set_postfix_str(f"ID: {store_id[:8]}...")
 
-                # Store the data for recreation
-                store_data = {
-                    "db_connection_id": db_connection_id,
-                    "prompt_text": store.get("prompt_text", ""),
-                    "sql": store.get("sql", ""),
-                    "metadata": store.get("metadata"),
-                }
+                    # Store the data for recreation
+                    store_data = {
+                        "db_connection_id": db_connection_id,
+                        "prompt_text": store.get("prompt_text", ""),
+                        "sql": store.get("sql", ""),
+                        "metadata": store.get("metadata"),
+                    }
 
-                if self.dry_run:
-                    self._log("    [DRY RUN] Would delete and recreate")
-                    stats.success += 1
-                    continue
+                    if self.dry_run:
+                        stats.success += 1
+                        pbar.update(1)
+                        continue
 
-                try:
-                    # Delete the existing record
-                    self._delete(f"/api/v1/context-stores/{store_id}")
-                    self._log("    Deleted")
+                    try:
+                        # Delete the existing record
+                        self._delete(f"/api/v1/context-stores/{store_id}")
 
-                    # Recreate with same data - service generates new embedding
-                    self._post("/api/v1/context-stores", data=store_data)
-                    stats.success += 1
-                    self._log("    Recreated successfully")
+                        # Recreate with same data - service generates new embedding
+                        self._post("/api/v1/context-stores", data=store_data)
+                        stats.success += 1
+                        pbar.set_postfix_str(f"ID: {store_id[:8]}... ✓")
 
-                except Exception as e:
-                    stats.failed += 1
-                    self._log(f"    Failed: {e}", force=True)
+                    except Exception:
+                        stats.failed += 1
+                        pbar.set_postfix_str(f"ID: {store_id[:8]}... ✗")
+
+                    pbar.update(1)
 
         except Exception as e:
             self._log(f"  Failed to fetch context stores: {e}", force=True)
