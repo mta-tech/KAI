@@ -2953,3 +2953,37 @@ curl http://localhost:8123/ok
 - [ ] P4-17: Production smoke tests with real browsers
 
 **Legend:** 🟡 In Progress | ✅ Complete | ⬜ Pending | ❌ Blocked
+
+## Compounded
+
+- [x] Last compounded: 2026-02-09
+- [x] ADRs created: 3
+- [x] Solutions documented: 2
+- [x] Deployment changes: 1
+- [x] Patterns added: 10
+
+**Generated Documents:**
+
+### Architecture Decisions (ADRs)
+- [docs/adr/adr-001-use-shadcn-ui-radix-ui-tailwind.md](../docs/adr/adr-001-use-shadcn-ui-radix-ui-tailwind.md) - Design system architecture
+- [docs/adr/adr-002-zustand-for-client-state.md](../docs/adr/adr-002-zustand-for-client-state.md) - State management strategy
+- [docs/adr/adr-003-nextjs-14-app-router-with-server-components.md](../docs/adr/adr-003-nextjs-14-app-router-with-server-components.md) - Framework choice
+
+### Mistakes & Solutions
+- [docs/solutions/ssr-issues/ssr-safe-theme-provider.md](../docs/solutions/ssr-issues/ssr-safe-theme-provider.md) - SSR-safe theme handling
+- [docs/solutions/ssr-issues/useSearchParams-suspense-boundary.md](../docs/solutions/ssr-issues/useSearchParams-suspense-boundary.md) - Suspense boundary pattern
+
+### Deployment
+- [docs/deployment/launch-checklist.md](../docs/deployment/launch-checklist.md) - Updated with changelog and lessons learned
+
+### Reusable Patterns
+- SSR-safe browser API access
+- useSearchParams() Suspense boundary pattern
+- Provider component composition for client features
+- Non-mutating array operations
+- API client with type-safe methods
+- Error boundary composition
+- Design token integration with Tailwind
+- Suspense for code splitting
+- Type-safe environment variables
+- Accessibility-first component design
