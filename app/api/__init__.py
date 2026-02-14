@@ -11,9 +11,15 @@ from app.api.requests import (
     AnalysisRequest,
     BusinessGlossaryRequest,
     ComprehensiveAnalysisRequest,
+    ContextAssetRequest,
     ContextStoreRequest,
+    CreateDraftRevisionRequest,
+    DeprecateAssetRequest,
     GetContextStoreByNameRequest,
+    PromoteAssetRequest,
+    SearchContextAssetsRequest,
     SemanticContextStoreRequest,
+    UpdateContextAssetRequest,
     DatabaseConnectionRequest,
     InstructionRequest,
     NLGenerationRequest,
@@ -37,6 +43,10 @@ from app.api.responses import (
     AnalysisResponse,
     BusinessGlossaryResponse,
     ComprehensiveAnalysisResponse,
+    ContextAssetResponse,
+    ContextAssetSearchResultResponse,
+    ContextAssetTagResponse,
+    ContextAssetVersionResponse,
     ContextStoreResponse,
     DatabaseConnectionResponse,
     InstructionResponse,
@@ -51,6 +61,9 @@ from app.api.responses import (
 from app.data.db.storage import Storage
 from app.modules.alias.services import AliasService
 from app.modules.business_glossary.services import BusinessGlossaryService
+from app.modules.context_platform.services.asset_service import (
+    ContextAssetService,
+)
 from app.modules.context_store.services import ContextStoreService
 from app.modules.database_connection.services import DatabaseConnectionService
 from app.modules.instruction.services import InstructionService
@@ -83,6 +96,7 @@ class API:
         self.synthetic_question_service = SyntheticQuestionService(self.storage)
         self.alias_service = AliasService(self.storage)
         self.analysis_service = AnalysisService(self.storage)
+        self.context_asset_service = ContextAssetService(self.storage)
 
         self._register_routes()
 
@@ -537,6 +551,197 @@ class API:
             methods=["GET"],
             tags=["Analysis"],
         )
+
+        # Context Platform endpoints
+        self.router.add_api_route(
+            "/api/v1/context-assets",
+            self.create_context_asset,
+            methods=["POST"],
+            status_code=201,
+            tags=["Context Platform"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/context-assets",
+            self.list_context_assets,
+            methods=["GET"],
+            tags=["Context Platform"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/context-assets/search",
+            self.search_context_assets,
+            methods=["POST"],
+            tags=["Context Platform"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/context-assets/{db_connection_id}/{asset_type}/{canonical_key}",
+            self.get_context_asset,
+            methods=["GET"],
+            tags=["Context Platform"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/context-assets/{asset_id}",
+            self.update_context_asset,
+            methods=["PUT"],
+            tags=["Context Platform"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/context-assets/{db_connection_id}/{asset_type}/{canonical_key}",
+            self.delete_context_asset,
+            methods=["DELETE"],
+            tags=["Context Platform"],
+        )
+
+        # Lifecycle transition endpoints
+        self.router.add_api_route(
+            "/api/v1/context-assets/{asset_id}/promote/verified",
+            self.promote_asset_to_verified,
+            methods=["POST"],
+            tags=["Context Platform"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/context-assets/{asset_id}/promote/published",
+            self.promote_asset_to_published,
+            methods=["POST"],
+            tags=["Context Platform"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/context-assets/{asset_id}/deprecate",
+            self.deprecate_asset,
+            methods=["POST"],
+            tags=["Context Platform"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/context-assets/{asset_id}/revision",
+            self.create_asset_draft_revision,
+            methods=["POST"],
+            tags=["Context Platform"],
+        )
+
+        # Version history endpoint
+        self.router.add_api_route(
+            "/api/v1/context-assets/{asset_id}/versions",
+            self.get_asset_version_history,
+            methods=["GET"],
+            tags=["Context Platform"],
+        )
+
+        # Tags endpoint
+        self.router.add_api_route(
+            "/api/v1/context-assets/tags",
+            self.get_asset_tags,
+            methods=["GET"],
+            tags=["Context Platform"],
+        )
+
+        # ============================================================================
+        # Benchmark Routes
+        # ============================================================================
+
+        # TODO: Benchmark endpoints need to be implemented in the API class
+        # The ContextPlatformEndpoints class has these methods, but they're not integrated
+        # For now, commenting out the route registration to allow app to start
+        #
+        # self.router.add_api_route(
+        #     "/api/v1/benchmark/suites",
+        #     self.create_benchmark_suite,
+        #     methods=["POST"],
+        #     status_code=201,
+        #     tags=["Benchmarks"],
+        # )
+        #
+        # self.router.add_api_route(
+        #     "/api/v1/benchmark/suites",
+        #     self.list_benchmark_suites,
+        #     methods=["GET"],
+        #     tags=["Benchmarks"],
+        # )
+
+        # self.router.add_api_route(
+        #     "/api/v1/benchmark/suites/{suite_id}",
+        #     self.get_benchmark_suite,
+        #     methods=["GET"],
+        #     tags=["Benchmarks"],
+        # )
+
+        # self.router.add_api_route(
+        #     "/api/v1/benchmark/suites/{suite_id}/run",
+        #     self.run_benchmark,
+        #     methods=["POST"],
+        #     status_code=201,
+        #     tags=["Benchmarks"],
+        # )
+
+        # self.router.add_api_route(
+        #     "/api/v1/benchmark/suites/{suite_id}/runs",
+        #     self.list_benchmark_runs,
+        #     methods=["GET"],
+        #     tags=["Benchmarks"],
+        # )
+
+        # self.router.add_api_route(
+        #     "/api/v1/benchmark/runs/{run_id}",
+        #     self.get_benchmark_run,
+        #     methods=["GET"],
+        #     tags=["Benchmarks"],
+        # )
+
+        # self.router.add_api_route(
+        #     "/api/v1/benchmark/runs/{run_id}/results",
+        #     self.get_benchmark_results,
+        #     methods=["GET"],
+        #     tags=["Benchmarks"],
+        # )
+
+        # self.router.add_api_route(
+        #     "/api/v1/benchmark/runs/{run_id}/export",
+        #     self.export_benchmark_run,
+        #     methods=["GET"],
+        #     tags=["Benchmarks"],
+        # )
+
+        # ============================================================================
+        # Feedback Routes
+        # ============================================================================
+
+        # TODO: Feedback endpoints need to be implemented in the API class
+        # The ContextPlatformEndpoints class has these methods, but they're not integrated
+        #
+        # self.router.add_api_route(
+        #     "/api/v1/feedback",
+        #     self.submit_feedback,
+        #     methods=["POST"],
+        #     status_code=201,
+        #     tags=["Feedback"],
+        # )
+        #
+        # self.router.add_api_route(
+        #     "/api/v1/feedback",
+        #     self.list_feedback,
+        #     methods=["GET"],
+        #     tags=["Feedback"],
+        # )
+        #
+        # self.router.add_api_route(
+        #     "/api/v1/feedback/{feedback_id}",
+        #     self.get_feedback,
+        #     methods=["GET"],
+        #     tags=["Feedback"],
+        # )
+        #
+        # self.router.add_api_route(
+        #     "/api/v1/feedback/{feedback_id}/status",
+        #     self.update_feedback_status,
+        #     methods=["PATCH"],
+        #     tags=["Feedback"],
+        # )
 
     def get_router(self) -> fastapi.APIRouter:
         return self.router
@@ -1149,4 +1354,273 @@ class API:
             error=analysis.error,
             metadata=analysis.metadata,
             created_at=analysis.created_at,
+        )
+
+    # =========================================================================
+    # Context Platform Endpoints
+    # =========================================================================
+
+    def create_context_asset(self, request: ContextAssetRequest) -> ContextAssetResponse:
+        """Create a new context asset in DRAFT state."""
+        from app.modules.context_platform.models.asset import ContextAssetType
+        from app.modules.context_platform.services.asset_service import LifecyclePolicyError
+
+        try:
+            asset_type = ContextAssetType(request.asset_type)
+            asset = self.context_asset_service.create_asset(
+                db_connection_id=request.db_connection_id,
+                asset_type=asset_type,
+                canonical_key=request.canonical_key,
+                name=request.name,
+                content=request.content,
+                content_text=request.content_text,
+                description=request.description,
+                author=request.author,
+                tags=request.tags,
+            )
+            return self._asset_to_response(asset)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def get_context_asset(
+        self, db_connection_id: str, asset_type: str, canonical_key: str, version: str = "latest"
+    ) -> ContextAssetResponse:
+        """Get a context asset by key."""
+        from app.modules.context_platform.models.asset import ContextAssetType
+
+        try:
+            asset_type_enum = ContextAssetType(asset_type)
+            asset = self.context_asset_service.get_asset(db_connection_id, asset_type_enum, canonical_key, version)
+            if not asset:
+                raise HTTPException(status_code=404, detail=f"Asset not found: {asset_type}/{canonical_key}@{version}")
+            return self._asset_to_response(asset)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def list_context_assets(
+        self, db_connection_id: str, asset_type: str | None = None, lifecycle_state: str | None = None, limit: int = 100
+    ) -> list[ContextAssetResponse]:
+        """List context assets with optional filtering."""
+        from app.modules.context_platform.models.asset import ContextAssetType, LifecycleState
+
+        try:
+            asset_type_enum = ContextAssetType(asset_type) if asset_type else None
+            state_enum = LifecycleState(lifecycle_state) if lifecycle_state else None
+            assets = self.context_asset_service.list_assets(db_connection_id, asset_type=asset_type_enum, lifecycle_state=state_enum, limit=limit)
+            return [self._asset_to_response(asset) for asset in assets]
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def search_context_assets(self, request: SearchContextAssetsRequest) -> list[ContextAssetSearchResultResponse]:
+        """Search context assets by text query."""
+        from app.modules.context_platform.models.asset import ContextAssetType
+
+        try:
+            asset_type = ContextAssetType(request.asset_type) if request.asset_type else None
+            results = self.context_asset_service.search_assets(
+                db_connection_id=request.db_connection_id,
+                query=request.query,
+                asset_type=asset_type,
+                limit=request.limit,
+            )
+            return [
+                ContextAssetSearchResultResponse(
+                    asset=self._asset_to_response(result.asset),
+                    score=result.score,
+                    match_type=result.match_type,
+                )
+                for result in results
+            ]
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def update_context_asset(self, asset_id: str, request: UpdateContextAssetRequest) -> ContextAssetResponse:
+        """Update an existing context asset (DRAFT only)."""
+        from app.modules.context_platform.services.asset_service import LifecyclePolicyError
+
+        try:
+            asset = self.context_asset_service.update_asset(
+                asset_id=asset_id,
+                name=request.name,
+                description=request.description,
+                content=request.content,
+                content_text=request.content_text,
+                tags=request.tags,
+            )
+            if not asset:
+                raise HTTPException(status_code=404, detail=f"Asset not found: {asset_id}")
+            return self._asset_to_response(asset)
+        except LifecyclePolicyError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def delete_context_asset(
+        self, db_connection_id: str, asset_type: str, canonical_key: str, version: str | None = None
+    ) -> dict[str, str]:
+        """Delete a context asset (DRAFT only)."""
+        from app.modules.context_platform.models.asset import ContextAssetType
+        from app.modules.context_platform.services.asset_service import LifecyclePolicyError
+
+        try:
+            asset_type_enum = ContextAssetType(asset_type)
+            deleted = self.context_asset_service.delete_asset(db_connection_id, asset_type_enum, canonical_key, version)
+            if not deleted:
+                raise HTTPException(status_code=404, detail=f"Asset not found or cannot be deleted: {asset_type}/{canonical_key}")
+            return {"message": f"Asset {asset_type}/{canonical_key} deleted successfully"}
+        except LifecyclePolicyError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def promote_asset_to_verified(self, asset_id: str, request: PromoteAssetRequest) -> ContextAssetResponse:
+        """Promote an asset from DRAFT to VERIFIED."""
+        from app.modules.context_platform.services.asset_service import LifecyclePolicyError
+
+        try:
+            asset = self.context_asset_service.promote_to_verified(asset_id, request.promoted_by, request.change_note)
+            if not asset:
+                raise HTTPException(status_code=404, detail=f"Asset not found: {asset_id}")
+            return self._asset_to_response(asset)
+        except LifecyclePolicyError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def promote_asset_to_published(self, asset_id: str, request: PromoteAssetRequest) -> ContextAssetResponse:
+        """Promote an asset from VERIFIED to PUBLISHED."""
+        from app.modules.context_platform.services.asset_service import LifecyclePolicyError
+
+        try:
+            asset = self.context_asset_service.promote_to_published(asset_id, request.promoted_by, request.change_note)
+            if not asset:
+                raise HTTPException(status_code=404, detail=f"Asset not found: {asset_id}")
+            return self._asset_to_response(asset)
+        except LifecyclePolicyError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def deprecate_asset(self, asset_id: str, request: DeprecateAssetRequest) -> ContextAssetResponse:
+        """Deprecate a published asset."""
+        from app.modules.context_platform.services.asset_service import LifecyclePolicyError
+
+        try:
+            asset = self.context_asset_service.deprecate_asset(asset_id, request.promoted_by, request.reason)
+            if not asset:
+                raise HTTPException(status_code=404, detail=f"Asset not found: {asset_id}")
+            return self._asset_to_response(asset)
+        except LifecyclePolicyError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def create_asset_draft_revision(self, asset_id: str, request: CreateDraftRevisionRequest) -> ContextAssetResponse:
+        """Create a new DRAFT revision of an existing asset."""
+        from app.modules.context_platform.services.asset_service import LifecyclePolicyError
+
+        try:
+            asset = self.context_asset_service.create_draft_revision(asset_id, request.author)
+            if not asset:
+                raise HTTPException(status_code=404, detail=f"Asset not found: {asset_id}")
+            return self._asset_to_response(asset)
+        except LifecyclePolicyError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def get_asset_version_history(self, asset_id: str) -> list[ContextAssetVersionResponse]:
+        """Get the version history for an asset."""
+        from app.modules.context_platform.models.asset import ContextAssetVersion
+
+        try:
+            versions = self.context_asset_service.get_version_history(asset_id)
+            return [
+                ContextAssetVersionResponse(
+                    id=v.id,
+                    asset_id=v.asset_id,
+                    version=v.version,
+                    name=v.name,
+                    description=v.description,
+                    content=v.content,
+                    content_text=v.content_text,
+                    lifecycle_state=v.lifecycle_state.value,
+                    author=v.author,
+                    change_summary=v.change_summary,
+                    created_at=v.created_at,
+                )
+                for v in versions
+            ]
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def get_asset_tags(self, category: str | None = None) -> list[ContextAssetTagResponse]:
+        """Get all context asset tags, optionally filtered by category."""
+        from app.modules.context_platform.models.asset import ContextAssetTag
+
+        try:
+            tags = self.context_asset_service.get_tags(category)
+            return [
+                ContextAssetTagResponse(
+                    id=t.id,
+                    name=t.name,
+                    category=t.category,
+                    description=t.description,
+                    usage_count=t.usage_count,
+                    last_used_at=t.last_used_at,
+                    created_at=t.created_at,
+                )
+                for t in tags
+            ]
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def _asset_to_response(self, asset) -> ContextAssetResponse:
+        """Convert a ContextAsset model to a response."""
+        # Extract promotion metadata from content if available
+        promoted_by = asset.content.get("promoted_by") if isinstance(asset.content, dict) else None
+        promoted_at = asset.content.get("promoted_at") if isinstance(asset.content, dict) else None
+        change_note = asset.content.get("change_note") if isinstance(asset.content, dict) else None
+
+        return ContextAssetResponse(
+            id=asset.id,
+            db_connection_id=asset.db_connection_id,
+            asset_type=asset.asset_type.value,
+            canonical_key=asset.canonical_key,
+            version=asset.version,
+            name=asset.name,
+            description=asset.description,
+            content=asset.content,
+            content_text=asset.content_text,
+            lifecycle_state=asset.lifecycle_state.value,
+            tags=asset.tags,
+            author=asset.author,
+            parent_asset_id=asset.parent_asset_id,
+            created_at=asset.created_at,
+            updated_at=asset.updated_at,
+            promoted_by=promoted_by,
+            promoted_at=promoted_at,
+            change_note=change_note,
         )

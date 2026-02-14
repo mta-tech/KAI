@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AgentEvent, AgentTodo, ChunkType } from '@/lib/api/types';
+import type { AgentEvent, AgentTodo, ChunkType, MissionStreamEvent } from '@/lib/api/types';
 
 // Structured content from SSE events
 export interface StructuredContent {
@@ -9,6 +9,9 @@ export interface StructuredContent {
   chartRecommendations?: string;
   reasoning?: string;
   processStatus?: string;
+  // Mission-specific structured content
+  missionStage?: MissionStreamEvent;
+  missionEvents?: MissionStreamEvent[];
 }
 
 export interface ChatMessage {
@@ -21,6 +24,8 @@ export interface ChatMessage {
   isStreaming?: boolean;
   // Structured content from SSE chunks
   structured?: StructuredContent;
+  // Mission events for tracking mission lifecycle
+  missionEvents?: MissionStreamEvent[];
 }
 
 interface ChatState {
@@ -38,6 +43,7 @@ interface ChatState {
   updateProcessStatus: (id: string, status: string) => void;
   updateTodos: (todos: AgentTodo[]) => void;
   addEvent: (messageId: string, event: AgentEvent) => void;
+  addMissionEvent: (messageId: string, event: MissionStreamEvent) => void;
   finishAssistantMessage: (id: string) => void;
   setStreaming: (streaming: boolean) => void;
   clearMessages: () => void;
@@ -146,6 +152,48 @@ export const useChatStore = create<ChatState>((set) => ({
       messages: state.messages.map((m) =>
         m.id === messageId ? { ...m, events: [...(m.events || []), event] } : m
       ),
+    }));
+  },
+
+  addMissionEvent: (messageId, event) => {
+    console.log('[Chat Store] addMissionEvent called:', { messageId, eventType: event.type, stage: event.stage });
+    set((state) => ({
+      messages: state.messages.map((m) => {
+        if (m.id !== messageId) return m;
+
+        const missionEvents = [...(m.missionEvents || []), event];
+
+        // Update structured content with latest mission stage info
+        const structured = m.structured || {};
+        if (event.type === 'mission_stage') {
+          // Update process status with stage information
+          const stageName = event.stage ? event.stage.charAt(0).toUpperCase() + event.stage.slice(1) : 'Unknown';
+          const confidence = event.confidence !== null ? `${Math.round(event.confidence * 100)}%` : null;
+          const statusText = confidence
+            ? `Mission Stage: ${stageName} (Confidence: ${confidence})`
+            : `Mission Stage: ${stageName}`;
+          return {
+            ...m,
+            missionEvents,
+            structured: { ...structured, missionStage: event, processStatus: statusText }
+          };
+        } else if (event.type === 'mission_error') {
+          return {
+            ...m,
+            missionEvents,
+            structured: { ...structured, processStatus: `Mission Error: ${event.error || 'Unknown error'}` }
+          };
+        } else if (event.type === 'mission_complete') {
+          const finalStatus = event.final_status ? event.final_status.charAt(0).toUpperCase() + event.final_status.slice(1) : 'Complete';
+          return {
+            ...m,
+            missionEvents,
+            structured: { ...structured, processStatus: `Mission ${finalStatus}` }
+          };
+        }
+
+        return { ...m, missionEvents };
+      }),
     }));
   },
 

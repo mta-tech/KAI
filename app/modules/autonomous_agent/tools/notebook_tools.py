@@ -470,3 +470,222 @@ def _to_markdown(notebook: Notebook) -> str:
             lines.append(f"\n```python\n{cell.code}\n```\n")
 
     return "".join(lines)
+
+
+# ============================================================================
+# Artifact Generation Helpers
+# ============================================================================
+
+from app.modules.autonomous_agent.models.artifact import (
+    ArtifactProvenance,
+    ArtifactType,
+    MissionArtifact,
+    NotebookArtifact,
+    SummaryArtifact,
+    VerifiedSQLArtifact,
+)
+
+
+def create_notebook_artifact(
+    notebook: Notebook,
+    mission_id: str,
+    source_asset_ids: list[str] | None = None,
+    analysis_type: str | None = None,
+    generated_by: str | None = None,
+    confidence: float = 0.0,
+) -> NotebookArtifact:
+    """Create a notebook artifact from a notebook.
+
+    Args:
+        notebook: The notebook to create an artifact for.
+        mission_id: ID of the mission that produced this artifact.
+        source_asset_ids: List of context asset IDs that contributed.
+        analysis_type: Type of analysis (e.g., "timeseries", "comparison").
+        generated_by: Agent or service that created the artifact.
+        confidence: Confidence in artifact quality (0-1).
+
+    Returns:
+        NotebookArtifact with provenance information.
+    """
+    provenance = ArtifactProvenance(
+        source_asset_ids=source_asset_ids or [],
+        source_asset_types=[],
+        mission_id=mission_id,
+        mission_stage="execute",
+        generated_by=generated_by,
+        confidence=confidence,
+    )
+
+    return NotebookArtifact(
+        id=f"nb_artifact_{uuid.uuid4().hex[:12]}",
+        mission_id=mission_id,
+        name=notebook.name,
+        description=notebook.description,
+        notebook_id=notebook.id,
+        cell_count=len(notebook.cells),
+        parameter_count=len(notebook.parameters),
+        analysis_type=analysis_type,
+        database_alias=notebook.database_alias,
+        provenance=provenance,
+        content={
+            "notebook_id": notebook.id,
+            "name": notebook.name,
+            "description": notebook.description,
+            "database_alias": notebook.database_alias,
+            "tags": notebook.tags,
+        },
+    )
+
+
+def create_verified_sql_artifact(
+    sql_query: str,
+    mission_id: str,
+    source_asset_ids: list[str] | None = None,
+    is_validated: bool = False,
+    validation_errors: list[str] | None = None,
+    generated_by: str | None = None,
+    confidence: float = 0.0,
+    row_count_estimate: int | None = None,
+) -> VerifiedSQLArtifact:
+    """Create a verified SQL artifact.
+
+    Args:
+        sql_query: The SQL query to create an artifact for.
+        mission_id: ID of the mission that produced this artifact.
+        source_asset_ids: List of context asset IDs that contributed.
+        is_validated: Whether the query has been validated.
+        validation_errors: List of validation errors (if any).
+        generated_by: Agent or service that created the artifact.
+        confidence: Confidence in query quality (0-1).
+        row_count_estimate: Estimated number of rows returned.
+
+    Returns:
+        VerifiedSQLArtifact with provenance information.
+    """
+    import hashlib
+
+    query_hash = hashlib.md5(sql_query.encode()).hexdigest()[:16]
+
+    provenance = ArtifactProvenance(
+        source_asset_ids=source_asset_ids or [],
+        source_asset_types=[],
+        mission_id=mission_id,
+        mission_stage="execute",
+        generated_by=generated_by,
+        confidence=confidence,
+    )
+
+    artifact = VerifiedSQLArtifact(
+        id=f"sql_artifact_{uuid.uuid4().hex[:12]}",
+        mission_id=mission_id,
+        name=f"SQL Query {query_hash[:8]}",
+        description=f"Verified SQL query from mission {mission_id[:8]}",
+        sql_query=sql_query,
+        is_validated=is_validated,
+        validation_errors=validation_errors or [],
+        row_count_estimate=row_count_estimate,
+        provenance=provenance,
+        content={
+            "sql_query": sql_query,
+            "query_hash": query_hash,
+            "is_validated": is_validated,
+        },
+    )
+    # query_hash is auto-generated in __post_init__, but we set it here for consistency
+    artifact.query_hash = query_hash
+    return artifact
+
+
+def create_summary_artifact(
+    question: str,
+    answer: str,
+    mission_id: str,
+    key_findings: list[str] | None = None,
+    methodology: str | None = None,
+    linked_artifact_ids: list[str] | None = None,
+    sql_queries_used: list[str] | None = None,
+    source_asset_ids: list[str] | None = None,
+    suggested_questions: list[str] | None = None,
+    generated_by: str | None = None,
+    confidence: float = 0.0,
+    completeness: float = 0.0,
+) -> SummaryArtifact:
+    """Create a summary artifact for a mission.
+
+    Args:
+        question: The original question asked.
+        answer: The answer produced by the mission.
+        mission_id: ID of the mission.
+        key_findings: List of key findings from the analysis.
+        methodology: Description of the methodology used.
+        linked_artifact_ids: IDs of other artifacts produced.
+        sql_queries_used: List of SQL queries executed.
+        source_asset_ids: List of context asset IDs that contributed.
+        suggested_questions: List of suggested follow-up questions.
+        generated_by: Agent or service that created the artifact.
+        confidence: Confidence in answer quality (0-1).
+        completeness: How completely the question was answered (0-1).
+
+    Returns:
+        SummaryArtifact with provenance information.
+    """
+    provenance = ArtifactProvenance(
+        source_asset_ids=source_asset_ids or [],
+        source_asset_types=[],
+        mission_id=mission_id,
+        mission_stage="synthesize",
+        generated_by=generated_by,
+        confidence=confidence,
+    )
+
+    return SummaryArtifact(
+        id=f"summary_artifact_{uuid.uuid4().hex[:12]}",
+        mission_id=mission_id,
+        name=f"Summary: {question[:50]}...",
+        description=f"Mission summary for {mission_id[:8]}",
+        question=question,
+        answer=answer,
+        key_findings=key_findings or [],
+        methodology=methodology,
+        linked_artifact_ids=linked_artifact_ids or [],
+        sql_queries_used=sql_queries_used or [],
+        suggested_questions=suggested_questions or [],
+        confidence_score=confidence,
+        completeness_score=completeness,
+        provenance=provenance,
+        tags=["summary", "mission"],
+        content={
+            "question": question,
+            "answer": answer,
+            "key_findings": key_findings or [],
+            "methodology": methodology,
+        },
+    )
+
+
+def link_artifact_to_mission(
+    artifact: MissionArtifact,
+    mission_id: str,
+) -> dict:
+    """Format an artifact for linking to a mission run.
+
+    Args:
+        artifact: The artifact to link.
+        mission_id: ID of the mission to link to.
+
+    Returns:
+        Dictionary format for storing in mission artifacts list.
+    """
+    return {
+        "artifact_id": artifact.id,
+        "artifact_type": artifact.artifact_type.value,
+        "name": artifact.name,
+        "description": artifact.description,
+        "created_at": artifact.created_at,
+        "provenance": {
+            "mission_id": artifact.provenance.mission_id,
+            "source_asset_ids": artifact.provenance.source_asset_ids,
+            "generated_by": artifact.provenance.generated_by,
+            "confidence": artifact.provenance.confidence,
+        },
+    }

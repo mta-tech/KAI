@@ -1,7 +1,8 @@
 import { useCallback, useRef } from 'react';
 import { useChatStore } from '@/stores/chat-store';
 import { agentApi } from '@/lib/api/agent';
-import type { AgentEvent, ChunkType } from '@/lib/api/types';
+import type { AgentEvent, ChunkType, MissionStreamEvent, StreamingEvent } from '@/lib/api/types';
+import { isMissionStreamEvent } from '@/lib/api/types';
 
 export function useChat() {
   const abortRef = useRef<(() => void) | null>(null);
@@ -20,6 +21,7 @@ export function useChat() {
     updateProcessStatus,
     updateTodos,
     addEvent,
+    addMissionEvent,
     finishAssistantMessage,
     setStreaming,
     clearMessages,
@@ -39,17 +41,38 @@ export function useChat() {
       const assistantId = `assistant-${Date.now()}`;
       startAssistantMessage(assistantId);
 
-      const handleEvent = (event: AgentEvent) => {
-        addEvent(assistantId, event);
+      const handleEvent = (event: StreamingEvent) => {
+        // Handle mission events separately
+        if (isMissionStreamEvent(event)) {
+          console.log('[Chat Hook] Processing mission event:', { type: event.type, stage: event.stage });
+          addMissionEvent(assistantId, event as MissionStreamEvent);
 
-        switch (event.type) {
+          // Handle mission complete event
+          if (event.type === 'mission_complete') {
+            finishAssistantMessage(assistantId);
+          }
+          // Handle mission error event
+          if (event.type === 'mission_error') {
+            appendToAssistantMessage(assistantId, `\n\nMission Error: ${event.error || 'Unknown error'}`);
+            if (!event.can_retry) {
+              finishAssistantMessage(assistantId);
+            }
+          }
+          return;
+        }
+
+        // Handle legacy agent events
+        const agentEvent = event as AgentEvent;
+        addEvent(assistantId, agentEvent);
+
+        switch (agentEvent.type) {
           case 'token':
-            if (event.content) {
-              const chunkType = event.chunk_type as ChunkType;
+            if (agentEvent.content) {
+              const chunkType = agentEvent.chunk_type as ChunkType;
               if (chunkType && chunkType !== 'text') {
-                appendStructuredContent(assistantId, chunkType, event.content);
+                appendStructuredContent(assistantId, chunkType, agentEvent.content);
               } else {
-                appendToAssistantMessage(assistantId, event.content);
+                appendToAssistantMessage(assistantId, agentEvent.content);
               }
             }
             break;
@@ -60,26 +83,26 @@ export function useChat() {
           case 'insights':
           case 'chart_recommendations':
           case 'reasoning':
-            if (event.content) {
-              appendStructuredContent(assistantId, event.type as ChunkType, event.content);
+            if (agentEvent.content) {
+              appendStructuredContent(assistantId, agentEvent.type as ChunkType, agentEvent.content);
             }
             break;
 
           case 'text':
-            if (event.content) {
-              appendToAssistantMessage(assistantId, event.content);
+            if (agentEvent.content) {
+              appendToAssistantMessage(assistantId, agentEvent.content);
             }
             break;
 
           case 'status':
-            if (event.message) {
-              updateProcessStatus(assistantId, event.message);
+            if (agentEvent.message) {
+              updateProcessStatus(assistantId, agentEvent.message);
             }
             break;
 
           case 'todo_update':
-            if (event.todos) {
-              updateTodos(event.todos);
+            if (agentEvent.todos) {
+              updateTodos(agentEvent.todos);
             }
             break;
 
@@ -88,7 +111,7 @@ export function useChat() {
             break;
 
           case 'error':
-            appendToAssistantMessage(assistantId, `\n\nError: ${event.error || event.message}`);
+            appendToAssistantMessage(assistantId, `\n\nError: ${agentEvent.error || agentEvent.message}`);
             finishAssistantMessage(assistantId);
             break;
         }
@@ -119,6 +142,7 @@ export function useChat() {
       updateProcessStatus,
       updateTodos,
       addEvent,
+      addMissionEvent,
       finishAssistantMessage,
     ]
   );
