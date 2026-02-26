@@ -3922,7 +3922,7 @@ def get_version() -> str:
                 parent = parent.parent
     except Exception:
         pass
-    return "0.1.0"
+    return "1.0.0"
 
 
 @cli.command()

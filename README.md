@@ -102,7 +102,7 @@ Get KAI running in **5 minutes** with Docker Compose!
 **1. Clone the repository**
 
 ```bash
-git clone https://github.com/your-org/kai.git
+git clone https://github.com/mta-tech/KAI.git
 cd kai
 ```
 
@@ -802,6 +802,6 @@ Built with:
 
 **Made with love by MTA**
 
-[Report Bug](https://github.com/your-org/kai/issues) • [Request Feature](https://github.com/your-org/kai/issues) • [Join Discussion](https://github.com/your-org/kai/discussions)
+[Report Bug](https://github.com/mta-tech/KAI/issues) • [Request Feature](https://github.com/mta-tech/KAI/issues) • [Join Discussion](https://github.com/mta-tech/KAI/discussions)
 
 </div>
