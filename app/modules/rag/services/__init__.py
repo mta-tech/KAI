@@ -11,7 +11,8 @@ from llama_index.core.node_parser import TokenTextSplitter
 from llama_index.vector_stores.typesense import TypesenseVectorStore
 from llama_index.embeddings.langchain import LangchainEmbedding
 from llama_index.core.ingestion import IngestionPipeline
-from llama_index.llms.langchain import LangChainLLM
+# Use local adapter instead of broken llama-index-llms-langchain
+from app.utils.llm_adapters import LangChainLLM
 from langchain_community.callbacks import get_openai_callback
 
 # from llama_index.core import VectorStoreIndex

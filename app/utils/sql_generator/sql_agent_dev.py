@@ -4,10 +4,8 @@ import os
 from queue import Queue
 from typing import Any, Dict, List
 from datetime import datetime
-from langchain.agents.agent import AgentExecutor
-from langchain.agents.mrkl.base import ZeroShotAgent
-from langchain.callbacks.base import BaseCallbackManager
-from langchain.chains.llm import LLMChain
+from langchain_classic.agents import AgentExecutor, create_react_agent
+from langchain_core.prompts import PromptTemplate
 from langchain_community.callbacks import get_openai_callback
 from overrides import override
 from concurrent.futures import ThreadPoolExecutor
@@ -28,12 +26,6 @@ from app.modules.table_description.repositories import TableDescriptionRepositor
 from app.utils.prompts.agent_prompts import (
     ERROR_PARSING_MESSAGE,
     FORMAT_INSTRUCTIONS,
-    # PLAN_BASE,
-    # PLAN_WITH_FEWSHOT_EXAMPLES,
-    # PLAN_WITH_FEWSHOT_EXAMPLES_AND_INSTRUCTIONS,
-    # PLAN_WITH_INSTRUCTIONS,
-    # SUFFIX_WITH_FEW_SHOT_SAMPLES,
-    # SUFFIX_WITHOUT_FEW_SHOT_SAMPLES,
 )
 from app.utils.prompts.agent_prompts_dev import (
     AGENT_PREFIX_DEV,
@@ -52,7 +44,6 @@ from app.utils.sql_generator.sql_generator import SQLGenerator
 from app.utils.sql_generator.sql_history import SQLHistory
 from app.utils.sql_tools import replace_unprocessable_characters
 from app.utils.model.embedding_model import EmbeddingModel
-from app.utils.sql_generator.custom_output_parser import CustomMRKLOutputParser
 
 logger = logging.getLogger(__name__)
 
@@ -79,20 +70,16 @@ class FullContextSQLAgent(SQLGenerator):
     def create_sql_agent(
         self,
         toolkit: SQLDatabaseToolkitDev,
-        callback_manager: BaseCallbackManager | None = None,
         sql_history: str | None = None,
         prefix: str = AGENT_PREFIX_DEV,
         suffix: str | None = None,
         format_instructions: str = FORMAT_INSTRUCTIONS,
-        input_variables: List[str] | None = None,
         max_examples: int = 3,
-        # number_of_instructions: int = 1,
         instructions: List[dict] | None = None,
         fewshot_examples: List[dict] | None = None,
         aliases: List[dict] | None = None,
         max_iterations: int | None = int(os.getenv("AGENT_MAX_ITERATIONS", "15")),  # noqa: B008
         max_execution_time: float | None = None,
-        early_stopping_method: str = "generate",
         verbose: bool = False,
         agent_executor_kwargs: Dict[str, Any] | None = None,
         **kwargs: Dict[str, Any],
@@ -141,34 +128,32 @@ class FullContextSQLAgent(SQLGenerator):
             dialect=toolkit.dialect, agent_plan=agent_plan, sql_history=sql_history
         )
 
-        prompt = ZeroShotAgent.create_prompt(
-            tools,
-            prefix=prefix,
-            suffix=suffix,
-            format_instructions=format_instructions,
-            input_variables=input_variables,
-        )
-        llm_chain = LLMChain(
-            llm=self.llm,
-            prompt=prompt,
-            callback_manager=callback_manager,
-            verbose=False,
-        )
-        tool_names = [tool.name for tool in tools]
-        agent = ZeroShotAgent(
-            llm_chain=llm_chain,
-            allowed_tools=tool_names,
-            output_parser=CustomMRKLOutputParser(),
-            **kwargs,
-        )
-        return AgentExecutor.from_agent_and_tools(
+        # Create ReAct-style prompt template
+        react_template = f"""{prefix}
+
+You have access to the following tools:
+
+{{tools}}
+
+{format_instructions}
+
+{suffix}
+
+Question: {{input}}
+Thought:{{agent_scratchpad}}"""
+
+        prompt = PromptTemplate.from_template(react_template)
+        
+        # Use create_react_agent instead of deprecated ZeroShotAgent
+        agent = create_react_agent(self.llm, tools, prompt)
+        
+        return AgentExecutor(
             agent=agent,
             tools=tools,
-            callback_manager=callback_manager,
             verbose=verbose,
             max_iterations=max_iterations,
             max_execution_time=max_execution_time,
-            early_stopping_method=early_stopping_method,
+            handle_parsing_errors=ERROR_PARSING_MESSAGE,
             **(agent_executor_kwargs or {}),
         )
 
@@ -241,16 +226,6 @@ class FullContextSQLAgent(SQLGenerator):
             new_fewshot_examples = None
             number_of_samples = 0
 
-        # Get business metrics
-        # number_of_metrics = 0
-        # business_metrics = (
-        # business_metrics_service.retrieve_business_metrics_for_question(user_prompt)
-        # )
-        # if business_metrics is not None:
-        #     number_of_metrics = len(business_metrics)
-
-        # number_of_context = number_of_samples + number_of_metrics
-
         logger.info(
             f"Generating SQL response to question: {str(user_prompt.model_dump())}"
         )
@@ -262,7 +237,7 @@ class FullContextSQLAgent(SQLGenerator):
             few_shot_examples=new_fewshot_examples,
             business_metrics=business_metrics,
             instructions=instructions,
-            is_multiple_schema=True if (len(user_prompt.schemas) > 1) else False,
+            is_multiple_schema=len(user_prompt.schemas) > 1 if user_prompt.schemas else False,
             db_scan=db_scan,
             embedding=EmbeddingModel().get_model(),
         )
@@ -273,8 +248,6 @@ class FullContextSQLAgent(SQLGenerator):
             toolkit=toolkit,
             verbose=True,
             sql_history=SQLHistory.get_sql_history(user_prompt),
-            # max_examples=number_of_context,
-            # number_of_instructions=len(instructions) if instructions is not None else 0,
             instructions=instructions,
             fewshot_examples=new_fewshot_examples,
             aliases=metadata.get("aliases")
@@ -283,7 +256,6 @@ class FullContextSQLAgent(SQLGenerator):
             max_execution_time=int(os.environ.get("DH_ENGINE_TIMEOUT", 150)),
         )
         agent_executor.return_intermediate_steps = True
-        agent_executor.handle_parsing_errors = ERROR_PARSING_MESSAGE
         with get_openai_callback() as cb:
             try:
                 result = agent_executor.invoke(
@@ -337,7 +309,6 @@ class FullContextSQLAgent(SQLGenerator):
         }
         result.metadata = result.metadata or {}
         result.metadata["timing"] = time_taken
-        # result.metadata.setdefault("timing", {}).update(time_taken)
         return result
 
     @override

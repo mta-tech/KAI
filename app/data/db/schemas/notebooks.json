@@ -1,0 +1,49 @@
+{
+    "name": "notebooks",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "name",
+            "type": "string"
+        },
+        {
+            "name": "description",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "database_alias",
+            "type": "string",
+            "optional": true,
+            "facet": true
+        },
+        {
+            "name": "parameters",
+            "type": "object[]",
+            "optional": true
+        },
+        {
+            "name": "cells",
+            "type": "object[]",
+            "optional": true
+        },
+        {
+            "name": "tags",
+            "type": "string[]",
+            "optional": true,
+            "facet": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        },
+        {
+            "name": "updated_at",
+            "type": "string"
+        }
+    ]
+}

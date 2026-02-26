@@ -46,3 +46,13 @@ dist/
 
 # Experiment-related data
 experimentation/*
+
+# Worktrees and large directories
+.worktrees/
+.auto-claude/
+bmad_docs/
+bmad_output/
+app/data/dbdata/
+
+# UI directory (not needed in backend build)
+ui/

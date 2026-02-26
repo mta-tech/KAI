@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 
 
 class LLMConfig(BaseModel):
-    model_family: str = "openai"
-    model_name: str = os.getenv("LLM_NAME", "gpt-4o-mini")
+    model_family: str = os.getenv("LLM_MODEL_FAMILY", "google")
+    model_name: str = os.getenv("LLM_NAME", "gemini-2.0-flash")
     api_base: str | None = None
 
 
@@ -20,7 +20,7 @@ class IntermediateStep(BaseModel):
 class SQLGeneration(BaseModel):
     id: str | None = None
     prompt_id: str
-    llm_config: LLMConfig | None
+    llm_config: LLMConfig | None = None
     evaluate: bool = False
     intermediate_steps: list[IntermediateStep] | None = None
     sql: str | None = None

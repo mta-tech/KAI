@@ -3,10 +3,8 @@ from typing import List
 from sqlalchemy import text
 
 from fastapi import HTTPException
-from langchain.callbacks.manager import (
-    CallbackManagerForToolRun,
-)
-from langchain.tools.base import BaseTool
+from langchain_core.callbacks import CallbackManagerForToolRun
+from langchain_core.tools import BaseTool
 from pydantic import Field
 from sqlalchemy.exc import SQLAlchemyError
 

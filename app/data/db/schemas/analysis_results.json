@@ -1,0 +1,78 @@
+{
+    "name": "analysis_results",
+    "enable_nested_fields": true,
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "sql_generation_id",
+            "type": "string",
+            "reference": "sql_generations.id"
+        },
+        {
+            "name": "prompt_id",
+            "type": "string",
+            "optional": true,
+            "reference": "prompts.id"
+        },
+        {
+            "name": "summary",
+            "type": "string"
+        },
+        {
+            "name": "insights",
+            "type": "object[]",
+            "optional": true
+        },
+        {
+            "name": "chart_recommendations",
+            "type": "object[]",
+            "optional": true
+        },
+        {
+            "name": "row_count",
+            "type": "int32"
+        },
+        {
+            "name": "column_count",
+            "type": "int32"
+        },
+        {
+            "name": "llm_config",
+            "type": "object",
+            "optional": true
+        },
+        {
+            "name": "input_tokens_used",
+            "type": "int32",
+            "optional": true
+        },
+        {
+            "name": "output_tokens_used",
+            "type": "int32",
+            "optional": true
+        },
+        {
+            "name": "created_at",
+            "type": "string"
+        },
+        {
+            "name": "completed_at",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "error",
+            "type": "string",
+            "optional": true
+        },
+        {
+            "name": "metadata",
+            "type": "object",
+            "optional": true
+        }
+    ]
+}
+

@@ -1,0 +1,722 @@
+{
+  "info": {
+    "_postman_id": "kai-langgraph-api-collection",
+    "name": "KAI LangGraph API",
+    "description": "API collection for KAI LangGraph Server - Session and SQL Agent graphs for database querying with natural language.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8123",
+      "type": "string"
+    },
+    {
+      "key": "thread_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "run_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "db_connection_id",
+      "value": "demo-db-connection",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health & Info",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/ok",
+              "host": ["{{base_url}}"],
+              "path": ["ok"]
+            },
+            "description": "Check if the LangGraph server is healthy and responding."
+          },
+          "response": []
+        },
+        {
+          "name": "Server Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/info",
+              "host": ["{{base_url}}"],
+              "path": ["info"]
+            },
+            "description": "Get server version, LangGraph version, and deployment info."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Assistants",
+      "item": [
+        {
+          "name": "List All Assistants",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{base_url}}/assistants/search",
+              "host": ["{{base_url}}"],
+              "path": ["assistants", "search"]
+            },
+            "description": "Search and list all available assistants (graphs). Returns session and sql_agent."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Assistant by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/assistants/session",
+              "host": ["{{base_url}}"],
+              "path": ["assistants", "session"]
+            },
+            "description": "Get details of a specific assistant by graph name or UUID."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Threads",
+      "item": [
+        {
+          "name": "Create Thread",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('thread_id', jsonData.thread_id);",
+                  "console.log('Thread ID saved:', jsonData.thread_id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads",
+              "host": ["{{base_url}}"],
+              "path": ["threads"]
+            },
+            "description": "Create a new thread for conversation. Thread ID is automatically saved to collection variables."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Thread with Metadata",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('thread_id', jsonData.thread_id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"metadata\": {\n    \"user_id\": \"user-123\",\n    \"session_name\": \"Sales Analysis\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads",
+              "host": ["{{base_url}}"],
+              "path": ["threads"]
+            },
+            "description": "Create a new thread with custom metadata for tracking."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Thread",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}"]
+            },
+            "description": "Get thread details by ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Thread State",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/state",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "state"]
+            },
+            "description": "Get the current state of a thread including all messages and graph state."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Thread History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/history",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "history"]
+            },
+            "description": "Get the checkpoint history of a thread."
+          },
+          "response": []
+        },
+        {
+          "name": "Search Threads",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limit\": 10,\n  \"offset\": 0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads/search",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "search"]
+            },
+            "description": "Search and list threads with pagination."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Thread",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}"]
+            },
+            "description": "Delete a thread and all its state."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Session Graph",
+      "item": [
+        {
+          "name": "Run Session Query",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('run_id', jsonData.run_id);",
+                  "console.log('Run ID saved:', jsonData.run_id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assistant_id\": \"session\",\n  \"input\": {\n    \"current_query\": \"Show me total sales by month for 2024\",\n    \"db_connection_id\": \"{{db_connection_id}}\",\n    \"messages\": [\n      {\n        \"type\": \"human\",\n        \"content\": \"Show me total sales by month for 2024\"\n      }\n    ],\n    \"status\": \"processing\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/runs",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "runs"]
+            },
+            "description": "Run a database query through the session graph. This creates an async run."
+          },
+          "response": []
+        },
+        {
+          "name": "Run Session Follow-up Query",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('run_id', jsonData.run_id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assistant_id\": \"session\",\n  \"input\": {\n    \"current_query\": \"What about Q1 specifically?\",\n    \"db_connection_id\": \"{{db_connection_id}}\",\n    \"messages\": [\n      {\n        \"type\": \"human\",\n        \"content\": \"What about Q1 specifically?\"\n      }\n    ],\n    \"status\": \"processing\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/runs",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "runs"]
+            },
+            "description": "Send a follow-up query in the same thread. This will be routed to reasoning mode if it matches follow-up patterns."
+          },
+          "response": []
+        },
+        {
+          "name": "Stream Session Query",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assistant_id\": \"session\",\n  \"input\": {\n    \"current_query\": \"Show me customer count by region\",\n    \"db_connection_id\": \"{{db_connection_id}}\",\n    \"messages\": [\n      {\n        \"type\": \"human\",\n        \"content\": \"Show me customer count by region\"\n      }\n    ]\n  },\n  \"stream_mode\": [\"values\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/runs/stream",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "runs", "stream"]
+            },
+            "description": "Stream a session query with Server-Sent Events (SSE). Returns incremental state updates."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "SQL Agent Graph",
+      "item": [
+        {
+          "name": "Run SQL Agent Query",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('run_id', jsonData.run_id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assistant_id\": \"sql_agent\",\n  \"input\": {\n    \"question\": \"What tables are available in the database?\",\n    \"dialect\": \"postgresql\",\n    \"messages\": [\n      {\n        \"type\": \"human\",\n        \"content\": \"What tables are available in the database?\"\n      }\n    ],\n    \"iteration_count\": 0,\n    \"max_iterations\": 15\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/runs",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "runs"]
+            },
+            "description": "Run a query through the SQL agent. The agent uses tools to explore schema and execute SQL."
+          },
+          "response": []
+        },
+        {
+          "name": "Run SQL Agent - Get Schema",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('run_id', jsonData.run_id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assistant_id\": \"sql_agent\",\n  \"input\": {\n    \"question\": \"Show me the schema of the orders table\",\n    \"dialect\": \"postgresql\",\n    \"messages\": [\n      {\n        \"type\": \"human\",\n        \"content\": \"Show me the schema of the orders table\"\n      }\n    ],\n    \"iteration_count\": 0,\n    \"max_iterations\": 15\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/runs",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "runs"]
+            },
+            "description": "Ask the SQL agent to show table schema. It will use get_table_schema tool."
+          },
+          "response": []
+        },
+        {
+          "name": "Run SQL Agent - Execute Query",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('run_id', jsonData.run_id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assistant_id\": \"sql_agent\",\n  \"input\": {\n    \"question\": \"Write and execute a SQL query to get the top 10 customers by order count\",\n    \"dialect\": \"postgresql\",\n    \"messages\": [\n      {\n        \"type\": \"human\",\n        \"content\": \"Write and execute a SQL query to get the top 10 customers by order count\"\n      }\n    ],\n    \"iteration_count\": 0,\n    \"max_iterations\": 15\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/runs",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "runs"]
+            },
+            "description": "Ask the SQL agent to write and execute a SQL query."
+          },
+          "response": []
+        },
+        {
+          "name": "Stream SQL Agent Query",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assistant_id\": \"sql_agent\",\n  \"input\": {\n    \"question\": \"List all tables and their row counts\",\n    \"dialect\": \"postgresql\",\n    \"messages\": [\n      {\n        \"type\": \"human\",\n        \"content\": \"List all tables and their row counts\"\n      }\n    ],\n    \"iteration_count\": 0,\n    \"max_iterations\": 15\n  },\n  \"stream_mode\": [\"values\", \"messages\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/runs/stream",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "runs", "stream"]
+            },
+            "description": "Stream SQL agent execution with both values and messages events."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Runs",
+      "item": [
+        {
+          "name": "Get Run Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/runs/{{run_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "runs", "{{run_id}}"]
+            },
+            "description": "Get the status of a specific run. Status can be: pending, running, success, error."
+          },
+          "response": []
+        },
+        {
+          "name": "List Thread Runs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/runs",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "runs"]
+            },
+            "description": "List all runs for a thread."
+          },
+          "response": []
+        },
+        {
+          "name": "Wait for Run",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/runs/{{run_id}}/join",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "runs", "{{run_id}}", "join"]
+            },
+            "description": "Wait for a run to complete. This is a blocking call."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Run",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/threads/{{thread_id}}/runs/{{run_id}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["threads", "{{thread_id}}", "runs", "{{run_id}}", "cancel"]
+            },
+            "description": "Cancel a running execution."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Workflows",
+      "item": [
+        {
+          "name": "Complete Session Workflow",
+          "item": [
+            {
+              "name": "1. Create Thread",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "var jsonData = pm.response.json();",
+                      "pm.collectionVariables.set('thread_id', jsonData.thread_id);",
+                      "console.log('Step 1 Complete - Thread:', jsonData.thread_id);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"metadata\": {\n    \"workflow\": \"complete-session\",\n    \"started_at\": \"{{$isoTimestamp}}\"\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/threads",
+                  "host": ["{{base_url}}"],
+                  "path": ["threads"]
+                },
+                "description": "Step 1: Create a new thread for the session workflow."
+              },
+              "response": []
+            },
+            {
+              "name": "2. Initial Query",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "var jsonData = pm.response.json();",
+                      "pm.collectionVariables.set('run_id', jsonData.run_id);",
+                      "console.log('Step 2 Complete - Run:', jsonData.run_id);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"assistant_id\": \"session\",\n  \"input\": {\n    \"current_query\": \"Show me monthly revenue trends\",\n    \"db_connection_id\": \"{{db_connection_id}}\",\n    \"messages\": [{\"type\": \"human\", \"content\": \"Show me monthly revenue trends\"}]\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/threads/{{thread_id}}/runs",
+                  "host": ["{{base_url}}"],
+                  "path": ["threads", "{{thread_id}}", "runs"]
+                },
+                "description": "Step 2: Send the initial query."
+              },
+              "response": []
+            },
+            {
+              "name": "3. Wait for Completion",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/threads/{{thread_id}}/runs/{{run_id}}/join",
+                  "host": ["{{base_url}}"],
+                  "path": ["threads", "{{thread_id}}", "runs", "{{run_id}}", "join"]
+                },
+                "description": "Step 3: Wait for the run to complete."
+              },
+              "response": []
+            },
+            {
+              "name": "4. Get Response",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/threads/{{thread_id}}/state",
+                  "host": ["{{base_url}}"],
+                  "path": ["threads", "{{thread_id}}", "state"]
+                },
+                "description": "Step 4: Get the current state with the response."
+              },
+              "response": []
+            },
+            {
+              "name": "5. Follow-up Query",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "var jsonData = pm.response.json();",
+                      "pm.collectionVariables.set('run_id', jsonData.run_id);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"assistant_id\": \"session\",\n  \"input\": {\n    \"current_query\": \"What about comparing to last year?\",\n    \"db_connection_id\": \"{{db_connection_id}}\",\n    \"messages\": [{\"type\": \"human\", \"content\": \"What about comparing to last year?\"}]\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/threads/{{thread_id}}/runs",
+                  "host": ["{{base_url}}"],
+                  "path": ["threads", "{{thread_id}}", "runs"]
+                },
+                "description": "Step 5: Send a follow-up query (will route to reasoning mode)."
+              },
+              "response": []
+            },
+            {
+              "name": "6. Get Final State",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/threads/{{thread_id}}/state",
+                  "host": ["{{base_url}}"],
+                  "path": ["threads", "{{thread_id}}", "state"]
+                },
+                "description": "Step 6: Get final state with all messages."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

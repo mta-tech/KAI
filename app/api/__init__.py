@@ -3,11 +3,14 @@ from io import BytesIO
 import fastapi
 import PyPDF2
 from fastapi import BackgroundTasks, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 # from fastapi.responses import JSONResponse
 
 from app.api.requests import (
     AliasRequest,
+    AnalysisRequest,
     BusinessGlossaryRequest,
+    ComprehensiveAnalysisRequest,
     ContextStoreRequest,
     GetContextStoreByNameRequest,
     SemanticContextStoreRequest,
@@ -31,7 +34,9 @@ from app.api.requests import (
 )
 from app.api.responses import (
     AliasResponse,
+    AnalysisResponse,
     BusinessGlossaryResponse,
+    ComprehensiveAnalysisResponse,
     ContextStoreResponse,
     DatabaseConnectionResponse,
     InstructionResponse,
@@ -55,6 +60,7 @@ from app.modules.sql_generation.services import SQLGenerationService
 from app.modules.table_description.services import TableDescriptionService
 from app.modules.rag.services import DocumentService, EmbeddingService
 from app.modules.synthetic_questions.services import SyntheticQuestionService
+from app.modules.analysis.services import AnalysisService
 from app.utils.sql_database.scanner import SqlAlchemyScanner
 
 
@@ -76,6 +82,7 @@ class API:
         self.embedding_service = EmbeddingService(self.storage)
         self.synthetic_question_service = SyntheticQuestionService(self.storage)
         self.alias_service = AliasService(self.storage)
+        self.analysis_service = AnalysisService(self.storage)
 
         self._register_routes()
 
@@ -333,6 +340,12 @@ class API:
             methods=["PUT"],
             tags=["SQL Generations"],
         )
+        self.router.add_api_route(
+            "/api/v1/prompts/{prompt_id}/sql-generations/stream",
+            self.stream_sql_generation,
+            methods=["POST"],
+            tags=["SQL Generations"],
+        )
 
         self.router.add_api_route(
             "/api/v1/sql-generations/{sql_generation_id}/execute",
@@ -499,6 +512,30 @@ class API:
             self.generate_synthetic_questions,
             methods=["POST"],
             tags=["Question Generation"],
+        )
+
+        # Analysis endpoints
+        self.router.add_api_route(
+            "/api/v1/analysis/comprehensive",
+            self.create_comprehensive_analysis,
+            methods=["POST"],
+            status_code=201,
+            tags=["Analysis"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/sql-generations/{sql_generation_id}/analysis",
+            self.create_analysis,
+            methods=["POST"],
+            status_code=201,
+            tags=["Analysis"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/analysis/{analysis_id}",
+            self.get_analysis,
+            methods=["GET"],
+            tags=["Analysis"],
         )
 
     def get_router(self) -> fastapi.APIRouter:
@@ -764,6 +801,14 @@ class API:
             prompt_id, sql_generation_request
         )
         return SQLGenerationResponse(**sql_generation.model_dump())
+
+    async def stream_sql_generation(
+        self, prompt_id: str, sql_generation_request: SQLGenerationRequest
+    ) -> StreamingResponse:
+        stream = self.sql_generation_service.stream_sql_generation(
+            prompt_id, sql_generation_request
+        )
+        return StreamingResponse(stream, media_type="text/event-stream")
 
     def create_prompt_and_sql_generation(
         self, prompt_sql_generation_request: PromptSQLGenerationRequest
@@ -1031,3 +1076,77 @@ class API:
             instruction=request.instruction,
         )
         return SyntheticQuestionResponse(**questions.model_dump())
+
+    async def create_comprehensive_analysis(
+        self, request: ComprehensiveAnalysisRequest
+    ) -> ComprehensiveAnalysisResponse:
+        """End-to-end analysis: Prompt -> SQL Generation -> Execution -> Analysis."""
+        result = await self.analysis_service.create_comprehensive_analysis(
+            prompt_request=request.prompt,
+            llm_config=request.llm_config,
+            max_rows=request.max_rows,
+            use_deep_agent=request.use_deep_agent,
+            metadata=request.metadata,
+        )
+        return ComprehensiveAnalysisResponse(**result)
+
+    async def create_analysis(
+        self, sql_generation_id: str, request: AnalysisRequest
+    ) -> AnalysisResponse:
+        """Create analysis for an existing SQL generation."""
+        analysis = await self.analysis_service.create_analysis(
+            sql_generation_id=sql_generation_id,
+            llm_config=request.llm_config,
+            max_rows=request.max_rows,
+            metadata=request.metadata,
+        )
+        return AnalysisResponse(
+            id=analysis.id,
+            sql_generation_id=analysis.sql_generation_id,
+            prompt_id=analysis.prompt_id,
+            summary=analysis.summary,
+            insights=[
+                {"title": i.title, "description": i.description, "significance": i.significance, "data_points": i.data_points}
+                for i in analysis.insights
+            ],
+            chart_recommendations=[
+                {"chart_type": c.chart_type, "title": c.title, "description": c.description, "x_axis": c.x_axis, "y_axis": c.y_axis, "columns": c.columns, "rationale": c.rationale}
+                for c in analysis.chart_recommendations
+            ],
+            row_count=analysis.row_count,
+            column_count=analysis.column_count,
+            llm_config=analysis.llm_config,
+            input_tokens_used=analysis.input_tokens_used,
+            output_tokens_used=analysis.output_tokens_used,
+            completed_at=analysis.completed_at,
+            error=analysis.error,
+            metadata=analysis.metadata,
+            created_at=analysis.created_at,
+        )
+
+    def get_analysis(self, analysis_id: str) -> AnalysisResponse:
+        """Get an analysis by ID."""
+        analysis = self.analysis_service.get_analysis(analysis_id)
+        return AnalysisResponse(
+            id=analysis.id,
+            sql_generation_id=analysis.sql_generation_id,
+            prompt_id=analysis.prompt_id,
+            summary=analysis.summary,
+            insights=[
+                {"title": i.title, "description": i.description, "significance": i.significance, "data_points": i.data_points}
+                for i in analysis.insights
+            ],
+            chart_recommendations=[
+                {"chart_type": c.chart_type, "title": c.title, "description": c.description, "x_axis": c.x_axis, "y_axis": c.y_axis, "columns": c.columns, "rationale": c.rationale}
+                for c in analysis.chart_recommendations
+            ],
+            row_count=analysis.row_count,
+            column_count=analysis.column_count,
+            llm_config=analysis.llm_config,
+            input_tokens_used=analysis.input_tokens_used,
+            output_tokens_used=analysis.output_tokens_used,
+            completed_at=analysis.completed_at,
+            error=analysis.error,
+            metadata=analysis.metadata,
+            created_at=analysis.created_at,
+        )

@@ -29,6 +29,15 @@ class DatabaseConnectionRepository:
         doc = self.storage.find_one(DB_COLLECTION, {"id": id})
         return DatabaseConnection(**doc) if doc else None
 
+
+    def find_by_alias(self, alias: str) -> DatabaseConnection | None:
+        """Find a database connection by alias."""
+        filter_dict = {"alias": alias}
+        doc = self.storage.find_one(DB_COLLECTION, filter_dict)
+        if not doc:
+            return None
+        return DatabaseConnection(**doc)
+
     def find_all(self) -> list[DatabaseConnection]:
         docs = self.storage.find_all(DB_COLLECTION)
         result = []

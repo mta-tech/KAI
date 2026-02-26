@@ -49,7 +49,8 @@ class Settings(BaseSettings):
     ENCRYPT_KEY: str
 
     class Config:
-        env_file = ".env"
+        env_file = ".env.local"
+        extra = "ignore"  # Ignore extra environment variables
 
     def require(self, key: str) -> Any:
         val = getattr(self, key)

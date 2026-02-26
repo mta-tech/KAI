@@ -2,10 +2,8 @@ import os
 from typing import List
 import re
 
-from langchain.callbacks.manager import (
-    CallbackManagerForToolRun,
-)
-from langchain.tools.base import BaseTool
+from langchain_core.callbacks import CallbackManagerForToolRun
+from langchain_core.tools import BaseTool
 from pydantic import Field
 
 from app.server.errors import sql_agent_exceptions

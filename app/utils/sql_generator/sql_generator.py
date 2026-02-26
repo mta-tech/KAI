@@ -9,8 +9,8 @@ from typing import Any, List, Tuple
 
 from fastapi import HTTPException
 import sqlparse
-from langchain.agents.agent import AgentExecutor
-from langchain.schema import AgentAction
+from langchain_classic.agents import AgentExecutor
+from langchain_core.agents import AgentAction
 from langchain_community.callbacks import get_openai_callback
 
 from app.modules.database_connection.models import DatabaseConnection

@@ -1,10 +1,9 @@
 from typing import List, Optional
-from langchain.chat_models.base import BaseChatModel
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import JsonOutputParser
-from langgraph.graph import START, END, Graph
-from langgraph.graph import MessagesState
-from langgraph.graph.graph import CompiledGraph
+from langgraph.graph import START, END, StateGraph, MessagesState
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 import re
 import asyncio
@@ -81,7 +80,7 @@ class QuestionGenerationAgent:
         # Initialize the ToolNode with our tools
         self.tools = ToolNode(tools=tools)
 
-    def create_graph(self) -> CompiledGraph:
+    def create_graph(self) -> CompiledStateGraph:
         """
         Create the question generation workflow graph with LLM agent.
 
@@ -93,10 +92,10 @@ class QuestionGenerationAgent:
         - generate_without_tools: Alternative path to generate questions without tools
 
         Returns:
-            CompiledGraph: The configured workflow graph
+            CompiledStateGraph: The configured workflow graph
         """
         # Define the workflow as a graph
-        builder = Graph()
+        builder = StateGraph(AgentState)
 
         # Add nodes to the graph
         builder.add_node("initial_context_node", self.initial_context_node)

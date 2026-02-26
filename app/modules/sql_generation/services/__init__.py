@@ -1,6 +1,10 @@
 import os
+import asyncio
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import datetime
+from queue import Queue
+from threading import Thread
 import pandas as pd
 from langchain_community.callbacks import get_openai_callback
 from fastapi import HTTPException
@@ -22,10 +26,14 @@ from app.api.requests import (
 )
 from app.modules.alias.services import AliasService
 from app.modules.alias.models import Alias
+from app.modules.business_glossary.services import BusinessGlossaryService
 from app.modules.context_store.services import ContextStoreService
 from app.modules.database_connection.repositories import DatabaseConnectionRepository
+from app.modules.instruction.services import InstructionService
 from app.modules.prompt.repositories import PromptRepository
 from app.modules.prompt.services import PromptService
+from app.modules.table_description.repositories import TableDescriptionRepository
+from app.modules.table_description.models import TableDescriptionStatus
 from app.modules.sql_generation.models import LLMConfig, SQLGeneration
 from app.modules.sql_generation.repositories import SQLGenerationRepository
 
@@ -35,8 +43,11 @@ from app.utils.sql_evaluator.simple_evaluator import SimpleEvaluator
 from app.utils.sql_generator.sql_agent import SQLAgent
 from app.utils.sql_generator.sql_agent_dev import FullContextSQLAgent
 from app.utils.sql_generator.graph_agent import LangGraphSQLAgent
+from app.utils.sql_generator.sql_generator import SQLGenerator
 from app.utils.sql_generator.sql_query_status import create_sql_query_status
 from app.utils.model.chat_model import ChatModel
+from app.utils.model.embedding_model import EmbeddingModel
+from app.utils.deep_agent.tools import KaiToolContext
 from app.utils.prompts_ner.prompts_ner import (
     get_ner_labels,
     # request_ner_service,
@@ -45,6 +56,10 @@ from app.utils.prompts_ner.prompts_ner import (
     replace_entities_with_labels,
     get_labels_entities,
     generate_ner_llm,
+)
+from app.modules.sql_generation.services.adapter import (
+    KaiSqlGeneratorAdapter,
+    DeepAgentSQLGeneratorProxy,
 )
 
 load_dotenv()
@@ -59,11 +74,17 @@ class SQLGenerationService:
         self.storage = storage
         self.sql_generation_repository = SQLGenerationRepository(storage)
         self.alias_service = AliasService(storage)
+        self.generator_adapter = KaiSqlGeneratorAdapter(
+            repository=self.sql_generation_repository
+        )
 
     def create_sql_generation(
         self, prompt_id: str, sql_generation_request: SQLGenerationRequest
     ) -> SQLGeneration:
         start_time = datetime.now()
+        agent_metadata = sql_generation_request.metadata or {}
+        langsmith_metadata = agent_metadata.setdefault("lang_smith", {})
+
         initial_sql_generation = SQLGeneration(
             prompt_id=prompt_id,
             llm_config=(
@@ -74,13 +95,6 @@ class SQLGenerationService:
         )
         if not initial_sql_generation.metadata:
             initial_sql_generation.metadata = {}
-
-        # TODO: explore why using this
-        langsmith_metadata = (
-            sql_generation_request.metadata.get("lang_smith", {})
-            if sql_generation_request.metadata
-            else {}
-        )
 
         self.sql_generation_repository.insert(initial_sql_generation)
 
@@ -110,8 +124,6 @@ class SQLGenerationService:
         if relevant_aliases:
             initial_sql_generation.metadata["aliases"] = relevant_aliases
             # Add aliases to langsmith_metadata to pass to the SQL Agent
-            if not langsmith_metadata:
-                langsmith_metadata = {}
             langsmith_metadata["aliases"] = relevant_aliases
             logger.info(
                 f"Found {len(relevant_aliases)} aliases referenced in prompt: {prompt_id}"
@@ -174,33 +186,41 @@ class SQLGenerationService:
                 self.update_error(initial_sql_generation, str(e))
                 raise HTTPException(str(e), initial_sql_generation.id) from e
         else:
-            if not sql_generation_request.metadata:
-                sql_generation_request.metadata = {}
-            option = sql_generation_request.metadata.get("option", "")
-            if option == "dev":
-                sql_generator = FullContextSQLAgent(
-                    (
-                        sql_generation_request.llm_config
-                        if sql_generation_request.llm_config
-                        else LLMConfig()
-                    ),
+            option = agent_metadata.get("option", "")
+            tenant_id = agent_metadata.get("tenant_id")
+            llm_cfg = (
+                sql_generation_request.llm_config
+                if sql_generation_request.llm_config
+                else LLMConfig()
+            )
+
+            use_deep_agent = self.generator_adapter.is_deep_agent_enabled(
+                option, tenant_id, agent_metadata
+            )
+            tool_context = None
+            extra_instructions = None
+            if use_deep_agent:
+                tool_context, extra_instructions = self._build_deep_agent_inputs(
+                    prompt=prompt,
+                    db_connection=db_connection,
+                    database=database,
+                    relevant_aliases=relevant_aliases,
+                    request_context=agent_metadata.get("context"),
+                    tenant_id=tenant_id,
+                    sql_generation_id=initial_sql_generation.id,
                 )
-            elif option == "graph":
-                sql_generator = LangGraphSQLAgent(
-                    (
-                        sql_generation_request.llm_config
-                        if sql_generation_request.llm_config
-                        else LLMConfig()
-                    ),
-                )
-            else:
-                sql_generator = SQLAgent(
-                    (
-                        sql_generation_request.llm_config
-                        if sql_generation_request.llm_config
-                        else LLMConfig()
-                    ),
-                )
+
+            sql_generator = self.generator_adapter.select_generator(
+                option=option,
+                llm_config=llm_cfg,
+                tenant_id=tenant_id,
+                sql_generation_id=initial_sql_generation.id,
+                db_connection=db_connection,
+                database=database,
+                metadata=agent_metadata,
+                tool_context=tool_context,
+                extra_instructions=extra_instructions,
+            )
 
             try:
                 with ThreadPoolExecutor(max_workers=1) as executor:
@@ -209,7 +229,7 @@ class SQLGenerationService:
                         sql_generator,
                         prompt,
                         db_connection,
-                        metadata=langsmith_metadata,
+                        metadata=agent_metadata,
                     )
                     try:
                         sql_generation = future.result(
@@ -258,6 +278,227 @@ class SQLGenerationService:
         )
         initial_sql_generation.metadata.setdefault("timing", {}).update(time_taken)
         return initial_sql_generation
+
+    def stream_sql_generation(
+        self, prompt_id: str, sql_generation_request: SQLGenerationRequest
+    ):
+        start_time = datetime.now()
+        agent_metadata = sql_generation_request.metadata or {}
+        langsmith_metadata = agent_metadata.setdefault("lang_smith", {})
+
+        initial_sql_generation = SQLGeneration(
+            prompt_id=prompt_id,
+            llm_config=(
+                sql_generation_request.llm_config
+                if sql_generation_request.llm_config
+                else LLMConfig()
+            ),
+        )
+        if not initial_sql_generation.metadata:
+            initial_sql_generation.metadata = {}
+
+        self.sql_generation_repository.insert(initial_sql_generation)
+
+        prompt_repository = PromptRepository(self.storage)
+        prompt = prompt_repository.find_by_id(prompt_id)
+
+        if not prompt:
+            self.update_error(initial_sql_generation, f"Prompt {prompt_id} not found")
+            raise HTTPException(
+                f"Prompt {prompt_id} not found", initial_sql_generation.id
+            )
+
+        db_connection_repository = DatabaseConnectionRepository(self.storage)
+        db_connection = db_connection_repository.find_by_id(prompt.db_connection_id)
+        database = SQLDatabase.get_sql_engine(db_connection, False)
+
+        context_store_service = ContextStoreService(self.storage)
+        context_store = context_store_service.retrieve_exact_prompt(
+            prompt.db_connection_id, prompt.text
+        )
+
+        relevant_aliases = self.find_aliases_in_prompt(
+            prompt.text, prompt.db_connection_id
+        )
+        if relevant_aliases:
+            initial_sql_generation.metadata["aliases"] = relevant_aliases
+            langsmith_metadata["aliases"] = relevant_aliases
+            logger.info(
+                f"Found {len(relevant_aliases)} aliases referenced in prompt: {prompt_id}"
+            )
+
+        sql_generation_setup_end_time = datetime.now()
+        input_tokens = 0
+        output_tokens = 0
+
+        if context_store:
+            sql_generation_request.sql = context_store.sql
+            sql_generation_request.evaluate = False
+            logger.info("Exact context cache HIT! (stream)")
+        elif sql_generation_request.using_ner:
+            llm_model = ChatModel().get_model(
+                database_connection=None,
+                model_family=sql_generation_request.llm_config.model_family,
+                model_name=sql_generation_request.llm_config.model_name,
+                api_base=sql_generation_request.llm_config.api_base,
+                temperature=0,
+                max_retries=2,
+            )
+
+            with get_openai_callback() as cb:
+                try:
+                    similar_prompts = self.get_similar_prompts(
+                        prompt=prompt, llm_model=llm_model
+                    )
+                    if similar_prompts:
+                        logger.info("Similar prompt context HIT! (stream)")
+                        similar_prompt = similar_prompts[0]
+                        sql_generation_request.sql = generate_ner_llm(
+                            llm_model,
+                            similar_prompt["prompt_text"],
+                            similar_prompt["sql"],
+                            prompt.text,
+                        )
+                except Exception as e:
+                    logger.error(e)
+
+                input_tokens = cb.prompt_tokens
+                output_tokens = cb.completion_tokens
+
+        if sql_generation_request.sql:
+            queue = Queue()
+
+            def run_provided_sql():
+                try:
+                    sql_generation = SQLGeneration(
+                        prompt_id=prompt_id,
+                        llm_config=sql_generation_request.llm_config,
+                        sql=sql_generation_request.sql,
+                        input_tokens_used=input_tokens,
+                        output_tokens_used=output_tokens,
+                    )
+                    sql_generation = create_sql_query_status(
+                        db=database, query=sql_generation.sql, sql_generation=sql_generation
+                    )
+                    self.update_the_initial_sql_generation(
+                        initial_sql_generation, sql_generation
+                    )
+                    queue.put(
+                        f"\n**Final Answer:**\n {sql_generation.sql or ''}\n"
+                    )
+                except Exception as exc:  # pragma: no cover - streaming fallback
+                    self.update_error(initial_sql_generation, str(exc))
+                    queue.put(f"\n**Error:**\n {exc}\n")
+                finally:
+                    queue.put(None)
+
+            Thread(target=run_provided_sql, daemon=True).start()
+            return self._queue_to_stream(queue)
+
+        option = agent_metadata.get("option", "")
+        tenant_id = agent_metadata.get("tenant_id")
+        llm_cfg = (
+            sql_generation_request.llm_config
+            if sql_generation_request.llm_config
+            else LLMConfig()
+        )
+        use_deep_agent = self.generator_adapter.is_deep_agent_enabled(
+            option, tenant_id, agent_metadata
+        )
+        tool_context = None
+        extra_instructions = None
+        if use_deep_agent:
+            tool_context, extra_instructions = self._build_deep_agent_inputs(
+                prompt=prompt,
+                db_connection=db_connection,
+                database=database,
+                relevant_aliases=relevant_aliases,
+                request_context=agent_metadata.get("context"),
+                tenant_id=tenant_id,
+                sql_generation_id=initial_sql_generation.id,
+            )
+
+        sql_generator = self.generator_adapter.select_generator(
+            option=option,
+            llm_config=llm_cfg,
+            tenant_id=tenant_id,
+            sql_generation_id=initial_sql_generation.id,
+            db_connection=db_connection,
+            database=database,
+            metadata=agent_metadata,
+            tool_context=tool_context,
+            extra_instructions=extra_instructions,
+        )
+
+        response = SQLGeneration(
+            prompt_id=prompt.id,
+            llm_config=llm_cfg,
+            created_at=str(start_time),
+        )
+
+        queue = Queue()
+        queue.put(f"Streaming SQL Generation {initial_sql_generation.id}\n")
+
+        def run_stream():
+            try:
+                if isinstance(sql_generator, DeepAgentSQLGeneratorProxy):
+                    final_response = sql_generator.stream_response(
+                        user_prompt=prompt,
+                        database_connection=db_connection,
+                        response=response,
+                        queue=queue,
+                        metadata=agent_metadata,
+                    )
+                else:
+                    queue.put(
+                        "\n**Info:**\n Streaming not available for this generator; running synchronously.\n"
+                    )
+                    final_response = self.generate_response_with_timeout(
+                        sql_generator,
+                        prompt,
+                        db_connection,
+                        metadata=agent_metadata,
+                    )
+                    queue.put(
+                        f"\n**Final Answer:**\n {final_response.sql or ''}\n"
+                    )
+                    queue.put(None)
+
+                final_response.input_tokens_used += input_tokens
+                final_response.output_tokens_used += output_tokens
+                time_taken = {
+                    "sql_generation_setup_time": (
+                        sql_generation_setup_end_time - start_time
+                    ).total_seconds(),
+                }
+                final_response.metadata = final_response.metadata or {}
+                final_response.metadata.setdefault("timing", {}).update(time_taken)
+                self.update_the_initial_sql_generation(
+                    initial_sql_generation, final_response
+                )
+            except Exception as exc:  # pragma: no cover - streaming worker
+                self.update_error(initial_sql_generation, str(exc))
+                queue.put(f"\n**Error:**\n {exc}\n")
+                queue.put(None)
+
+        Thread(target=run_stream, daemon=True).start()
+        return self._queue_to_stream(queue)
+
+    def _queue_to_stream(self, queue: Queue):
+        async def iterator():
+            loop = asyncio.get_running_loop()
+            while True:
+                item = await loop.run_in_executor(None, queue.get)
+                if item is None:
+                    break
+                text = item if isinstance(item, str) else str(item)
+                if text.startswith("data:"):
+                    payload = text
+                else:
+                    payload = f"data: {text}\n\n"
+                yield payload.encode("utf-8")
+
+        return iterator()
 
     def create_prompt_and_sql_generation(
         self, prompt_sql_generation_request: PromptSQLGenerationRequest
@@ -505,7 +746,7 @@ class SQLGenerationService:
     # ================= HELPERS ================= #
 
     def generate_response_with_timeout(
-        self, sql_generator: SQLAgent, user_prompt, db_connection, metadata=None
+        self, sql_generator: SQLGenerator, user_prompt, db_connection, metadata=None
     ):
         return sql_generator.generate_response(
             user_prompt=user_prompt,
@@ -554,6 +795,62 @@ class SQLGenerationService:
         )
 
         return similar_prompts
+
+    def _build_deep_agent_inputs(
+        self,
+        *,
+        prompt,
+        db_connection,
+        database,
+        relevant_aliases,
+        request_context,
+        tenant_id: str | None,
+        sql_generation_id: str,
+    ) -> tuple[KaiToolContext, list[str]]:
+        table_repo = TableDescriptionRepository(self.storage)
+        db_scan = table_repo.get_all_tables_by_db(
+            {
+                "db_connection_id": str(db_connection.id),
+                "sync_status": TableDescriptionStatus.SCANNED.value,
+            }
+        )
+        db_scan = SQLGenerator.filter_tables_by_schema(db_scan=db_scan, prompt=prompt)
+
+        context_service = ContextStoreService(self.storage)
+        few_shot_examples = context_service.retrieve_context_for_question(prompt)
+        instruction_service = InstructionService(self.storage)
+        instructions = instruction_service.retrieve_instruction_for_question(prompt)
+        business_metrics_service = BusinessGlossaryService(self.storage)
+        business_metrics = business_metrics_service.retrieve_business_metrics_for_question(
+            prompt
+        )
+
+        embedding_model = EmbeddingModel().get_model()
+
+        base_dir = Path("app/data/deep_agent")
+        tool_context = KaiToolContext(
+            database=database,
+            db_scan=db_scan,
+            embedding=embedding_model,
+            context=request_context,
+            few_shot_examples=few_shot_examples or [],
+            business_metrics=business_metrics or [],
+            aliases=relevant_aliases or [],
+            is_multiple_schema=len(prompt.schemas or []) > 1,
+            top_k=SQLGenerator.get_upper_bound_limit(),
+            tenant_id=tenant_id,
+            sql_generation_id=sql_generation_id,
+            result_dir=str(base_dir),
+        )
+
+        extra_instructions: list[str] = []
+        if instructions:
+            for instruction in instructions:
+                rules = instruction.get("rules")
+                if rules:
+                    extra_instructions.append(rules)
+
+        return tool_context, extra_instructions
 
     def find_aliases_in_prompt(self, prompt_text: str, db_connection_id: str) -> list:
         """

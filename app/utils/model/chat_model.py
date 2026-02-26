@@ -3,7 +3,7 @@ from typing import Any
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chat_models.base import BaseChatModel
+from langchain_core.language_models import BaseChatModel
 from overrides import override
 
 from app.modules.database_connection.models import DatabaseConnection

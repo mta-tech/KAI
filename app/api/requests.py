@@ -35,8 +35,8 @@ class TableDescriptionRequest(BaseModel):
 
 
 class ScannerRequest(BaseModel):
-    table_description_ids: list[str] | None
-    instruction: str | None
+    table_description_ids: list[str] | None = None
+    instruction: str | None = None
     llm_config: LLMConfig | None = None
     metadata: dict | None = None
 
@@ -180,4 +180,22 @@ class SyntheticQuestionRequest(BaseModel):
     num_batches: int = 1
     peeking_context_stores: bool = False
     evaluate: bool = False
+    metadata: dict | None = None
+
+
+class AnalysisRequest(BaseModel):
+    """Request for generating analysis from an existing SQL generation."""
+
+    llm_config: LLMConfig | None = None
+    max_rows: int = 100
+    metadata: dict | None = None
+
+
+class ComprehensiveAnalysisRequest(BaseModel):
+    """Request for end-to-end analysis: Prompt -> SQL Gen -> Execution -> Analysis."""
+
+    prompt: PromptRequest
+    llm_config: LLMConfig | None = None
+    max_rows: int = 100
+    use_deep_agent: bool = False
     metadata: dict | None = None

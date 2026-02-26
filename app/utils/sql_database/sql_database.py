@@ -2,6 +2,7 @@
 
 import logging
 import re
+import warnings
 from typing import List
 from urllib.parse import unquote
 import os
@@ -21,6 +22,14 @@ from app.modules.database_connection.models import DatabaseConnection
 from app.utils.core.encrypt import FernetEncrypt
 
 logger = logging.getLogger(__name__)
+
+# Filter SQLAlchemy SAWarning for unknown types like 'aclitem'
+# These are PostgreSQL-specific types that SQLAlchemy doesn't recognize by default
+warnings.filterwarnings(
+    "ignore",
+    category=Warning,
+    message=".*Did not recognize type.*"
+)
 
 
 class DBConnections:

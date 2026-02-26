@@ -1,0 +1,96 @@
+# Docker Compose for KAI Full Stack (Backend + UI)
+#
+# This configuration runs:
+# - Typesense for vector search
+# - KAI Backend API
+# - KAI Web UI (Next.js)
+#
+# Usage:
+#   docker compose -f docker-compose.fullstack.yml up -d
+#
+# Access:
+#   - Web UI: http://localhost:3000
+#   - Backend API: http://localhost:8015
+#   - Typesense: http://localhost:8108
+
+services:
+  # Typesense - Vector Search
+  typesense:
+    image: typesense/typesense:26.0
+    container_name: kai_typesense
+    restart: unless-stopped
+    ports:
+      - "8108:8108"
+    volumes:
+      - ./app/data/dbdata:/data
+    command: '--data-dir /data --api-key=${TYPESENSE_API_KEY} --enable-cors'
+    environment:
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY:-ts_dev_key}
+    networks:
+      - kai_network
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8108 && echo -e 'GET /health HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && timeout 2 cat <&3 | grep -q ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # KAI Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kai-backend:latest
+    container_name: kai_backend
+    restart: unless-stopped
+    ports:
+      - "8015:8000"
+    depends_on:
+      typesense:
+        condition: service_healthy
+    env_file:
+      - .env.local
+    environment:
+      - TYPESENSE_HOST=typesense
+      - TYPESENSE_PORT=8108
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+    networks:
+      - kai_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # KAI Web UI
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8015
+    image: kai-ui:latest
+    container_name: kai_ui
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8015
+      - NODE_ENV=production
+    networks:
+      - kai_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  kai_network:
+    external: true

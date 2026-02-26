@@ -1,0 +1,508 @@
+"""CLI for KAI Autonomous Agent.
+
+Usage:
+    kai-agent run "Analyze sales by region" --db conn_123
+    kai-agent run "Show top customers" --db conn_123 --mode query
+    kai-agent interactive --db conn_123
+"""
+import asyncio
+import json
+import uuid
+from datetime import datetime
+
+import click
+from rich.console import Console
+from rich.panel import Panel
+from rich.live import Live
+from rich.markdown import Markdown
+
+console = Console()
+
+
+@click.group()
+def cli():
+    """KAI Autonomous Agent - AI-powered data analysis."""
+    pass
+
+
+@cli.command()
+@click.argument("prompt")
+@click.option("--db", "db_connection_id", required=True, help="Database connection ID")
+@click.option(
+    "--mode",
+    type=click.Choice(["full_autonomy", "analysis", "query", "script"]),
+    default="full_autonomy",
+    help="Agent operation mode",
+)
+@click.option("--output", "-o", type=click.Path(), help="Save result to file")
+@click.option("--stream/--no-stream", default=True, help="Stream output")
+def run(prompt: str, db_connection_id: str, mode: str, output: str, stream: bool):
+    """Run an autonomous analysis task.
+
+    Examples:
+
+        kai-agent run "What are the top 10 products by revenue?" --db conn_123
+
+        kai-agent run "Analyze customer churn patterns" --db conn_123 --mode analysis
+
+        kai-agent run "Write a script to clean the data" --db conn_123 --mode script
+    """
+    asyncio.run(_run_task(prompt, db_connection_id, mode, output, stream))
+
+
+async def _render_stream(service, task, console):
+    """Helper to stream and render agent events."""
+    output_text = ""
+    agent_stack = ["KAI"] # Track active agent context
+    
+    # Track todos for nice display
+    current_todos = []
+    
+    with Live(console=console, refresh_per_second=10, vertical_overflow="visible") as live:
+        async for event in service.stream_execute(task):
+            if event["type"] == "token":
+                output_text += event["content"]
+                live.update(Markdown(output_text))
+            
+            elif event["type"] == "todo_update":
+                # Update our local list of todos
+                # todos structure is list of dicts: [{'content': '...', 'status': 'pending'/'completed'/'in_progress', ...}]
+                new_todos = event.get("todos", [])
+                if new_todos:
+                    current_todos = new_todos
+                    # Render the todo list
+                    todo_lines = []
+                    for todo in current_todos:
+                        status = todo.get('status', 'pending')
+                        content = todo.get('content', '')
+                        if status == 'completed':
+                            icon = "[green]✔[/green]"
+                            style = "strike dim"
+                        elif status == 'in_progress':
+                            icon = "[blue]➜[/blue]"
+                            style = "bold"
+                        else:
+                            icon = "[yellow]○[/yellow]"
+                            style = ""
+                        
+                        todo_lines.append(f"{icon} [{style}]{content}[/{style}]")
+                    
+                    if todo_lines:
+                        console.print(Panel("\n".join(todo_lines), title="Todo List", border_style="magenta", title_align="left"))
+
+            elif event["type"] == "tool_start":
+                # Flush reasoning/thought block if exists
+                if output_text.strip():
+                    current_agent = agent_stack[-1]
+                    title = "Reasoning" if current_agent == "KAI" else f"{current_agent} Reasoning"
+                    style = "yellow" if current_agent == "KAI" else "blue"
+                    
+                    # Print ABOVE the live display area
+                    console.print(Panel(Markdown(output_text), title=title, border_style=style, title_align="left"))
+                    output_text = ""
+                    live.update(Markdown("")) # Clear live area for next phase
+
+                tool_name = event['tool']
+                tool_input = event.get('input')
+                
+                if tool_name == "task":
+                    # This is a subagent call
+                    agent_name = tool_input.get("agent") or tool_input.get("name") or "subagent"
+                    agent_stack.append(agent_name)
+                    
+                    prompt = tool_input.get("prompt", "")
+                    console.print(f"\n[bold blue]➤ Delegating to {agent_name}[/bold blue]")
+                    # Use a Panel for the prompt to ensure it's clearly visible even if multi-line
+                    console.print(Panel(Markdown(prompt), title=f"{agent_name} Task", border_style="blue", title_align="left"))
+                elif tool_name == "write_todos":
+                    # We handle todo updates via the dedicated event type, but we can acknowledge the tool call briefly
+                    pass 
+                else:
+                    # Normal tool call
+                    prefix = "  " * (len(agent_stack) - 1)
+                    console.print(f"\n{prefix}[bold cyan]➜ Calling tool: {tool_name}[/bold cyan]")
+                    if tool_input:
+                        if isinstance(tool_input, dict):
+                            # Pretty print args
+                            for k, v in tool_input.items():
+                                console.print(f"{prefix}[dim]  {k}: {v}[/dim]")
+                        else:
+                            console.print(f"{prefix}[dim]  Input: {tool_input}[/dim]")
+            
+            elif event["type"] == "tool_end":
+                tool_name = event['tool']
+                output = event.get('output', '')
+                
+                if tool_name == "task":
+                    finished_agent = agent_stack.pop() if len(agent_stack) > 1 else "subagent"
+                    console.print(f"[bold green]✔ {finished_agent} completed[/bold green]")
+                    # Show subagent result
+                    console.print(Panel(Markdown(output), title=f"{finished_agent} Result", border_style="blue", title_align="left"))
+                elif tool_name == "write_todos":
+                    # Skip printing result for write_todos to reduce noise, as we render the list
+                    pass
+                else:
+                    prefix = "  " * (len(agent_stack) - 1)
+                    # Truncate long outputs for display but show success
+                    display_output = output[:500] + "..." if len(output) > 500 else output
+                    console.print(f"{prefix}[bold green]✔ {tool_name} result:[/bold green]")
+                    console.print(f"{prefix}[dim]{display_output}[/dim]")
+
+        # End of stream - Final Result
+        if output_text.strip():
+            # Clear the live component one last time
+            live.update(Markdown(""))
+            # Print the final result as a distinct panel
+            console.print(Panel(Markdown(output_text), title="Analysis / Result", border_style="green", title_align="left"))
+
+
+async def _run_task(
+    prompt: str, db_connection_id: str, mode: str, output: str, stream: bool
+):
+    """Execute agent task."""
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.database_connection.repositories import DatabaseConnectionRepository
+    from app.modules.autonomous_agent.service import AutonomousAgentService
+    from app.modules.autonomous_agent.models import AgentTask
+    from app.utils.sql_database.sql_database import SQLDatabase
+    from app.utils.core.encrypt import FernetEncrypt
+    from urllib.parse import unquote
+    from app.modules.sql_generation.models import LLMConfig
+
+    # Initialize
+    settings = Settings()
+    storage = Storage(settings)
+    db_repo = DatabaseConnectionRepository(storage)
+    db_connection = db_repo.find_by_id(db_connection_id)
+
+    if not db_connection:
+        console.print(f"[red]Error:[/red] Database connection '{db_connection_id}' not found")
+        return
+
+    # Configure LLM
+    llm_config = LLMConfig(
+        model_family=settings.CHAT_FAMILY,
+        model_name=settings.CHAT_MODEL,
+    )
+
+    # Patch connection for CLI use (host networking)
+    fernet = FernetEncrypt()
+    try:
+        decrypted_uri = unquote(fernet.decrypt(db_connection.connection_uri))
+        if "postgres-warehouse" in decrypted_uri:
+            console.print("[dim]Patching connection for local CLI execution...[/dim]")
+            # Replace host and port
+            # Standard URI: postgresql://user:pass@host:port/db
+            patched_uri = decrypted_uri.replace("postgres-warehouse", "localhost")
+            # If port 5432 is explicit, change to 5433.
+            # If implicit, we might need to insert :5433
+            if ":5432" in patched_uri:
+                patched_uri = patched_uri.replace(":5432", ":5433")
+            elif "@localhost/" in patched_uri:
+                 patched_uri = patched_uri.replace("@localhost/", "@localhost:5433/")
+            
+            # Re-encrypt
+            db_connection.connection_uri = fernet.encrypt(patched_uri)
+            
+            # Also patch alias to force new connection creation in pool
+            db_connection.id = db_connection.id + "_cli_patched"
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to patch connection URI: {e}[/yellow]")
+
+    database = SQLDatabase.get_sql_engine(db_connection, False)
+    service = AutonomousAgentService(db_connection, database, llm_config=llm_config)
+
+    task = AgentTask(
+        id=f"cli_{uuid.uuid4().hex[:8]}",
+        prompt=prompt,
+        db_connection_id=db_connection_id,
+        mode=mode,
+    )
+
+    console.print(Panel(f"[bold]{prompt}[/bold]", title=f"KAI Agent [{mode}]"))
+
+    if stream:
+        # Streaming execution using new renderer
+        await _render_stream(service, task, console)
+    else:
+        # Non-streaming execution
+        with console.status("[bold]Thinking...[/bold]"):
+            result = await service.execute(task)
+
+        if result.status == "completed":
+            console.print(Panel(Markdown(result.final_answer), title="Result", border_style="green"))
+            console.print(f"[green]Completed in {result.execution_time_ms}ms[/green]")
+        else:
+            console.print(f"[red]Error: {result.error}[/red]")
+
+        if output and result.final_answer:
+            with open(output, "w") as f:
+                f.write(result.final_answer)
+            console.print(f"[dim]Saved to {output}[/dim]")
+
+
+@cli.command()
+@click.option("--db", "db_connection_id", required=True, help="Database connection ID")
+def interactive(db_connection_id: str):
+    """Start an interactive agent session.
+
+    Example:
+        kai-agent interactive --db conn_123
+    """
+    asyncio.run(_interactive_session(db_connection_id))
+
+
+async def _interactive_session(db_connection_id: str):
+    """Interactive REPL session."""
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.database_connection.repositories import DatabaseConnectionRepository
+    from app.modules.autonomous_agent.service import AutonomousAgentService
+    from app.modules.autonomous_agent.models import AgentTask
+    from app.utils.sql_database.sql_database import SQLDatabase
+    from app.utils.core.encrypt import FernetEncrypt
+    from urllib.parse import unquote
+    from app.modules.sql_generation.models import LLMConfig
+    from langgraph.checkpoint.memory import MemorySaver
+
+    settings = Settings()
+    storage = Storage(settings)
+    db_repo = DatabaseConnectionRepository(storage)
+    db_connection = db_repo.find_by_id(db_connection_id)
+
+    if not db_connection:
+        console.print(f"[red]Database connection not found[/red]")
+        return
+
+    # Configure LLM
+    llm_config = LLMConfig(
+        model_family=settings.CHAT_FAMILY,
+        model_name=settings.CHAT_MODEL,
+    )
+
+    # Patch connection for CLI use (host networking)
+    fernet = FernetEncrypt()
+    try:
+        decrypted_uri = unquote(fernet.decrypt(db_connection.connection_uri))
+        if "postgres-warehouse" in decrypted_uri:
+            console.print("[dim]Patching connection for local CLI execution...[/dim]")
+            patched_uri = decrypted_uri.replace("postgres-warehouse", "localhost")
+            if ":5432" in patched_uri:
+                patched_uri = patched_uri.replace(":5432", ":5433")
+            elif "@localhost/" in patched_uri:
+                 patched_uri = patched_uri.replace("@localhost/", "@localhost:5433/")
+            
+            db_connection.connection_uri = fernet.encrypt(patched_uri)
+            db_connection.id = db_connection.id + "_cli_patched"
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to patch connection URI: {e}[/yellow]")
+
+    # Create memory checkpointer for multi-turn conversation
+    checkpointer = MemorySaver()
+
+    database = SQLDatabase.get_sql_engine(db_connection, False)
+    service = AutonomousAgentService(
+        db_connection, 
+        database, 
+        llm_config=llm_config, 
+        checkpointer=checkpointer
+    )
+
+    console.print(Panel(
+        "[bold]KAI Autonomous Agent[/bold]\n"
+        "Type your questions, 'exit' to quit, 'help' for commands",
+        title="Interactive Mode"
+    ))
+
+    # Persistent thread ID for the session
+    session_id = f"interactive_{uuid.uuid4().hex[:8]}"
+
+    while True:
+        try:
+            prompt = console.input("\n[bold cyan]kai>[/bold cyan] ").strip()
+
+            if not prompt:
+                continue
+            if prompt.lower() == "exit":
+                break
+            if prompt.lower() == "help":
+                console.print("Commands: exit, help, clear")
+                continue
+            if prompt.lower() == "clear":
+                console.clear()
+                continue
+
+            task = AgentTask(
+                id=session_id,
+                prompt=prompt,
+                db_connection_id=db_connection_id,
+            )
+
+            await _render_stream(service, task, console)
+
+        except KeyboardInterrupt:
+            console.print("\n[dim]Use 'exit' to quit[/dim]")
+        except EOFError:
+            break
+
+    console.print("\n[dim]Session ended[/dim]")
+
+
+@cli.command()
+def list_connections():
+    """List available database connections."""
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.database_connection.repositories import DatabaseConnectionRepository
+
+    storage = Storage(Settings())
+    db_repo = DatabaseConnectionRepository(storage)
+    connections = db_repo.find_all()
+
+    if not connections:
+        console.print("[yellow]No database connections found[/yellow]")
+        return
+
+    console.print("[bold]Available Connections:[/bold]")
+    for conn in connections:
+        console.print(f"  {conn.id}: {conn.alias or conn.dialect} ({conn.dialect})")
+
+
+
+@cli.command("create-connection")
+@click.argument("connection_uri")
+@click.option("-a", "--alias", required=True, help="Connection alias (required)")
+@click.option("-d", "--description", help="Connection description")
+@click.option("-s", "--schemas", multiple=True, help="Schemas to scan (default: public)")
+@click.option("--metadata", help="JSON metadata for the connection")
+def create_connection(connection_uri: str, alias: str, description: str | None, schemas: tuple, metadata: str | None):
+    """Create a new database connection.
+
+    CONNECTION_URI: Database connection URI (e.g., postgresql://user:pass@host:5432/db)
+
+    Examples:
+
+        kai-agent create-connection "postgresql://user:pass@localhost:5432/mydb" -a production
+
+        kai-agent create-connection "mysql://user:pass@localhost:3306/crm" -a crm -d "CRM Database"
+
+        kai-agent create-connection "sqlite:///path/to/db.sqlite" -a local -s main -s temp
+    """
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.database_connection.services import DatabaseConnectionService
+    from app.api.requests import DatabaseConnectionRequest
+
+    storage = Storage(Settings())
+    service = DatabaseConnectionService(storage)
+
+    try:
+        import json
+        metadata_dict = json.loads(metadata) if metadata else None
+    except json.JSONDecodeError:
+        console.print(f"[red]Error:[/red] Invalid JSON in --metadata")
+        return
+
+    request = DatabaseConnectionRequest(
+        alias=alias,
+        connection_uri=connection_uri,
+        schemas=list(schemas) if schemas else None,
+        metadata=metadata_dict,
+    )
+
+    try:
+        with console.status("[bold]Creating connection and scanning schemas...[/bold]"):
+            conn = service.create_database_connection(request)
+
+        console.print(Panel(
+            f"[bold green]✔ Connection created successfully![/bold green]\n\n"
+            f"[cyan]ID:[/cyan] {conn.id}\n"
+            f"[cyan]Alias:[/cyan] {conn.alias}\n"
+            f"[cyan]Dialect:[/cyan] {conn.dialect}\n"
+            f"[cyan]Schemas:[/cyan] {', '.join(conn.schemas)}\n"
+            f"[cyan]Created:[/cyan] {conn.created_at}",
+            title="Connection Created",
+            border_style="green"
+        ))
+
+        # Show next steps
+        console.print("\n[bold]Next steps:[/bold]")
+        console.print(f"  Run analysis: [cyan]kai-agent run \"Your question\" --db {conn.id}[/cyan]")
+        console.print(f"  Interactive mode: [cyan]kai-agent interactive --db {conn.id}[/cyan]")
+        console.print(f"  Scan with descriptions: [cyan]kai-agent scan-all {conn.id} -d[/cyan]")
+
+    except Exception as e:
+        console.print(f"[red]Error creating connection:[/red] {e}")
+        raise click.Abort()
+
+
+@cli.command("delete-connection")
+@click.argument("connection_id")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation")
+def delete_connection(connection_id: str, force: bool):
+    """Delete a database connection.
+
+    CONNECTION_ID: Connection ID or alias to delete
+
+    Examples:
+
+        kai-agent delete-connection conn_123
+
+        kai-agent delete-connection production -f
+    """
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.database_connection.repositories import DatabaseConnectionRepository
+    from app.modules.database_connection.services import DatabaseConnectionService
+
+    storage = Storage(Settings())
+    db_repo = DatabaseConnectionRepository(storage)
+    service = DatabaseConnectionService(storage)
+
+    # Find connection by ID or alias
+    conn = db_repo.find_by_id(connection_id)
+    if not conn:
+        # Try to find by alias
+        all_conns = db_repo.find_all()
+        conn = next((c for c in all_conns if c.alias == connection_id), None)
+
+    if not conn:
+        console.print(f"[red]Error:[/red] Connection '{connection_id}' not found")
+        console.print("\nAvailable connections:")
+        for c in all_conns:
+            console.print(f"  {c.id}: {c.alias} ({c.dialect})")
+        raise click.Abort()
+
+    # Confirm unless forced
+    if not force:
+        console.print(f"[yellow]About to delete connection:[/yellow]")
+        console.print(f"  ID: {conn.id}")
+        console.print(f"  Alias: {conn.alias}")
+        console.print(f"  Dialect: {conn.dialect}")
+        if not click.confirm("\nDo you want to continue?"):
+            console.print("[dim]Cancelled[/dim]")
+            return
+
+    try:
+        deleted = service.delete_database_connection(conn.id)
+        console.print(Panel(
+            f"[bold green]✔ Connection deleted[/bold green]\n\n"
+            f"[cyan]Alias:[/cyan] {deleted.alias}\n"
+            f"[cyan]ID:[/cyan] {deleted.id}",
+            title="Connection Deleted",
+            border_style="green"
+        ))
+    except Exception as e:
+        console.print(f"[red]Error deleting connection:[/red] {e}")
+        raise click.Abort()
+
+@cli.command()
+def worker():
+    """Start the KAI Temporal Worker."""
+    from app.worker_main import main
+    asyncio.run(main())
+
+
+if __name__ == "__main__":
+    cli()

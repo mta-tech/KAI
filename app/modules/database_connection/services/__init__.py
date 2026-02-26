@@ -151,13 +151,27 @@ class DatabaseConnectionService:
 
     def remove_schema_in_uri(self, connection_uri: str, dialect: str) -> str:
         if dialect in ["postgresql"]:
-            pattern = r"\?options=-csearch_path" r"=[^&]*"
-            return re.sub(pattern, "", connection_uri)
+            # Handle both ?options= and &options= cases
+            pattern = r"[?&]options=-csearch_path=[^&]*"
+            result = re.sub(pattern, "", connection_uri)
+            # Clean up any leftover ? or & at the end
+            result = re.sub(r"\?&", "?", result)
+            result = re.sub(r"\?$", "", result)
+            return result
         return connection_uri
 
     def add_schema_in_uri(self, connection_uri: str, schema: str, dialect: str) -> str:
         if dialect in ["postgresql"]:
-            return f"{connection_uri}?options=-csearch_path={schema}"
+            # Neon pooled connections don't support options=-csearch_path
+            # Detect pooled connections (contain -pooler in hostname)
+            if "-pooler." in connection_uri or ".pooler." in connection_uri:
+                # For pooled connections, skip adding search_path option
+                # Users should use fully qualified names (schema.table) in queries
+                return connection_uri
+            
+            # Check if URI already has query parameters
+            separator = "&" if "?" in connection_uri else "?"
+            return f"{connection_uri}{separator}options=-csearch_path={schema}"
         return connection_uri
 
     def get_sql_database(
