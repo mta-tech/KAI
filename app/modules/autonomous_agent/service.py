@@ -251,6 +251,12 @@ from app.modules.autonomous_agent.tools import (
     create_get_mdl_join_path_tool,
 )
 from app.data.db.storage import Storage
+from app.modules.autonomous_agent.tools.context_platform_tools import (
+    create_get_published_instructions_tool,
+    create_get_published_glossary_tool,
+    create_search_published_assets_tool,
+    create_submit_asset_feedback_tool,
+)
 from app.modules.autonomous_agent.subagents import get_analysis_subagents
 from app.modules.autonomous_agent.prompts import get_system_prompt
 from app.modules.autonomous_agent.learning import (
@@ -424,6 +430,11 @@ class AutonomousAgentService:
             create_explore_mdl_views_tool(self.db_connection.id, self.storage),
             create_search_mdl_columns_tool(self.db_connection.id, self.storage),
             create_get_mdl_join_path_tool(self.db_connection.id, self.storage),
+            # Context platform tools - published, lifecycle-managed assets
+            create_get_published_instructions_tool(self.db_connection, self.storage),
+            create_get_published_glossary_tool(self.db_connection, self.storage),
+            create_search_published_assets_tool(self.db_connection, self.storage),
+            create_submit_asset_feedback_tool(self.storage),
         ]
 
         # Load MCP tools if enabled
