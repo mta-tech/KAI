@@ -417,8 +417,8 @@ class TestInterruptAndResume:
 
 
 # ============================================================================
-// Audit and Logging Tests
-// ============================================================================
+#Audit and Logging Tests
+#============================================================================
 
 class TestAuditAndLogging:
     """Tests for audit logging of guardrail violations."""
@@ -447,8 +447,8 @@ class TestAuditAndLogging:
 
 
 # ============================================================================
-// Stress Tests
-// ============================================================================
+#Stress Tests
+#============================================================================
 
 class TestStressScenarios:
     """Stress tests for guardrail enforcement."""

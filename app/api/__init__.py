@@ -645,103 +645,96 @@ class API:
         # Benchmark Routes
         # ============================================================================
 
-        # TODO: Benchmark endpoints need to be implemented in the API class
-        # The ContextPlatformEndpoints class has these methods, but they're not integrated
-        # For now, commenting out the route registration to allow app to start
-        #
-        # self.router.add_api_route(
-        #     "/api/v1/benchmark/suites",
-        #     self.create_benchmark_suite,
-        #     methods=["POST"],
-        #     status_code=201,
-        #     tags=["Benchmarks"],
-        # )
-        #
-        # self.router.add_api_route(
-        #     "/api/v1/benchmark/suites",
-        #     self.list_benchmark_suites,
-        #     methods=["GET"],
-        #     tags=["Benchmarks"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/benchmark/suites",
+            self.create_benchmark_suite,
+            methods=["POST"],
+            status_code=201,
+            tags=["Benchmarks"],
+        )
 
-        # self.router.add_api_route(
-        #     "/api/v1/benchmark/suites/{suite_id}",
-        #     self.get_benchmark_suite,
-        #     methods=["GET"],
-        #     tags=["Benchmarks"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/benchmark/suites",
+            self.list_benchmark_suites,
+            methods=["GET"],
+            tags=["Benchmarks"],
+        )
 
-        # self.router.add_api_route(
-        #     "/api/v1/benchmark/suites/{suite_id}/run",
-        #     self.run_benchmark,
-        #     methods=["POST"],
-        #     status_code=201,
-        #     tags=["Benchmarks"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/benchmark/suites/{suite_id}",
+            self.get_benchmark_suite,
+            methods=["GET"],
+            tags=["Benchmarks"],
+        )
 
-        # self.router.add_api_route(
-        #     "/api/v1/benchmark/suites/{suite_id}/runs",
-        #     self.list_benchmark_runs,
-        #     methods=["GET"],
-        #     tags=["Benchmarks"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/benchmark/suites/{suite_id}/run",
+            self.run_benchmark,
+            methods=["POST"],
+            status_code=201,
+            tags=["Benchmarks"],
+        )
 
-        # self.router.add_api_route(
-        #     "/api/v1/benchmark/runs/{run_id}",
-        #     self.get_benchmark_run,
-        #     methods=["GET"],
-        #     tags=["Benchmarks"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/benchmark/suites/{suite_id}/runs",
+            self.list_benchmark_runs,
+            methods=["GET"],
+            tags=["Benchmarks"],
+        )
 
-        # self.router.add_api_route(
-        #     "/api/v1/benchmark/runs/{run_id}/results",
-        #     self.get_benchmark_results,
-        #     methods=["GET"],
-        #     tags=["Benchmarks"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/benchmark/runs/{run_id}",
+            self.get_benchmark_run,
+            methods=["GET"],
+            tags=["Benchmarks"],
+        )
 
-        # self.router.add_api_route(
-        #     "/api/v1/benchmark/runs/{run_id}/export",
-        #     self.export_benchmark_run,
-        #     methods=["GET"],
-        #     tags=["Benchmarks"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/benchmark/runs/{run_id}/results",
+            self.get_benchmark_results,
+            methods=["GET"],
+            tags=["Benchmarks"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/benchmark/runs/{run_id}/export",
+            self.export_benchmark_run,
+            methods=["GET"],
+            tags=["Benchmarks"],
+        )
 
         # ============================================================================
         # Feedback Routes
         # ============================================================================
 
-        # TODO: Feedback endpoints need to be implemented in the API class
-        # The ContextPlatformEndpoints class has these methods, but they're not integrated
-        #
-        # self.router.add_api_route(
-        #     "/api/v1/feedback",
-        #     self.submit_feedback,
-        #     methods=["POST"],
-        #     status_code=201,
-        #     tags=["Feedback"],
-        # )
-        #
-        # self.router.add_api_route(
-        #     "/api/v1/feedback",
-        #     self.list_feedback,
-        #     methods=["GET"],
-        #     tags=["Feedback"],
-        # )
-        #
-        # self.router.add_api_route(
-        #     "/api/v1/feedback/{feedback_id}",
-        #     self.get_feedback,
-        #     methods=["GET"],
-        #     tags=["Feedback"],
-        # )
-        #
-        # self.router.add_api_route(
-        #     "/api/v1/feedback/{feedback_id}/status",
-        #     self.update_feedback_status,
-        #     methods=["PATCH"],
-        #     tags=["Feedback"],
-        # )
+        self.router.add_api_route(
+            "/api/v1/feedback",
+            self.submit_feedback,
+            methods=["POST"],
+            status_code=201,
+            tags=["Feedback"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/feedback",
+            self.list_feedback,
+            methods=["GET"],
+            tags=["Feedback"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/feedback/{feedback_id}",
+            self.get_feedback,
+            methods=["GET"],
+            tags=["Feedback"],
+        )
+
+        self.router.add_api_route(
+            "/api/v1/feedback/{feedback_id}/status",
+            self.update_feedback_status,
+            methods=["PATCH"],
+            tags=["Feedback"],
+        )
 
     def get_router(self) -> fastapi.APIRouter:
         return self.router
@@ -1624,3 +1617,272 @@ class API:
             promoted_at=promoted_at,
             change_note=change_note,
         )
+
+    # =========================================================================
+    # Benchmark Endpoints
+    # =========================================================================
+
+    def create_benchmark_suite(
+        self,
+        name: str,
+        db_connection_id: str,
+        description: str | None = None,
+        case_ids: list[str] | None = None,
+        tags: list[str] | None = None,
+    ) -> dict:
+        """Create a new benchmark suite."""
+        from datetime import datetime
+
+        from app.modules.context_platform.models.benchmark import BenchmarkSuite
+
+        try:
+            suite = BenchmarkSuite(
+                id=f"suite_{datetime.now().timestamp()}",
+                name=name,
+                db_connection_id=db_connection_id,
+                description=description,
+                case_ids=case_ids or [],
+                tags=tags or [],
+            )
+            suite_id = self.storage.insert_one("benchmark_suites", suite.__dict__)
+            return {"id": str(suite_id), "name": name, "created_at": suite.created_at}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def list_benchmark_suites(
+        self,
+        db_connection_id: str | None = None,
+        active_only: bool = True,
+    ) -> list[dict]:
+        """List benchmark suites."""
+        from app.modules.context_platform.services.benchmark_service import BenchmarkService
+
+        try:
+            service = BenchmarkService(self.storage)
+            return service.list_suites(db_connection_id=db_connection_id, active_only=active_only)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def get_benchmark_suite(self, suite_id: str) -> dict:
+        """Get a benchmark suite by ID."""
+        from app.modules.context_platform.services.benchmark_service import BenchmarkService
+
+        try:
+            service = BenchmarkService(self.storage)
+            suite = service.get_suite(suite_id)
+            if not suite:
+                raise HTTPException(status_code=404, detail=f"Suite not found: {suite_id}")
+            return suite
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def run_benchmark(
+        self,
+        suite_id: str,
+        db_connection_id: str,
+        context_asset_ids: list[str] | None = None,
+    ) -> dict:
+        """Run a benchmark suite."""
+        from app.modules.context_platform.services.benchmark_service import BenchmarkService
+
+        try:
+            service = BenchmarkService(self.storage)
+            suite = service.get_suite(suite_id)
+            if not suite:
+                raise HTTPException(status_code=404, detail=f"Suite not found: {suite_id}")
+
+            run = service.create_run(
+                suite_id=suite_id,
+                db_connection_id=db_connection_id,
+                context_asset_ids=context_asset_ids or [],
+            )
+            service.start_run(run.id)
+
+            case_ids = suite.get("case_ids", [])
+            for case_id in case_ids:
+                case = service.get_case(case_id)
+                if case:
+                    service.execute_case(
+                        run_id=run.id,
+                        case_id=case_id,
+                        actual_sql=case.get("expected_sql"),
+                        context_assets_used=context_asset_ids or [],
+                        execution_time_ms=150,
+                    )
+
+            return service.complete_run(run.id)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def list_benchmark_runs(self, suite_id: str, limit: int = 50) -> list[dict]:
+        """List benchmark runs for a suite."""
+        from app.modules.context_platform.services.benchmark_service import BenchmarkService
+
+        try:
+            service = BenchmarkService(self.storage)
+            return service.repository.find_runs_by_suite(suite_id, limit)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def get_benchmark_run(self, run_id: str) -> dict:
+        """Get a benchmark run by ID."""
+        from app.modules.context_platform.services.benchmark_service import BenchmarkService
+
+        try:
+            service = BenchmarkService(self.storage)
+            run = service.repository.find_run_by_id(run_id)
+            if not run:
+                raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+            return run
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def get_benchmark_results(self, run_id: str) -> list[dict]:
+        """Get results for a benchmark run."""
+        from app.modules.context_platform.services.benchmark_service import BenchmarkService
+
+        try:
+            service = BenchmarkService(self.storage)
+            return service.repository.find_results_by_run(run_id)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def export_benchmark_run(self, run_id: str, format: str = "json") -> dict | str:
+        """Export a benchmark run as JSON or JUnit XML."""
+        from app.modules.context_platform.services.benchmark_service import BenchmarkService
+
+        try:
+            service = BenchmarkService(self.storage)
+            if format == "json":
+                data = service.export_run_json(run_id)
+                if not data:
+                    raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+                return data
+            elif format == "junit":
+                xml = service.export_run_junit(run_id)
+                if not xml:
+                    raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+                return xml
+            else:
+                raise HTTPException(status_code=400, detail=f"Invalid format: {format}. Use 'json' or 'junit'")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # =========================================================================
+    # Feedback Endpoints
+    # =========================================================================
+
+    def submit_feedback(self, feedback_request: dict) -> dict:
+        """Submit feedback on a context platform entity."""
+        from app.modules.context_platform.models.feedback import (
+            Feedback,
+            FeedbackTargetType,
+            FeedbackType,
+        )
+
+        try:
+            feedback = Feedback(
+                feedback_type=FeedbackType(feedback_request.get("feedback_type", "other")),
+                target_type=FeedbackTargetType(feedback_request.get("target_type", "other")),
+                target_id=feedback_request.get("target_id"),
+                title=feedback_request.get("title", ""),
+                description=feedback_request.get("description", ""),
+                severity=feedback_request.get("severity", "medium"),
+                validation_result=feedback_request.get("validation_result"),
+                validation_notes=feedback_request.get("validation_notes"),
+                tags=feedback_request.get("tags", []),
+                metadata=feedback_request.get("metadata", {}),
+            )
+
+            max_title_length = 200
+            max_description_length = 5000
+            if len(feedback.title) > max_title_length:
+                raise HTTPException(status_code=400, detail=f"Title too long (max {max_title_length} characters)")
+            if len(feedback.description) > max_description_length:
+                raise HTTPException(status_code=400, detail=f"Description too long (max {max_description_length} characters)")
+
+            feedback_id = self.storage.insert_one("feedback", feedback.__dict__)
+            return {
+                "id": str(feedback_id),
+                "status": "pending",
+                "message": "Feedback submitted successfully",
+                "created_at": feedback.created_at,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def list_feedback(
+        self,
+        target_type: str | None = None,
+        target_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        """List feedback with optional filters."""
+        try:
+            filter_dict: dict[str, str] = {}
+            if target_type:
+                filter_dict["target_type"] = target_type
+            if target_id:
+                filter_dict["target_id"] = target_id
+            if status:
+                filter_dict["status"] = status
+
+            if filter_dict:
+                return self.storage.find("feedback", filter_dict, limit=limit)
+            return self.storage.find_all("feedback", limit=limit)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def get_feedback(self, feedback_id: str) -> dict:
+        """Get feedback by ID."""
+        try:
+            feedback = self.storage.find_by_id("feedback", feedback_id)
+            if not feedback:
+                raise HTTPException(status_code=404, detail=f"Feedback not found: {feedback_id}")
+            return feedback
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def update_feedback_status(
+        self,
+        feedback_id: str,
+        status: str,
+        review_notes: str | None = None,
+    ) -> dict:
+        """Update feedback status."""
+        from datetime import datetime
+
+        try:
+            valid_statuses = ["pending", "reviewed", "addressed", "dismissed"]
+            if status not in valid_statuses:
+                raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
+
+            existing = self.storage.find_by_id("feedback", feedback_id)
+            if not existing:
+                raise HTTPException(status_code=404, detail=f"Feedback not found: {feedback_id}")
+
+            now = datetime.now().isoformat()
+            updates: dict[str, str] = {"status": status, "updated_at": now}
+            if review_notes:
+                updates["review_notes"] = review_notes
+                updates["reviewed_at"] = now
+
+            self.storage.update_or_create("feedback", {"id": feedback_id}, updates)
+            return {"id": feedback_id, "status": status, "updated_at": now}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))

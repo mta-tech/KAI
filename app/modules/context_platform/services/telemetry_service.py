@@ -5,8 +5,7 @@ to provide insights into their effectiveness and value.
 """
 
 import uuid
-from datetime import datetime
-from typing import Any
+from datetime import datetime, timedelta
 
 from app.data.db.storage import Storage
 
@@ -60,7 +59,7 @@ class TelemetryService:
         }
 
         event_id = self.storage.insert_one(self.collection, event)
-        return event_id
+        return str(event_id)
 
     def track_asset_creation(
         self,
@@ -91,7 +90,7 @@ class TelemetryService:
         }
 
         event_id = self.storage.insert_one(self.collection, event)
-        return event_id
+        return str(event_id)
 
     def track_asset_promotion(
         self,
@@ -122,7 +121,7 @@ class TelemetryService:
         }
 
         event_id = self.storage.insert_one(self.collection, event)
-        return event_id
+        return str(event_id)
 
     # ========================================================================
     # Metrics Computation
@@ -142,16 +141,14 @@ class TelemetryService:
         Returns:
             Number of reuse events
         """
-        from datetime import timedelta
-
-        filter_dict = {
+        filter_dict: dict[str, str] = {
             "event_type": "asset_reuse",
             "asset_id": asset_id,
         }
 
         if time_window_days:
             cutoff = (datetime.now() - timedelta(days=time_window_days)).isoformat()
-            filter_dict["timestamp": f">={cutoff}"
+            filter_dict["timestamp"] = f">={cutoff}"
 
         results = self.storage.find(self.collection, filter_dict, limit=1000)
         return len(results)
@@ -172,8 +169,6 @@ class TelemetryService:
         Returns:
             List of assets with reuse counts
         """
-        from datetime import timedelta
-
         cutoff = (datetime.now() - timedelta(days=time_window_days)).isoformat()
 
         # Query all reuse events in time window
@@ -188,29 +183,29 @@ class TelemetryService:
         )
 
         # Aggregate by asset
-        asset_metrics = {}
+        asset_metrics: dict[str, dict] = {}
 
         for event in reuse_events:
-            asset_id = event.get("asset_id")
+            aid = event.get("asset_id")
             event_asset_type = event.get("asset_type")
 
             # Filter by type if specified
             if asset_type and event_asset_type != asset_type:
                 continue
 
-            if asset_id not in asset_metrics:
-                asset_metrics[asset_id] = {
-                    "asset_id": asset_id,
+            if aid not in asset_metrics:
+                asset_metrics[aid] = {
+                    "asset_id": aid,
                     "asset_type": event_asset_type,
                     "reuse_count": 0,
                     "last_reused_at": None,
                     "reuse_types": set(),
                 }
 
-            asset_metrics[asset_id]["reuse_count"] += 1
+            asset_metrics[aid]["reuse_count"] += 1
             if event.get("timestamp"):
-                asset_metrics[asset_id]["last_reused_at"] = event["timestamp"]
-            asset_metrics[asset_id]["reuse_types"].add(event.get("reuse_type", "unknown"))
+                asset_metrics[aid]["last_reused_at"] = event["timestamp"]
+            asset_metrics[aid]["reuse_types"].add(event.get("reuse_type", "unknown"))
 
         # Convert to list and sort
         result = [
@@ -238,8 +233,6 @@ class TelemetryService:
         Returns:
             KPI metrics including reuse count, creation info, promotions
         """
-        from datetime import timedelta
-
         cutoff = (datetime.now() - timedelta(days=time_window_days)).isoformat()
 
         # Get all events for this asset
@@ -253,7 +246,7 @@ class TelemetryService:
             limit=1000,
         )
 
-        kpi = {
+        kpi: dict = {
             "asset_id": asset_id,
             "time_window_days": time_window_days,
             "total_events": len(events),
@@ -261,7 +254,7 @@ class TelemetryService:
             "creation_count": 0,
             "promotion_count": 0,
             "last_reused_at": None,
-            "reuse_by_type": {},  # {mission: 5, benchmark: 2}
+            "reuse_by_type": {},
         }
 
         for event in events:
@@ -294,8 +287,6 @@ class TelemetryService:
         Returns:
             Dashboard metrics with totals and breakdowns
         """
-        from datetime import timedelta
-
         cutoff = (datetime.now() - timedelta(days=time_window_days)).isoformat()
 
         # Get all events in time window
@@ -308,45 +299,42 @@ class TelemetryService:
             limit=10000,
         )
 
-        metrics = {
-            "time_window_days": time_window_days,
-            "total_events": len(events),
-            "events_by_type": {},  # {asset_creation: 10, asset_reuse: 50, ...}
-            "assets_by_type": {},  # {instruction: 15, verified_sql: 8, ...}
-            "total_unique_assets": set(),
-            "top_reused_assets": [],  # Top 10 by reuse count
-        }
-
-        reuse_counts = {}
+        unique_assets: set[str] = set()
+        events_by_type: dict[str, int] = {}
+        assets_by_type: dict[str, int] = {}
+        reuse_counts: dict[str, int] = {}
 
         for event in events:
             # Count by event type
             event_type = event.get("event_type", "unknown")
-            metrics["events_by_type"][event_type] = metrics["events_by_type"].get(event_type, 0) + 1
+            events_by_type[event_type] = events_by_type.get(event_type, 0) + 1
 
             # Track unique assets and counts
             if event_type in ["asset_creation", "asset_reuse", "asset_promotion"]:
-                asset_id = event.get("asset_id")
-                asset_type = event.get("asset_type", "unknown")
+                aid = event.get("asset_id")
+                a_type = event.get("asset_type", "unknown")
 
-                metrics["total_unique_assets"].add(asset_id)
-                metrics["assets_by_type"][asset_type] = metrics["assets_by_type"].get(asset_type, 0) + 1
+                unique_assets.add(aid)
+                assets_by_type[a_type] = assets_by_type.get(a_type, 0) + 1
 
                 # Track reuse counts
                 if event_type == "asset_reuse":
-                    reuse_counts[asset_id] = reuse_counts.get(asset_id, 0) + 1
-
-        # Convert set to count
-        metrics["total_unique_assets"] = len(metrics["total_unique_assets"])
+                    reuse_counts[aid] = reuse_counts.get(aid, 0) + 1
 
         # Get top reused assets
         sorted_assets = sorted(reuse_counts.items(), key=lambda x: x[1], reverse=True)
-        metrics["top_reused_assets"] = [
-            {"asset_id": asset_id, "reuse_count": count}
-            for asset_id, count in sorted_assets[:10]
-        ]
 
-        return metrics
+        return {
+            "time_window_days": time_window_days,
+            "total_events": len(events),
+            "events_by_type": events_by_type,
+            "assets_by_type": assets_by_type,
+            "total_unique_assets": len(unique_assets),
+            "top_reused_assets": [
+                {"asset_id": aid, "reuse_count": count}
+                for aid, count in sorted_assets[:10]
+            ],
+        }
 
     def get_reuse_roi(
         self,
@@ -370,10 +358,7 @@ class TelemetryService:
             limit=1000,
         )
 
-        # Filter by minimum reuse count
-        high_roi = [
+        return [
             asset for asset in metrics
             if asset["reuse_count"] >= min_reuse_count
         ]
-
-        return high_roi

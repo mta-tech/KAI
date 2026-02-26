@@ -94,8 +94,8 @@ def sample_benchmark_results():
 
 
 # ============================================================================
-// Benchmark Run Command Tests
-// ============================================================================
+#Benchmark Run Command Tests
+#============================================================================
 
 class TestBenchmarkRunCommand:
     """Tests for the `kai benchmark run` command."""
@@ -149,8 +149,8 @@ class TestBenchmarkRunCommand:
 
 
 # ============================================================================
-// Benchmark List Command Tests
-// ============================================================================
+#Benchmark List Command Tests
+#============================================================================
 
 class TestBenchmarkListCommand:
     """Tests for the `kai benchmark list` command."""
@@ -184,8 +184,8 @@ class TestBenchmarkListCommand:
 
 
 # ============================================================================
-// Benchmark Compare Command Tests
-// ============================================================================
+#Benchmark Compare Command Tests
+#============================================================================
 
 class TestBenchmarkCompareCommand:
     """Tests for the `kai benchmark compare` command."""
@@ -224,8 +224,8 @@ class TestBenchmarkCompareCommand:
 
 
 # ============================================================================
-// Benchmark Report Command Tests
-// ============================================================================
+#Benchmark Report Command Tests
+#============================================================================
 
 class TestBenchmarkReportCommand:
     """Tests for the `kai benchmark report` command."""
@@ -266,8 +266,8 @@ class TestBenchmarkReportCommand:
 
 
 # ============================================================================
-// Benchmark Create Command Tests
-// ============================================================================
+#Benchmark Create Command Tests
+#============================================================================
 
 class TestBenchmarkCreateCommand:
     """Tests for the `kai benchmark create` command."""
@@ -298,8 +298,8 @@ class TestBenchmarkCreateCommand:
 
 
 # ============================================================================
-// Benchmark Case Management Tests
-// ============================================================================
+#Benchmark Case Management Tests
+#============================================================================
 
 class TestBenchmarkCaseManagement:
     """Tests for benchmark case management commands."""
@@ -339,8 +339,8 @@ class TestBenchmarkCaseManagement:
 
 
 # ============================================================================
-// Benchmark Tag and Filter Tests
-// ============================================================================
+#Benchmark Tag and Filter Tests
+#============================================================================
 
 class TestBenchmarkTaggingAndFiltering:
     """Tests for benchmark tagging and filtering."""
@@ -372,8 +372,8 @@ class TestBenchmarkTaggingAndFiltering:
 
 
 # ============================================================================
-// CI/CD Integration Tests
-// ============================================================================
+#CI/CD Integration Tests
+#============================================================================
 
 class TestCICDIntegration:
     """Tests for CI/CD integration features."""
@@ -410,8 +410,8 @@ class TestCICDIntegration:
 
 
 # ============================================================================
-// Benchmark Result Storage Tests
-// ============================================================================
+#Benchmark Result Storage Tests
+#============================================================================
 
 class TestBenchmarkResultStorage:
     """Tests for benchmark result persistence."""
@@ -439,8 +439,8 @@ class TestBenchmarkResultStorage:
 
 
 # ============================================================================
-// Error Handling Tests
-// ============================================================================
+#Error Handling Tests
+#============================================================================
 
 class TestErrorHandling:
     """Tests for error handling in benchmark commands."""
@@ -469,8 +469,8 @@ class TestErrorHandling:
 
 
 # ============================================================================
-// Performance Tests
-// ============================================================================
+#Performance Tests
+#============================================================================
 
 class TestPerformance:
     """Tests for benchmark command performance."""
