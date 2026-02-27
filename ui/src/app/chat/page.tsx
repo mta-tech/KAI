@@ -17,7 +17,9 @@ export default function ChatPage() {
     messages,
     currentTodos,
     isStreaming,
+    selectedModel,
     setSession,
+    setSelectedModel,
     sendMessage,
     stopStreaming,
     clearMessages,
@@ -78,6 +80,8 @@ export default function ChatPage() {
                   onStop={stopStreaming}
                   isStreaming={isStreaming}
                   disabled={!sessionId}
+                  selectedModel={selectedModel}
+                  onModelChange={setSelectedModel}
                 />
               </div>
             </div>

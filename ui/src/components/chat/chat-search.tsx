@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,199 +28,19 @@ import {
   Code,
   FileText,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { format, isWithinInterval, startOfDay, endOfDay, subDays, subMonths } from '@/lib/date-utils';
+import { format } from '@/lib/date-utils';
 import type { ChatMessage } from '@/stores/chat-store';
-import type { AgentMessage as AgentMessageComponent } from './agent-message';
+import { useChatSearch } from './use-chat-search';
+import { getChatTypeLabel } from './chat-search-utils';
+import type { DateRangePreset, ChatTypeFilter } from './chat-search-utils';
 
-type DateRangePreset = 'today' | 'week' | 'month' | 'custom' | 'all';
-type ChatTypeFilter = 'all' | 'user' | 'assistant' | 'sql' | 'with_todos';
+export { useChatSearch } from './use-chat-search';
 
 interface ChatSearchProps {
   messages: ChatMessage[];
   sessions?: any[];
   onResultsFound?: (count: number) => void;
   onResultClick?: (messageId: string) => void;
-}
-
-interface SearchFilters {
-  query: string;
-  dateRange: DateRangePreset;
-  customDateStart: Date | undefined;
-  customDateEnd: Date | undefined;
-  chatType: ChatTypeFilter;
-  sessionId: string | 'all';
-}
-
-interface SearchResult {
-  messageId: string;
-  message: ChatMessage;
-  highlightedContent: string;
-  relevanceScore: number;
-}
-
-export function useChatSearch() {
-  const [filters, setFilters] = useState<SearchFilters>({
-    query: '',
-    dateRange: 'all',
-    customDateStart: undefined,
-    customDateEnd: undefined,
-    chatType: 'all',
-    sessionId: 'all',
-  });
-
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-
-  const searchMessages = (
-    messages: ChatMessage[],
-    sessions: any[] = []
-  ): SearchResult[] => {
-    if (!filters.query && filters.dateRange === 'all' && filters.chatType === 'all' && filters.sessionId === 'all') {
-      return [];
-    }
-
-    const results: SearchResult[] = [];
-    const query = filters.query.toLowerCase();
-
-    messages.forEach((message) => {
-      // Session filter - note: current chat messages don't have session info in the store
-      // This would need to be implemented by tracking which session each message belongs to
-
-      // Date range filter
-      if (filters.dateRange !== 'all') {
-        const messageDate = new Date(message.timestamp);
-        let startDate: Date;
-        let endDate = new Date();
-
-        switch (filters.dateRange) {
-          case 'today':
-            startDate = startOfDay(new Date());
-            endDate = endOfDay(new Date());
-            break;
-          case 'week':
-            startDate = startOfDay(subDays(new Date(), 7));
-            break;
-          case 'month':
-            startDate = startOfDay(subMonths(new Date(), 1));
-            break;
-          case 'custom':
-            if (!filters.customDateStart || !filters.customDateEnd) return;
-            startDate = startOfDay(filters.customDateStart);
-            endDate = endOfDay(filters.customDateEnd);
-            break;
-          default:
-            return;
-        }
-
-        if (!isWithinInterval(messageDate, { start: startDate, end: endDate })) {
-          return;
-        }
-      }
-
-      // Chat type filter
-      if (filters.chatType !== 'all') {
-        switch (filters.chatType) {
-          case 'user':
-            if (message.role !== 'user') return;
-            break;
-          case 'assistant':
-            if (message.role !== 'assistant') return;
-            break;
-          case 'sql':
-            if (!message.structured?.sql) return;
-            break;
-          case 'with_todos':
-            if (!message.todos || message.todos.length === 0) return;
-            break;
-        }
-      }
-
-      // Text search
-      if (query) {
-        const content = message.content.toLowerCase();
-        const sql = message.structured?.sql?.toLowerCase() || '';
-        const summary = message.structured?.summary?.toLowerCase() || '';
-        const insights = message.structured?.insights?.toLowerCase() || '';
-
-        const matchesQuery =
-          content.includes(query) ||
-          sql.includes(query) ||
-          summary.includes(query) ||
-          insights.includes(query);
-
-        if (!matchesQuery) return;
-
-        // Calculate relevance score
-        let score = 0;
-        if (content.includes(query)) score += 3;
-        if (sql.includes(query)) score += 5; // SQL matches are more relevant
-        if (summary.includes(query)) score += 4;
-        if (insights.includes(query)) score += 2;
-
-        // Exact match gets bonus
-        if (content === query || sql === query) score += 10;
-
-        results.push({
-          messageId: message.id,
-          message,
-          highlightedContent: highlightText(message.content, query),
-          relevanceScore: score,
-        });
-      } else {
-        // No text query, just filters
-        results.push({
-          messageId: message.id,
-          message,
-          highlightedContent: message.content,
-          relevanceScore: 0,
-        });
-      }
-    });
-
-    // Sort by relevance score
-    results.sort((a, b) => b.relevanceScore - a.relevanceScore);
-
-    return results;
-  };
-
-  const hasActiveFilters = useMemo(() => {
-    return filters.query !== '' ||
-           filters.dateRange !== 'all' ||
-           filters.chatType !== 'all' ||
-           filters.sessionId !== 'all';
-  }, [filters]);
-
-  const clearFilters = () => {
-    setFilters({
-      query: '',
-      dateRange: 'all',
-      customDateStart: undefined,
-      customDateEnd: undefined,
-      chatType: 'all',
-      sessionId: 'all',
-    });
-  };
-
-  const activeFilterCount = useMemo(() => {
-    let count = 0;
-    if (filters.query !== '') count++;
-    if (filters.dateRange !== 'all') count++;
-    if (filters.chatType !== 'all') count++;
-    // Note: session filter not currently implemented
-    // if (filters.sessionId !== 'all') count++;
-    return count;
-  }, [filters]);
-
-  return {
-    filters,
-    setFilters,
-    isFilterOpen,
-    setIsFilterOpen,
-    searchMessages,
-    hasActiveFilters,
-    clearFilters,
-    activeFilterCount,
-  };
 }
 
 export function ChatSearch({ messages, sessions, onResultsFound, onResultClick }: ChatSearchProps) {
@@ -509,25 +329,3 @@ export function ChatSearch({ messages, sessions, onResultsFound, onResultClick }
   );
 }
 
-// Helper function to highlight search text
-function highlightText(text: string, query: string): string {
-  if (!query) return text;
-  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  return text.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5">$1</mark>');
-}
-
-// Helper function to get chat type label
-function getChatTypeLabel(type: ChatTypeFilter): string {
-  switch (type) {
-    case 'user':
-      return 'User messages';
-    case 'assistant':
-      return 'AI responses';
-    case 'sql':
-      return 'With SQL';
-    case 'with_todos':
-      return 'With tasks';
-    default:
-      return 'All messages';
-  }
-}

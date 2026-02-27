@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import type React from 'react';
 import {
   Table,
   TableBody,
@@ -32,50 +33,16 @@ import {
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { AgentEvent } from '@/lib/api/types';
+import { generateCSV, downloadFile } from './sql-results-utils';
+import type { QueryResult } from './sql-results-utils';
 
-interface QueryResult {
-  columns: string[];
-  rows: Record<string, unknown>[];
-  rowCount: number;
-  executionTime?: number;
-}
+export { useQueryResults } from './use-query-results';
 
 interface SqlResultsTableProps {
   results?: QueryResult;
   isLoading?: boolean;
   error?: string | null;
   className?: string;
-}
-
-// Parse results from tool_end event output
-function parseQueryResults(event: AgentEvent): QueryResult | null {
-  if (event.type !== 'tool_end' || !event.output) return null;
-
-  const output = typeof event.output === 'string'
-    ? JSON.parse(event.output)
-    : event.output;
-
-  // Handle different output formats
-  if (output.results && Array.isArray(output.results)) {
-    return {
-      columns: output.columns || Object.keys(output.results[0] || {}),
-      rows: output.results,
-      rowCount: output.row_count || output.results.length,
-      executionTime: output.execution_time,
-    };
-  }
-
-  // Handle array format directly
-  if (Array.isArray(output) && output.length > 0) {
-    return {
-      columns: Object.keys(output[0]),
-      rows: output,
-      rowCount: output.length,
-    };
-  }
-
-  return null;
 }
 
 export function SqlResultsTable({ results, isLoading, error, className }: SqlResultsTableProps) {
@@ -142,49 +109,18 @@ export function SqlResultsTable({ results, isLoading, error, className }: SqlRes
   // Export functions
   const exportAsCSV = () => {
     if (!results) return;
-
-    const headers = visibleColumns;
-    const rows = processedData.map((row) =>
-      visibleColumns.map((col) => {
-        const val = row[col];
-        // Escape CSV values
-        const stringVal = String(val ?? '');
-        if (stringVal.includes(',') || stringVal.includes('"') || stringVal.includes('\n')) {
-          return `"${stringVal.replace(/"/g, '""')}"`;
-        }
-        return stringVal;
-      })
-    );
-
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csv = generateCSV(processedData, visibleColumns);
     downloadFile(csv, 'query-results.csv', 'text/csv');
   };
 
   const exportAsJSON = () => {
     if (!results) return;
-
     const data = processedData.map((row) => {
       const filtered: Record<string, unknown> = {};
-      visibleColumns.forEach((col) => {
-        filtered[col] = row[col];
-      });
+      visibleColumns.forEach((col) => { filtered[col] = row[col]; });
       return filtered;
     });
-
-    const json = JSON.stringify(data, null, 2);
-    downloadFile(json, 'query-results.json', 'application/json');
-  };
-
-  const downloadFile = (content: string, filename: string, type: string) => {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadFile(JSON.stringify(data, null, 2), 'query-results.json', 'application/json');
   };
 
   const handleSort = (column: string) => {
@@ -467,16 +403,3 @@ function formatCellValue(value: unknown): React.ReactNode {
   return String(value);
 }
 
-// Hook to extract results from message events
-export function useQueryResults(events: AgentEvent[] = []): QueryResult | null {
-  return useMemo(() => {
-    // Find the last sql_execute tool_end event
-    for (let i = events.length - 1; i >= 0; i--) {
-      const event = events[i];
-      if (event.type === 'tool_end' && event.tool === 'sql_execute') {
-        return parseQueryResults(event);
-      }
-    }
-    return null;
-  }, [events]);
-}

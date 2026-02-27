@@ -74,6 +74,7 @@ export function StreamingMessage({ message, className }: StreamingMessageProps) 
     <div className={cn(
       'flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2',
       'text-xs sm:text-sm text-muted-foreground',
+      'streaming-chunk',
       className
     )}>
       <StreamingDots />

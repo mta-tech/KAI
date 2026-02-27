@@ -117,7 +117,8 @@ export const agentApi = {
     query: string,
     onEvent: (event: import('./types').AgentEvent) => void,
     onError: (error: Error) => void,
-    onComplete: () => void
+    onComplete: () => void,
+    model?: string
   ): () => void {
     const controller = new AbortController();
     const streamUrl = `${API_BASE}/api/v1/sessions/${sessionId}/query/stream`;
@@ -125,7 +126,7 @@ export const agentApi = {
     fetch(streamUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, ...(model ? { model } : {}) }),
       signal: controller.signal,
     })
       .then(async (response) => {

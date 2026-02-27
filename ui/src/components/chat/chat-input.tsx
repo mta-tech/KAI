@@ -6,15 +6,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { Send, Square, Mic } from 'lucide-react';
 import { useKeyboardShortcuts } from '@/lib/hooks/use-keyboard-shortcuts';
 import { cn } from '@/lib/utils';
+import { ModelSelector } from './model-selector';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
   onStop: () => void;
   isStreaming: boolean;
   disabled: boolean;
+  selectedModel?: string;
+  onModelChange?: (model: string) => void;
 }
 
-export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, onStop, isStreaming, disabled, selectedModel, onModelChange }: ChatInputProps) {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -98,7 +101,14 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
           } as React.CSSProperties}
         />
       </div>
-      <div className="flex gap-1 shrink-0">
+      <div className="flex gap-1 shrink-0 items-center">
+        {selectedModel !== undefined && onModelChange && (
+          <ModelSelector
+            value={selectedModel}
+            onChange={onModelChange}
+            disabled={isStreaming || disabled}
+          />
+        )}
         {/* Voice input button - placeholder for future implementation */}
         <Button
           variant="ghost"

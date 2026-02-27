@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { AgentEvent, AgentTodo, ChunkType } from '@/lib/api/types';
 import { createLogger } from '@/lib/logger';
+import { DEFAULT_MODEL } from '@/lib/llm-providers';
 
 const logger = createLogger('ChatStore');
 
@@ -12,6 +13,7 @@ export interface StructuredContent {
   chartRecommendations?: string;
   reasoning?: string;
   processStatus?: string;
+  followUpSuggestions?: string[];
 }
 
 export interface ChatMessage {
@@ -32,18 +34,28 @@ interface ChatState {
   messages: ChatMessage[];
   currentTodos: AgentTodo[];
   isStreaming: boolean;
+  selectedModel: string;
 
   setSession: (sessionId: string, connectionId: string) => void;
+  setSelectedModel: (model: string) => void;
   addUserMessage: (content: string) => string;
   startAssistantMessage: (id: string) => void;
   appendToAssistantMessage: (id: string, content: string) => void;
   appendStructuredContent: (id: string, chunkType: ChunkType, content: string) => void;
   updateProcessStatus: (id: string, status: string) => void;
+  updateFollowUpSuggestions: (id: string, suggestions: string[]) => void;
   updateTodos: (todos: AgentTodo[]) => void;
   addEvent: (messageId: string, event: AgentEvent) => void;
   finishAssistantMessage: (id: string) => void;
   setStreaming: (streaming: boolean) => void;
   clearMessages: () => void;
+}
+
+const SELECTED_MODEL_KEY = 'kai-selected-model';
+
+function getPersistedModel(): string {
+  if (typeof window === 'undefined') return DEFAULT_MODEL;
+  return localStorage.getItem(SELECTED_MODEL_KEY) || DEFAULT_MODEL;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -52,8 +64,16 @@ export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   currentTodos: [],
   isStreaming: false,
+  selectedModel: getPersistedModel(),
 
   setSession: (sessionId, connectionId) => set({ sessionId, connectionId, messages: [] }),
+
+  setSelectedModel: (model) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SELECTED_MODEL_KEY, model);
+    }
+    set({ selectedModel: model });
+  },
 
   addUserMessage: (content) => {
     const id = `user-${Date.now()}`;
@@ -121,6 +141,16 @@ export const useChatStore = create<ChatState>((set) => ({
         if (m.id !== id) return m;
         const structured = m.structured || {};
         return { ...m, structured: { ...structured, processStatus: status } };
+      })
+    }));
+  },
+
+  updateFollowUpSuggestions: (id, suggestions) => {
+    set((state) => ({
+      messages: state.messages.map((m) => {
+        if (m.id !== id) return m;
+        const structured = m.structured || {};
+        return { ...m, structured: { ...structured, followUpSuggestions: suggestions } };
       })
     }));
   },

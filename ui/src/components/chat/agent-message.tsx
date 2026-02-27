@@ -4,102 +4,26 @@ import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Bot, User } from 'lucide-react';
 import { TodoList } from './todo-list';
-import { ToolCallBlock } from './tool-call-block';
+import { ToolCallBlock, useToolPairs } from './tool-calls';
 import { SqlBlock } from './sql-block';
 import { SqlResultsTable, useQueryResults } from './sql-results-table';
 import { InsightsBlock, ChartRecommendationsBlock } from './insights-block';
 import { Visualizations } from './visualizations';
 import { ProcessStatus, StreamingMessage } from './streaming-indicator';
 import { MessageActions } from './message-actions';
+import { FollowUpSuggestions } from './follow-up-suggestions';
+import { useChat } from '@/hooks/use-chat';
 import type { ChatMessage, StructuredContent } from '@/stores/chat-store';
-import type { AgentEvent } from '@/lib/api/types';
+import { formatToMarkdown, parseJsonContent } from './chat-message-utils';
 
 interface AgentMessageProps {
   message: ChatMessage;
 }
 
-// Helper to format array/object to markdown string
-function formatToMarkdown(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) {
-    return value.map((item) => {
-      if (typeof item === 'string') return `- ${item}`;
-      if (typeof item === 'object' && item !== null) {
-        // Handle objects with title/description or similar structure
-        const obj = item as Record<string, unknown>;
-        if (obj.title && obj.description) {
-          return `**${obj.title}**: ${obj.description}`;
-        }
-        if (obj.chart_type && obj.reason) {
-          return `**${obj.chart_type}**: ${obj.reason}`;
-        }
-        return `- ${JSON.stringify(item)}`;
-      }
-      return `- ${String(item)}`;
-    }).join('\n');
-  }
-  if (typeof value === 'object' && value !== null) {
-    return JSON.stringify(value, null, 2);
-  }
-  return String(value);
-}
-
-// Parse JSON from content if it's a JSON code block
-function parseJsonContent(content: string): { parsed: Record<string, unknown> | null; text: string } {
-  // Check for JSON code block pattern: ```json\n{...}\n```
-  const jsonBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
-  if (jsonBlockMatch) {
-    try {
-      const parsed = JSON.parse(jsonBlockMatch[1]);
-      // Remove the JSON block from content
-      const text = content.replace(/```json\s*[\s\S]*?\s*```/, '').trim();
-      return { parsed, text };
-    } catch {
-      // Not valid JSON, return as-is
-    }
-  }
-
-  // Check if content is just raw JSON
-  const trimmed = content.trim();
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      return { parsed, text: '' };
-    } catch {
-      // Not valid JSON
-    }
-  }
-
-  return { parsed: null, text: content };
-}
-
 export function AgentMessage({ message }: AgentMessageProps) {
   const queryResults = useQueryResults(message.events);
-
-  const toolPairs = useMemo(() => {
-    if (!message.events) return [];
-
-    const pairs: { start: AgentEvent; end?: AgentEvent }[] = [];
-    const pending: AgentEvent[] = [];
-
-    for (const event of message.events) {
-      if (event.type === 'tool_start') {
-        pending.push(event);
-      } else if (event.type === 'tool_end') {
-        const start = pending.find((p) => p.tool === event.tool);
-        if (start) {
-          pairs.push({ start, end: event });
-          pending.splice(pending.indexOf(start), 1);
-        }
-      }
-    }
-
-    for (const start of pending) {
-      pairs.push({ start });
-    }
-
-    return pairs;
-  }, [message.events]);
+  const toolPairs = useToolPairs(message.events);
+  const { sendMessage } = useChat();
 
   // Parse JSON from content and merge with structured content
   const { displayContent, structured } = useMemo(() => {
@@ -198,7 +122,9 @@ export function AgentMessage({ message }: AgentMessageProps) {
 
         {/* Summary/Answer Block */}
         {(displayContent || structured?.summary || structured?.reasoning) && (
-          <div className="prose prose-sm dark:prose-invert max-w-none rounded-xl border bg-card/50 px-3 py-3 sm:px-5 sm:py-4 shadow-sm prose-headings:text-base sm:prose-headings:text-lg prose-p:text-sm sm:prose-p:text-base relative overflow-hidden">
+          <div
+            className={`prose prose-sm dark:prose-invert max-w-none rounded-xl border bg-card/50 px-3 py-3 sm:px-5 sm:py-4 shadow-sm prose-headings:text-base sm:prose-headings:text-lg prose-p:text-sm sm:prose-p:text-base relative overflow-hidden${message.isStreaming ? ' streaming-cursor' : ''}`}
+          >
             {/* Streaming shimmer effect */}
             {message.isStreaming && (
               <div className="absolute inset-0 pointer-events-none">
@@ -232,6 +158,14 @@ export function AgentMessage({ message }: AgentMessageProps) {
         {/* Streaming indicator at bottom */}
         {message.isStreaming && !structured?.processStatus && (
           <StreamingMessage message="AI is responding" />
+        )}
+
+        {/* Follow-up suggestions (shown after streaming completes) */}
+        {!message.isStreaming && structured?.followUpSuggestions && structured.followUpSuggestions.length > 0 && (
+          <FollowUpSuggestions
+            suggestions={structured.followUpSuggestions}
+            onSelect={sendMessage}
+          />
         )}
       </div>
     </div>
