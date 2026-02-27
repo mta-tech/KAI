@@ -147,9 +147,35 @@ You MUST communicate in clear, professional English.
 
 """
 
+    # Dialect-specific SQL rules
+    if dialect == "postgresql":
+        dialect_sql_rules = """
+POSTGRESQL CASE-SENSITIVITY (CRITICAL):
+PostgreSQL folds unquoted identifiers to lowercase. If a table or column uses
+mixed-case names (e.g., "TotalKoperasiTerdaftar"), you MUST wrap them in double quotes.
+
+Rules:
+- ALWAYS double-quote column names that contain uppercase letters: "TotalKoperasiTerdaftar"
+- ALWAYS double-quote table names that contain uppercase letters: "FactKpi"
+- Lowercase-only names (e.g., date_key, geo_key) do NOT need quotes
+- Use alias.\"ColumnName\" when using table aliases: fk.\"TotalKoperasiTerdaftar\"
+
+Example - CORRECT:
+SELECT dg.province_name, SUM(fk.\"TotalKoperasiTerdaftar\") AS total
+FROM fact_kpi fk
+JOIN dim_geography dg ON fk.geo_key = dg.geo_key
+GROUP BY dg.province_name
+
+Example - WRONG (will fail with 'column does not exist'):
+SELECT dg.province_name, SUM(fk.TotalKoperasiTerdaftar) AS total
+FROM fact_kpi fk JOIN dim_geography dg ON fk.geo_key = dg.geo_key
+"""
+    else:
+        dialect_sql_rules = ""
+
     base_context = f"""{language_instruction}
 Database: {dialect}
-
+{dialect_sql_rules}
 AGENT LOOP - PERSISTENCE RULES (CRITICAL):
 You are operating in an autonomous agent loop. You MUST:
 1. NEVER give up until you have provided a meaningful result to the user

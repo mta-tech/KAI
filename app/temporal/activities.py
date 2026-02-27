@@ -1,17 +1,23 @@
+import uuid
+import httpx
 from temporalio import activity
 from app.server.config import Settings
 from app.data.db.storage import Storage
 from app.modules.table_description.services import TableDescriptionService
 from app.modules.database_connection.services import DatabaseConnectionService
+from app.modules.database_connection.repositories import DatabaseConnectionRepository
 from app.modules.analysis.services import AnalysisService
+from app.modules.autonomous_agent.service import AutonomousAgentService
+from app.modules.autonomous_agent.models import AgentTask
 from app.modules.sql_generation.models import LLMConfig
 from app.api.requests import (
     ScannerRequest,
     DatabaseConnectionRequest,
     PromptRequest,
 )
+from app.utils.sql_database.sql_database import SQLDatabase
 from app.utils.sql_database.scanner import SqlAlchemyScanner
-from app.utils.core.encrypt import FernetEncrypt
+from app.utils.core.encrypt import FernetEncrypt  # noqa: F401
 from fastapi import BackgroundTasks
 
 class KaiActivities:
@@ -72,7 +78,7 @@ class KaiActivities:
             return {"status": "error", "message": str(e)}
 
     @activity.defn
-    async def scan_schema(self, connection_id: str, table_names: list[str] = None) -> dict:
+    async def scan_schema(self, connection_id: str, table_names: list[str] | None = None) -> dict:
         storage = Storage(self.settings)
         service = TableDescriptionService(storage)
         
@@ -83,13 +89,13 @@ class KaiActivities:
         tables = service.refresh_table_description(connection_id)
         
         # If specific tables requested, filter
-        target_ids = []
+        target_ids: list[str] = []
         if table_names:
             for t in tables:
-                if t.table_name in table_names:
+                if t.table_name in table_names and t.id is not None:
                     target_ids.append(t.id)
         else:
-            target_ids = [t.id for t in tables]
+            target_ids = [t.id for t in tables if t.id is not None]
             
         if not target_ids:
             return {"status": "no_tables_found"}
@@ -101,13 +107,9 @@ class KaiActivities:
             llm_config=None 
         )
         
-        # BackgroundTasks is a FastAPI thing. We need to mock or provide a simple runner.
-        class SimpleBackgroundTasks:
-            def add_task(self, func, *args, **kwargs):
-                # Run synchronously for the worker
-                func(*args, **kwargs)
-                
-        bg_tasks = SimpleBackgroundTasks()
+        # BackgroundTasks is a FastAPI thing. We need to provide a simple synchronous runner.
+        bg_tasks = BackgroundTasks()
+        bg_tasks.add_task = lambda func, *args, **kwargs: func(*args, **kwargs)  # type: ignore[assignment]
         
         scanned_tables = service.scan_db(request, bg_tasks)
         
@@ -118,24 +120,225 @@ class KaiActivities:
         }
 
     @activity.defn
-    async def chat(self, prompt_text: str, connection_id: str, conversation_id: str = None) -> dict:
+    async def chat(self, prompt_text: str, connection_id: str, conversation_id: str | None = None) -> dict:
         storage = Storage(self.settings)
-        service = AnalysisService(storage)
 
-        prompt_req = PromptRequest(
-            text=prompt_text,
+        db_connection = DatabaseConnectionRepository(storage).find_by_id(connection_id)
+        if not db_connection:
+            raise ValueError(f"Connection {connection_id} not found")
+
+        model_family = self.settings.CHAT_FAMILY or "google"
+        model_name = self.settings.CHAT_MODEL or "gemini-2.0-flash"
+        llm_config = LLMConfig(
+            model_family=model_family,
+            model_name=model_name,
+        )
+        database = SQLDatabase.get_sql_engine(db_connection, False)
+        service = AutonomousAgentService(
+            db_connection=db_connection,
+            database=database,
+            storage=storage,
+            llm_config=llm_config,
+        )
+
+        session_id = conversation_id or f"temporal_{uuid.uuid4().hex[:8]}"
+        task = AgentTask(
+            id=uuid.uuid4().hex,
+            prompt=prompt_text,
             db_connection_id=connection_id,
-            schemas=None,
-            metadata={"conversation_id": conversation_id}
+            session_id=session_id,
+            mode="full_autonomy",
+            metadata={"source": "temporal_worker"},
         )
 
-        # Use deep agent for best results
-        result = await service.create_comprehensive_analysis(
-            prompt_request=prompt_req,
-            use_deep_agent=True
+        result = await service.execute(task)
+
+        return {
+            "task_id": result.task_id,
+            "status": result.status,
+            "final_answer": result.final_answer,
+            "sql_queries": result.sql_queries,
+            "execution_time_ms": result.execution_time_ms,
+            "error": result.error,
+            "mission_id": result.mission_id,
+            "stages_completed": result.stages_completed,
+        }
+
+    async def _execute_with_streaming(
+        self,
+        service: AutonomousAgentService,
+        task: AgentTask,
+        callback_url: str,
+    ) -> dict:
+        """Stream execution events to a callback URL via HTTP POST.
+
+        Iterates over events from service.stream_execute(task) and POSTs each
+        event to the callback_url. Sends heartbeats every 5 events and captures
+        the final result from the "done" event.
+
+        Args:
+            service: The AutonomousAgentService instance.
+            task: The AgentTask to execute.
+            callback_url: The URL to POST streaming events to.
+
+        Returns:
+            The final result dict, or a default completion dict if no result was
+            captured from the stream.
+        """
+        events_sent = 0
+        events_failed = 0
+        final_result: dict | None = None
+
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            async for event in service.stream_execute(task):
+                # Capture final result from the "done" event
+                if isinstance(event, dict) and event.get("type") == "done":
+                    final_result = event.get("result")
+
+                # POST the event to the callback URL
+                try:
+                    await client.post(
+                        callback_url,
+                        json={"session_id": task.session_id, "event": event},
+                    )
+                    events_sent += 1
+                except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError):
+                    events_failed += 1
+
+                # Heartbeat every 5 events
+                if (events_sent + events_failed) % 5 == 0:
+                    activity.heartbeat(
+                        f"events_sent={events_sent}, events_failed={events_failed}"
+                    )
+
+            # Send a final "done" event to the callback
+            try:
+                await client.post(
+                    callback_url,
+                    json={
+                        "session_id": task.session_id,
+                        "event": {"type": "done", "result": final_result},
+                    },
+                )
+            except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError):
+                events_failed += 1
+
+        return final_result or {"task_id": task.id, "status": "completed"}
+
+    @activity.defn
+    async def chat_streaming(
+        self,
+        prompt_text: str,
+        connection_id: str,
+        conversation_id: str | None = None,
+        callback_url: str | None = None,
+    ) -> dict:
+        """Execute a chat query with optional streaming to a callback URL.
+
+        When callback_url is provided, events are streamed to it via HTTP POST
+        as they are produced. When callback_url is None, falls back to the
+        standard non-streaming execution path.
+
+        Args:
+            prompt_text: The natural language query to execute.
+            connection_id: The database connection ID to query against.
+            conversation_id: Optional session/conversation ID for continuity.
+            callback_url: Optional URL to POST streaming events to.
+
+        Returns:
+            A dict containing the execution result.
+        """
+        storage = Storage(self.settings)
+
+        db_connection = DatabaseConnectionRepository(storage).find_by_id(connection_id)
+        if not db_connection:
+            raise ValueError(f"Connection {connection_id} not found")
+
+        model_family = self.settings.CHAT_FAMILY or "google"
+        model_name = self.settings.CHAT_MODEL or "gemini-2.0-flash"
+        llm_config = LLMConfig(
+            model_family=model_family,
+            model_name=model_name,
+        )
+        database = SQLDatabase.get_sql_engine(db_connection, False)
+        service = AutonomousAgentService(
+            db_connection=db_connection,
+            database=database,
+            storage=storage,
+            llm_config=llm_config,
         )
 
-        return result
+        session_id = conversation_id or f"temporal_{uuid.uuid4().hex[:8]}"
+        task = AgentTask(
+            id=uuid.uuid4().hex,
+            prompt=prompt_text,
+            db_connection_id=connection_id,
+            session_id=session_id,
+            mode="full_autonomy",
+            metadata={"source": "temporal_worker"},
+        )
+
+        if callback_url is not None:
+            return await self._execute_with_streaming(service, task, callback_url)
+
+        # Fallback: non-streaming execution
+        result = await service.execute(task)
+
+        return {
+            "task_id": result.task_id,
+            "status": result.status,
+            "final_answer": result.final_answer,
+            "sql_queries": result.sql_queries,
+            "execution_time_ms": result.execution_time_ms,
+            "error": result.error,
+            "mission_id": result.mission_id,
+            "stages_completed": result.stages_completed,
+        }
+
+    @activity.defn
+    async def autonomous_chat(self, prompt_text: str, connection_id: str, conversation_id: str | None = None) -> dict:
+        storage = Storage(self.settings)
+
+        db_connection = DatabaseConnectionRepository(storage).find_by_id(connection_id)
+        if not db_connection:
+            raise ValueError(f"Connection {connection_id} not found")
+
+        model_family = self.settings.CHAT_FAMILY or "google"
+        model_name = self.settings.CHAT_MODEL or "gemini-2.0-flash"
+        llm_config = LLMConfig(
+            model_family=model_family,
+            model_name=model_name,
+        )
+        database = SQLDatabase.get_sql_engine(db_connection, False)
+        service = AutonomousAgentService(
+            db_connection=db_connection,
+            database=database,
+            storage=storage,
+            llm_config=llm_config,
+        )
+
+        session_id = conversation_id or f"temporal_{uuid.uuid4().hex[:8]}"
+        task = AgentTask(
+            id=uuid.uuid4().hex,
+            prompt=prompt_text,
+            db_connection_id=connection_id,
+            session_id=session_id,
+            mode="full_autonomy",
+            metadata={"source": "temporal_worker"},
+        )
+
+        result = await service.execute(task)
+
+        return {
+            "task_id": result.task_id,
+            "status": result.status,
+            "final_answer": result.final_answer,
+            "sql_queries": result.sql_queries,
+            "execution_time_ms": result.execution_time_ms,
+            "error": result.error,
+            "mission_id": result.mission_id,
+            "stages_completed": result.stages_completed,
+        }
 
     @activity.defn
     async def sync_config(
@@ -171,40 +374,48 @@ class KaiActivities:
 
         # Sync instructions
         if instructions:
-            from app.data.db.repositories.instructions import InstructionsRepository
-            repo = InstructionsRepository(storage)
+            from app.modules.instruction.repositories import InstructionRepository
+            from app.modules.instruction.models import Instruction
+
+            inst_repo = InstructionRepository(storage)
             for inst in instructions:
                 try:
-                    # Update or create instruction
-                    existing = repo.find_by_id(inst.get("id"))
+                    inst_id = inst.get("id", "")
+                    existing = inst_repo.find_by_id(inst_id)
+                    instruction_obj = Instruction(
+                        id=inst_id,
+                        condition=inst.get("condition", ""),
+                        rules=inst.get("content", ""),
+                        db_connection_id=connection_id,
+                        is_default=False,
+                    )
                     if existing:
-                        repo.update(inst.get("id"), {
-                            "instruction": inst.get("content"),
-                            "db_connection_id": connection_id,
-                        })
+                        inst_repo.update(instruction_obj)
                     else:
-                        repo.insert({
-                            "id": inst.get("id"),
-                            "instruction": inst.get("content"),
-                            "db_connection_id": connection_id,
-                        })
+                        inst_repo.insert(instruction_obj)
                     synced["instructions"] += 1
                 except Exception as e:
                     print(f"Failed to sync instruction {inst.get('id')}: {e}")
 
         # Sync glossary/business context
         if glossary:
-            from app.data.db.repositories.context_stores import ContextStoreRepository
-            repo = ContextStoreRepository(storage)
+            from app.modules.context_store.repositories import ContextStoreRepository
+            from app.modules.context_store.models import ContextStore
+
+            ctx_repo = ContextStoreRepository(storage)
             for term in glossary:
                 try:
-                    # Store as context
-                    repo.insert({
-                        "id": term.get("id"),
-                        "name": term.get("term"),
-                        "context": term.get("definition"),
-                        "db_connection_id": connection_id,
-                    })
+                    ctx_obj = ContextStore(
+                        id=term.get("id"),
+                        db_connection_id=connection_id,
+                        prompt_text=term.get("term", ""),
+                        prompt_text_ner=term.get("term", ""),
+                        entities=None,
+                        labels=None,
+                        prompt_embedding=[],
+                        sql=term.get("definition", ""),
+                    )
+                    ctx_repo.insert(ctx_obj)
                     synced["glossary"] += 1
                 except Exception as e:
                     print(f"Failed to sync glossary term {term.get('term')}: {e}")
@@ -212,18 +423,19 @@ class KaiActivities:
         # Sync MDL
         if mdl:
             try:
-                # MDL is typically stored as a special instruction or context
-                from app.data.db.repositories.instructions import InstructionsRepository
-                repo = InstructionsRepository(storage)
-                mdl_instruction = f"""
-# Model Definition Language (MDL)
-{mdl.get('content', '')}
-"""
-                repo.insert({
-                    "id": mdl.get("id", f"mdl-{connection_id}"),
-                    "instruction": mdl_instruction,
-                    "db_connection_id": connection_id,
-                })
+                from app.modules.instruction.repositories import InstructionRepository
+                from app.modules.instruction.models import Instruction
+
+                mdl_repo = InstructionRepository(storage)
+                mdl_content = mdl.get("content", "")
+                mdl_obj = Instruction(
+                    id=mdl.get("id", f"mdl-{connection_id}"),
+                    condition="MDL",
+                    rules=f"# Model Definition Language (MDL)\n{mdl_content}",
+                    db_connection_id=connection_id,
+                    is_default=False,
+                )
+                mdl_repo.insert(mdl_obj)
                 synced["mdl"] = True
             except Exception as e:
                 print(f"Failed to sync MDL: {e}")
@@ -283,8 +495,8 @@ class KaiActivities:
 
         for table in tables:
             mdl_lines.append(f"### {table.table_name}")
-            if table.description:
-                mdl_lines.append(f"**Description:** {table.description}")
+            if table.table_description:
+                mdl_lines.append(f"**Description:** {table.table_description}")
             mdl_lines.append("")
 
             # Add columns
@@ -293,9 +505,9 @@ class KaiActivities:
 
             if table.columns:
                 for col in table.columns:
-                    col_name = col.get("name", "")
-                    col_type = col.get("data_type", "")
-                    col_desc = col.get("description", "")
+                    col_name = col.name
+                    col_type = col.data_type
+                    col_desc = col.description or ""
                     mdl_lines.append(f"| {col_name} | {col_type} | {col_desc} |")
 
             mdl_lines.append("")

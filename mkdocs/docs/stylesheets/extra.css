@@ -1,0 +1,45 @@
+/* Custom styles for KAI documentation */
+
+/* Grid cards for homepage */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.grid.cards > ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: contents;
+}
+
+.grid.cards > ul > li {
+  display: block;
+}
+
+/* Code block improvements */
+.highlight {
+  margin: 1em 0;
+}
+
+/* Admonition improvements */
+.admonition {
+  margin: 1em 0;
+}
+
+/* Table improvements */
+.md-typeset table:not([class]) {
+  display: table;
+  width: 100%;
+}
+
+/* Navigation improvements */
+.md-nav__link--active {
+  font-weight: 600;
+}
+
+/* Footer improvements */
+.md-footer {
+  margin-top: 2rem;
+}

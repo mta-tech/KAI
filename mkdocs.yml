@@ -1,0 +1,146 @@
+site_name: KAI Documentation
+site_description: Knowledge Agent for Intelligence Query - AI-powered data analytics
+site_author: MTA Tech
+site_url: https://mta-tech.github.io/kai
+
+# Documentation directory
+docs_dir: mkdocs/docs
+site_dir: mkdocs/site
+
+repo_name: mta-tech/kai
+repo_url: https://github.com/mta-tech/kai
+
+theme:
+  name: material
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+  logo: images/logo.png
+  favicon: images/favicon.ico
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+  - minify:
+      minify_html: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/mta-tech/kai
+  analytics:
+    feedback:
+      title: Was this page helpful?
+      ratings:
+        - icon: material/thumb-up-outline
+          name: This page was helpful
+          data: 1
+          note: Thanks for your feedback!
+        - icon: material/thumb-down-outline
+          name: This page could be improved
+          data: 0
+          note: Thanks for your feedback! Help us improve by using our <a href="https://github.com/mta-tech/kai/issues">issue tracker</a>.
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: getting-started/quick-start.md
+    - Installation: getting-started/installation.md
+    - Configuration: getting-started/configuration.md
+    - Docker Deployment: getting-started/docker.md
+  - Tutorials:
+    - Overview: tutorials/index.md
+    - Context Platform: tutorials/context-platform-tutorial.md
+    - MDL Semantic Layer: tutorials/mdl-semantic-layer.md
+    - Koperasi Analysis: tutorials/koperasi-analysis-tutorial.md
+  - User Guide:
+    - Overview: user-guide/index.md
+    - Context Platform: user-guide/context-platform.md
+    - Dashboard Builder: user-guide/dashboard.md
+    - Analytics: user-guide/analytics.md
+    - Knowledge Management: user-guide/knowledge.md
+  - API Reference:
+    - Overview: apis/index.md
+    - Context Platform: apis/context-platform-api.md
+    - Session API: apis/session-api.md
+    - Query API: apis/query-api.md
+    - Dashboard API: apis/dashboard-api.md
+  - CLI Reference:
+    - Overview: cli/index.md
+    - Connection: cli/connection.md
+    - Query: cli/query.md
+    - Context: cli/context.md
+    - Benchmark: cli/benchmark.md
+  - Architecture:
+    - Overview: architecture/index.md
+    - System Design: architecture/system-design.md
+    - Modules: architecture/modules.md
+  - Troubleshooting: troubleshooting.md
+  - Contributing: contributing.md

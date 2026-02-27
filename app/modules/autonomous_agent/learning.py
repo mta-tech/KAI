@@ -42,14 +42,14 @@ def get_learning_client():
         return None
 
     try:
-        from agentic_learning import AgenticLearning
+        from agentic_learning import AgenticLearning  # type: ignore[import-untyped]
 
         return AgenticLearning(
             api_key=letta_api_key,
             base_url=settings.LETTA_BASE_URL,
         )
     except ImportError:
-        logger.warning("agentic-learning not installed. pip install agentic-learning")
+        logger.debug("agentic-learning not installed — skipping")
         return None
 
 
@@ -84,7 +84,7 @@ def get_async_learning_client():
         return None
 
     try:
-        from agentic_learning import AsyncAgenticLearning
+        from agentic_learning import AsyncAgenticLearning  # type: ignore[import-untyped]
 
         _async_client_instance = AsyncAgenticLearning(
             api_key=letta_api_key,
@@ -92,7 +92,7 @@ def get_async_learning_client():
         )
         return _async_client_instance
     except ImportError:
-        logger.warning("agentic-learning not installed. pip install agentic-learning")
+        logger.debug("agentic-learning not installed — skipping")
         return None
 
 
@@ -383,7 +383,7 @@ def learning_context(db_connection_id: str, session_id: str | None = None):
     settings = get_settings()
 
     try:
-        from agentic_learning import learning
+        from agentic_learning import learning  # type: ignore[import-untyped]
 
         agent_name = get_agent_name(db_connection_id, session_id)
         memory_blocks = get_memory_blocks()
