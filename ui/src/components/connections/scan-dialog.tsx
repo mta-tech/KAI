@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { LoadingButton } from '@/components/ui/loading-button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,6 +19,7 @@ import { Loader2 } from 'lucide-react';
 import { tablesApi } from '@/lib/api/tables';
 import { toast } from 'sonner';
 import type { DatabaseConnection } from '@/lib/api/types';
+import { logger } from '@/lib/logger';
 import { useScanProgress } from '@/lib/stores/scan-progress';
 
 interface ScanDialogProps {
@@ -74,7 +76,7 @@ export function ScanDialog({ open, onOpenChange, connection }: ScanDialogProps) 
       // Navigate to schema page to view results
       router.push(`/schema?connection=${connection.id}`);
     } catch (error) {
-      console.error('Scan error:', error);
+      logger.error('Scan error:', error);
       completeScan(connection.id);
       toast.error(error instanceof Error ? error.message : 'Failed to scan database', { id: scanToast });
     } finally {
@@ -128,10 +130,9 @@ export function ScanDialog({ open, onOpenChange, connection }: ScanDialogProps) 
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancel
           </Button>
-          <Button onClick={handleScan} disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isLoading ? 'Scanning...' : 'Start Scan'}
-          </Button>
+          <LoadingButton onClick={handleScan} isLoading={isLoading} loadingText="Scanning...">
+            Start Scan
+          </LoadingButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

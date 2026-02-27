@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { LoadingButton } from '@/components/ui/loading-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -18,6 +19,7 @@ import { Loader2 } from 'lucide-react';
 import { mdlApi } from '@/lib/api/mdl';
 import { toast } from 'sonner';
 import type { DatabaseConnection } from '@/lib/api/types';
+import { logger } from '@/lib/logger';
 
 interface MDLBuildDialogProps {
   open: boolean;
@@ -57,7 +59,7 @@ export function MDLBuildDialog({ open, onOpenChange, connection }: MDLBuildDialo
       // Navigate to MDL page to view the manifest
       router.push(`/mdl?manifest=${result.manifest_id}`);
     } catch (error) {
-      console.error('MDL build error:', error);
+      logger.error('MDL build error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to build MDL manifest');
     } finally {
       setIsLoading(false);
@@ -140,10 +142,9 @@ export function MDLBuildDialog({ open, onOpenChange, connection }: MDLBuildDialo
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancel
           </Button>
-          <Button onClick={handleBuild} disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isLoading ? 'Building...' : 'Build MDL'}
-          </Button>
+          <LoadingButton onClick={handleBuild} isLoading={isLoading} loadingText="Building...">
+            Build MDL
+          </LoadingButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { LoadingButton } from '@/components/ui/loading-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Dialog,
   DialogContent,
@@ -13,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Code } from 'lucide-react';
 import type { Instruction } from '@/lib/api/types';
 import { useCreateInstruction, useUpdateInstruction, useDeleteInstruction } from '@/hooks/use-knowledge';
 
@@ -127,9 +129,13 @@ export function InstructionList({ items, connectionId }: InstructionListProps) {
                 <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                <LoadingButton 
+                  type="submit" 
+                  isLoading={createMutation.isPending || updateMutation.isPending}
+                  loadingText={editItem ? 'Updating...' : 'Creating...'}
+                >
                   {editItem ? 'Update' : 'Create'}
-                </Button>
+                </LoadingButton>
               </div>
             </form>
           </DialogContent>
@@ -137,14 +143,15 @@ export function InstructionList({ items, connectionId }: InstructionListProps) {
       </div>
 
       {items.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground">No custom instructions defined yet.</p>
-            <p className="text-sm text-muted-foreground">
-              Add instructions to guide how the AI interprets and responds to queries.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Code}
+          title="No custom instructions yet"
+          description="Add instructions to guide how the AI interprets and responds to queries for better accuracy."
+          action={{
+            label: "Add Your First Instruction",
+            onClick: () => setIsOpen(true),
+          }}
+        />
       ) : (
         <div className="space-y-4">
           {items.map((item, index) => (

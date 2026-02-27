@@ -8,6 +8,8 @@ export interface Connection {
   database_type?: string;
   status?: string;
   schemas?: string[];
+  connection_string?: string;
+  connection_uri?: string;
 }
 
 /** @deprecated Use Connection instead */
@@ -165,7 +167,8 @@ export type ChunkType = 'text' | 'sql' | 'summary' | 'insights' | 'chart_recomme
 // Note: Backend sends "chunk" events with type field in data, which gets spread into the event
 // So the final type can be: text, sql, summary, insights, chart_recommendations, reasoning
 export interface AgentEvent {
-  type: 'tool_start' | 'tool_end' | 'text' | 'todo_update' | 'token' | 'done' | 'error' | 'status' | 'chunk' | ChunkType;
+  type: 'tool_start' | 'tool_end' | 'text' | 'todo_update' | 'token' | 'done' | 'error' | 'status' | 'chunk' | 'suggestions' | ChunkType;
+  suggestions?: string[];
   tool?: string;
   input?: Record<string, unknown>;
   output?: string | Record<string, unknown>;

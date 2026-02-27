@@ -18,6 +18,7 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from app.temporal.activities import KaiActivities
+from app.temporal.workflows import KaiChatWorkflow
 
 
 # Health check server
@@ -275,11 +276,14 @@ async def main():
     worker = Worker(
         client,
         task_queue=config.task_queue,
+        workflows=[KaiChatWorkflow],
         activities=[
             activities.store_connection,
             activities.test_connection,
             activities.scan_schema,
             activities.chat,
+            activities.chat_streaming,
+            activities.autonomous_chat,
             activities.sync_config,
             activities.generate_mdl,
         ],

@@ -185,7 +185,7 @@ def _get_version() -> str:
                 parent = parent.parent
     except Exception:
         pass
-    return "1.0.0"
+    return "0.1.0"
 
 
 @config.command("version")

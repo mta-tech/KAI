@@ -5,7 +5,7 @@ They inherit all tools from the main agent.
 """
 
 
-def get_analysis_subagents() -> list[dict]:
+def get_analysis_subagents() -> list:
     """Return subagent definitions for data analysis tasks.
 
     Format follows deepagents SubAgent TypedDict:

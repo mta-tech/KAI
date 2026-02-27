@@ -1,0 +1,116 @@
+name: Accessibility Audit
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  accessibility:
+    runs-on: ubuntu-latest
+    name: Run Accessibility Tests
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./ui
+        run: npm ci
+
+      - name: Build UI
+        working-directory: ./ui
+        run: npm run build
+
+      - name: Run axe-core accessibility tests
+        working-directory: ./ui
+        run: |
+          npm install -D @axe-core/cli
+          npx axe http://localhost:3000 --tags wcag2a,wcag2aa,best-practice --exit
+        continue-on-error: false
+
+      - name: Generate accessibility report
+        if: always()
+        working-directory: ./ui
+        run: |
+          npm install -D @axe-core/cli
+          npx axe http://localhost:3000 --tags wcag2a,wcag2aa,best-practice --format json --file accessibility-report.json || true
+          npx axe http://localhost:3000 --tags wcag2a,wcag2aa,best-practice --format csv --file accessibility-report.csv || true
+          npx axe http://localhost:3000 --tags wcag2a,wcag2aa,best-practice --format html --file accessibility-report.html || true
+
+      - name: Upload accessibility reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-reports
+          path: |
+            ui/accessibility-report.json
+            ui/accessibility-report.csv
+            ui/accessibility-report.html
+          retention-days: 30
+
+      - name: Comment PR with accessibility results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const reportPath = 'ui/accessibility-report.json';
+            
+            if (fs.existsSync(reportPath)) {
+              const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+              const violations = report.violations || [];
+              
+              let comment = '## 🔍 Accessibility Audit Results\n\n';
+              
+              if (violations.length === 0) {
+                comment += '✅ **No accessibility violations found!**\n\n';
+              } else {
+                const critical = violations.filter(v => v.impact === 'critical').length;
+                const serious = violations.filter(v => v.impact === 'serious').length;
+                const moderate = violations.filter(v => v.impact === 'moderate').length;
+                const minor = violations.filter(v => v.impact === 'minor').length;
+                
+                comment += `### Summary\n`;
+                comment += `- **Critical**: ${critical}\n`;
+                comment += `- **Serious**: ${serious}\n`;
+                comment += `- **Moderate**: ${moderate}\n`;
+                comment += `- **Minor**: ${minor}\n\n`;
+                
+                if (critical > 0) {
+                  comment += '### ⛔ Critical Issues\n\n';
+                  violations.filter(v => v.impact === 'critical').slice(0, 3).forEach(v => {
+                    comment += `**${v.id}**: ${v.description}\n`;
+                    comment += `- ${v.helpUrl}\n\n`;
+                  });
+                }
+              }
+              
+              comment += '\n📊 Full report available in the workflow artifacts.';
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }
+
+      - name: Check for critical violations
+        run: |
+          if [ -f "ui/accessibility-report.json" ]; then
+            CRITICAL=$(jq '[.violations[] | select(.impact == "critical")] | length' ui/accessibility-report.json)
+            if [ "$CRITICAL" -gt "0" ]; then
+              echo "::error::Found $CRITICAL critical accessibility violations. Please fix before merging."
+              exit 1
+            fi
+          fi

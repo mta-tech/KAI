@@ -1,0 +1,11 @@
+{
+  "projectId": "kai-ui-visual-regression",
+  "buildScriptName": "build-storybook",
+  "exitZeroOnChanges": true,
+  "autoAcceptChanges": "none",
+  "branches": ["main", "fix/kai-v1-ui-fix"],
+  "onlyStoryKinds": ["component", "story"],
+  "storybookConfigDir": ".storybook",
+  "ignoreLastCommitOn": ["develop", "main"],
+  "packageManager": "npm"
+}
