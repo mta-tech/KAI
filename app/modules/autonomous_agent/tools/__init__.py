@@ -3,6 +3,7 @@ from app.modules.autonomous_agent.tools.sql_tools import create_sql_query_tool
 from app.modules.autonomous_agent.tools.chart_tools import create_chart_tool
 from app.modules.autonomous_agent.tools.insights_tools import create_insights_tool
 from app.modules.autonomous_agent.tools.suggestions_tools import create_suggestions_tool
+from app.modules.autonomous_agent.tools.followup_tools import create_suggest_follow_ups_tool
 from app.modules.autonomous_agent.tools.report_tools import create_report_tool
 from app.modules.autonomous_agent.tools.excel_tools import create_excel_tool, create_read_excel_tool
 from app.modules.autonomous_agent.tools.analysis_tools import (
@@ -60,12 +61,17 @@ from app.modules.autonomous_agent.tools.mdl_tools import (
     create_search_mdl_columns_tool,
     create_get_mdl_join_path_tool,
 )
+from app.modules.autonomous_agent.tools.context_file_tools import (
+    create_search_context_files_tool,
+    create_read_context_file_tool,
+)
 
 __all__ = [
     "create_sql_query_tool",
     "create_chart_tool",
     "create_insights_tool",
     "create_suggestions_tool",
+    "create_suggest_follow_ups_tool",
     "create_report_tool",
     "create_excel_tool",
     "create_read_excel_tool",
@@ -106,4 +112,6 @@ __all__ = [
     "create_explore_mdl_views_tool",
     "create_search_mdl_columns_tool",
     "create_get_mdl_join_path_tool",
+    "create_search_context_files_tool",
+    "create_read_context_file_tool",
 ]

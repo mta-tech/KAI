@@ -249,6 +249,9 @@ from app.modules.autonomous_agent.tools import (
     create_explore_mdl_views_tool,
     create_search_mdl_columns_tool,
     create_get_mdl_join_path_tool,
+    create_suggest_follow_ups_tool,
+    create_search_context_files_tool,
+    create_read_context_file_tool,
 )
 from app.data.db.storage import Storage
 from app.modules.autonomous_agent.tools.context_platform_tools import (
@@ -256,6 +259,10 @@ from app.modules.autonomous_agent.tools.context_platform_tools import (
     create_get_published_glossary_tool,
     create_search_published_assets_tool,
     create_submit_asset_feedback_tool,
+)
+from app.modules.autonomous_agent.tools.context_file_tools import (
+    create_search_context_files_tool,
+    create_read_context_file_tool,
 )
 from app.modules.autonomous_agent.subagents import get_analysis_subagents
 from app.modules.autonomous_agent.prompts import get_system_prompt
@@ -286,7 +293,7 @@ class AutonomousAgentService:
         base_results_dir: str = "./agent_results",
         llm_config=None,
         checkpointer=None,
-        storage: Storage = None,
+        storage: Storage | None = None,
         language: str | None = None,
     ):
         self.db_connection = db_connection
@@ -342,6 +349,11 @@ class AutonomousAgentService:
         self._mission_stage_sequence: int = 0
         self._mission_stages_completed: list[str] = []
 
+    @property
+    def _conn_id(self) -> str:
+        """Return the database connection ID, coerced to str."""
+        return self.db_connection.id or ""
+
     def _get_session_results_dir(self, session_id: str) -> str:
         """Get results directory for a specific session.
 
@@ -353,7 +365,7 @@ class AutonomousAgentService:
         """
         return os.path.join(
             self.base_results_dir,
-            self.db_connection.id,
+            self.db_connection.id or "unknown",
             session_id
         )
 
@@ -378,6 +390,9 @@ class AutonomousAgentService:
         Args:
             results_dir: Directory for output files (session-scoped)
         """
+        # db_connection.id is Optional[str] — coerce to str for tools that require it
+        conn_id: str = self.db_connection.id or ""
+
         tools = [
             # Schema/context tools - CALL THESE FIRST before writing SQL
             create_schema_context_tool(self.db_connection, self.storage),
@@ -405,7 +420,7 @@ class AutonomousAgentService:
             # SQL and analysis tools
             create_sql_query_tool(self.database),
             create_pandas_analysis_tool(),
-            create_python_execute_tool(database=self.database),
+            create_python_execute_tool(),
             create_report_tool(output_dir=results_dir),
             create_excel_tool(output_dir=results_dir),
             create_read_excel_tool(base_dir=results_dir),
@@ -417,25 +432,37 @@ class AutonomousAgentService:
             create_get_notebook_tool(self.storage),
             create_export_notebook_tool(self.storage, output_dir=results_dir),
             # Context store tools - lookup/save verified SQL queries
-            create_lookup_verified_sql_tool(self.db_connection.id, self.storage),
-            create_save_verified_sql_tool(self.db_connection.id, self.storage),
-            create_list_verified_queries_tool(self.db_connection.id, self.storage),
-            create_search_verified_queries_tool(self.db_connection.id, self.storage),
-            create_delete_verified_sql_tool(self.db_connection.id, self.storage),
+            create_lookup_verified_sql_tool(conn_id, self.storage),
+            create_save_verified_sql_tool(conn_id, self.storage),
+            create_list_verified_queries_tool(conn_id, self.storage),
+            create_search_verified_queries_tool(conn_id, self.storage),
+            create_delete_verified_sql_tool(conn_id, self.storage),
             # MDL manifest explorer tools - explore semantic layer
-            create_get_mdl_manifest_tool(self.db_connection.id, self.storage),
-            create_explore_mdl_model_tool(self.db_connection.id, self.storage),
-            create_explore_mdl_relationships_tool(self.db_connection.id, self.storage),
-            create_explore_mdl_metrics_tool(self.db_connection.id, self.storage),
-            create_explore_mdl_views_tool(self.db_connection.id, self.storage),
-            create_search_mdl_columns_tool(self.db_connection.id, self.storage),
-            create_get_mdl_join_path_tool(self.db_connection.id, self.storage),
+            create_get_mdl_manifest_tool(conn_id, self.storage),
+            create_explore_mdl_model_tool(conn_id, self.storage),
+            create_explore_mdl_relationships_tool(conn_id, self.storage),
+            create_explore_mdl_metrics_tool(conn_id, self.storage),
+            create_explore_mdl_views_tool(conn_id, self.storage),
+            create_search_mdl_columns_tool(conn_id, self.storage),
+            create_get_mdl_join_path_tool(conn_id, self.storage),
             # Context platform tools - published, lifecycle-managed assets
             create_get_published_instructions_tool(self.db_connection, self.storage),
             create_get_published_glossary_tool(self.db_connection, self.storage),
             create_search_published_assets_tool(self.db_connection, self.storage),
             create_submit_asset_feedback_tool(self.storage),
+            # Follow-up suggestion tool - LLM-powered contextual next questions
+            create_suggest_follow_ups_tool(self.db_connection, self.storage),
         ]
+
+        # Conditionally add file-based context tools if synced context directory exists
+        context_dir = os.environ.get("CONTEXT_DIR", "./context")
+        db_alias = getattr(self.db_connection, "alias", "") or self._conn_id
+        if os.path.isdir(os.path.join(context_dir, db_alias)):
+            tools.extend([
+                create_search_context_files_tool(context_dir, db_alias),
+                create_read_context_file_tool(context_dir, db_alias),
+            ])
+            logger.info(f"Added context file tools for '{db_alias}'")
 
         # Load MCP tools if enabled
         mcp_tools = self._load_mcp_tools()
@@ -529,7 +556,7 @@ class AutonomousAgentService:
 
         # Append default instructions if any
         custom_instructions = get_default_instructions(
-            self.db_connection.id, self.storage
+            self.db_connection.id or "", self.storage
         )
         system_prompt = base_prompt + custom_instructions
 
@@ -581,7 +608,7 @@ class AutonomousAgentService:
             # Manually retrieve Letta memory context (LangChain isn't intercepted by SDK)
             # This mimics the SDK's inject_memory_context() behavior
             letta_memory = await get_memory_context_async(
-                self.db_connection.id,
+                self._conn_id,
                 session_id=task.session_id,
             )
             if letta_memory:
@@ -600,7 +627,7 @@ class AutonomousAgentService:
 
             # Also inject corrections from Typesense
             corrections_context = self.memory_service.get_corrections_for_prompt(
-                db_connection_id=self.db_connection.id,
+                db_connection_id=self._conn_id,
                 query=task.prompt,
                 session_id=task.session_id,
                 limit=10,
@@ -635,7 +662,7 @@ class AutonomousAgentService:
         try:
             # Wrap with async learning context for memory injection (retrieval only)
             # Note: LangChain is not intercepted, so we manually capture after execution
-            async with async_learning_context(self.db_connection.id, session_id=task.session_id):
+            async with async_learning_context(self._conn_id, session_id=task.session_id):
                 # Use ainvoke for proper async execution (non-blocking)
                 result = await agent.ainvoke(input_state, config=config)
 
@@ -651,7 +678,7 @@ class AutonomousAgentService:
             # Uses correction detection to automatically learn from human feedback
             if auto_learning_active:
                 await capture_with_correction_detection(
-                    db_connection_id=self.db_connection.id,
+                    db_connection_id=self._conn_id,
                     session_id=task.session_id,
                     user_message=task.prompt,
                     assistant_message=final_answer,
@@ -668,7 +695,7 @@ class AutonomousAgentService:
                 # Detect and store corrections using Typesense
                 previous_answer = task.context.get("previous_answer") if task.context else None
                 self.memory_service.detect_and_store_correction(
-                    db_connection_id=self.db_connection.id,
+                    db_connection_id=self._conn_id,
                     user_message=task.prompt,
                     previous_answer=previous_answer,
                     session_id=task.session_id,
@@ -745,7 +772,7 @@ class AutonomousAgentService:
             # Manually retrieve Letta memory context (LangChain isn't intercepted by SDK)
             # This mimics the SDK's inject_memory_context() behavior
             letta_memory = await get_memory_context_async(
-                self.db_connection.id,
+                self._conn_id,
                 session_id=task.session_id,
             )
             if letta_memory:
@@ -779,7 +806,7 @@ class AutonomousAgentService:
 
             # Also inject corrections from Typesense
             corrections_context = self.memory_service.get_corrections_for_prompt(
-                db_connection_id=self.db_connection.id,
+                db_connection_id=self._conn_id,
                 query=task.prompt,
                 session_id=task.session_id,
                 limit=10,
@@ -822,7 +849,7 @@ class AutonomousAgentService:
 
         try:
             # Wrap with async learning context for automatic memory injection
-            async with async_learning_context(self.db_connection.id, session_id=task.session_id):
+            async with async_learning_context(self._conn_id, session_id=task.session_id):
                 async for event in agent.astream_events(
                     input_state, config=config, version="v2"
                 ):
@@ -915,7 +942,7 @@ class AutonomousAgentService:
                 id=f"session_save_{session_id}",
                 session_id=session_id,
                 prompt="Session save",
-                db_connection_id=self.db_connection.id,
+                db_connection_id=self._conn_id,
             )
             
             # Get the final answer (last assistant message)
@@ -1487,7 +1514,7 @@ Return ONLY the JSON object, no other text."""
 
                         if key and content:
                             memory_service.remember(
-                                db_connection_id=self.db_connection.id,
+                                db_connection_id=self._conn_id,
                                 namespace=namespace,
                                 key=key,
                                 value={
@@ -1504,7 +1531,7 @@ Return ONLY the JSON object, no other text."""
             if "session_summary" in insights and insights["session_summary"]:
                 session_key = f"session_{task.id[:8]}_{timestamp[:10]}"
                 memory_service.remember(
-                    db_connection_id=self.db_connection.id,
+                    db_connection_id=self._conn_id,
                     namespace="session_summaries",
                     key=session_key,
                     value={
@@ -1532,7 +1559,7 @@ Return ONLY the JSON object, no other text."""
         try:
             memory_service = MemoryService(self.storage)
             results = memory_service.recall(
-                db_connection_id=self.db_connection.id,
+                db_connection_id=self._conn_id,
                 query=question,
                 namespace=None,  # Search all namespaces
                 limit=10,
@@ -1626,7 +1653,7 @@ Return ONLY the JSON object, no other text."""
         try:
             skill_service = SkillService(self.storage)
             skills = skill_service.find_relevant_skills(
-                db_connection_id=self.db_connection.id,
+                db_connection_id=self._conn_id,
                 query=question,
                 limit=3,
             )

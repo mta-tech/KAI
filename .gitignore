@@ -257,3 +257,4 @@ app/data/dbdata/
 # BMAD output directory
 bmad_output/
 .serena/
+context/

@@ -13,6 +13,7 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 
 from app.modules.autonomous_agent.cli import console, ensure_typesense_or_prompt, _run_async
+from app.modules.autonomous_agent.modules import _resolve_db_identifier
 
 
 @click.group()
@@ -47,11 +48,11 @@ def list_context_assets(db, asset_type, lifecycle_state, limit):
         return
 
     from app.data.db.storage import Storage
-    from app.server.config import get_settings
+    from app.server.config import Settings
     from app.modules.context_platform.services.asset_service import ContextAssetService
     from app.modules.autonomous_agent.modules import get_db_connection_repository
 
-    settings = get_settings()
+    settings = Settings()
     storage = Storage(settings)
     service = ContextAssetService(storage)
     db_repo = get_db_connection_repository(storage)
@@ -88,12 +89,12 @@ def list_context_assets(db, asset_type, lifecycle_state, limit):
     table.add_column("Updated", style="dim")
 
     for asset in assets[:limit]:  # Limit to requested number
-        asset_type = asset.get("asset_type", "unknown")
-        canonical_key = asset.get("canonical_key", "unknown")
-        name = asset.get("name", "Unknown")
-        state = asset.get("lifecycle_state", "unknown")
-        version = asset.get("version", "1.0.0")
-        updated_at = asset.get("updated_at", "Unknown")
+        asset_type = str(asset.asset_type.value if hasattr(asset.asset_type, 'value') else asset.asset_type)
+        canonical_key = asset.canonical_key or "unknown"
+        name = asset.name or "Unknown"
+        state = str(asset.lifecycle_state.value if hasattr(asset.lifecycle_state, 'value') else asset.lifecycle_state)
+        version = asset.version or "1.0.0"
+        updated_at: str = asset.updated_at or "Unknown"
 
         # Format timestamp
         if updated_at and updated_at != "Unknown":
@@ -101,7 +102,7 @@ def list_context_assets(db, asset_type, lifecycle_state, limit):
             try:
                 dt = datetime.fromisoformat(updated_at)
                 updated_at = dt.strftime("%Y-%m-%d")
-            except:
+            except Exception:
                 pass
 
         table.add_row(asset_type, canonical_key[:30], name[:40], state, version, str(updated_at))
@@ -133,10 +134,10 @@ def show_context_asset(asset_id):
         return
 
     from app.data.db.storage import Storage
-    from app.server.config import get_settings
+    from app.server.config import Settings
     from app.modules.context_platform.services.asset_service import ContextAssetService
 
-    settings = get_settings()
+    settings = Settings()
     storage = Storage(settings)
     service = ContextAssetService(storage)
 
@@ -219,10 +220,10 @@ def promote_context_asset(asset_id, target_state, promoted_by, change_note):
         return
 
     from app.data.db.storage import Storage
-    from app.server.config import get_settings
+    from app.server.config import Settings
     from app.modules.context_platform.services.asset_service import ContextAssetService, LifecyclePolicyError
 
-    settings = get_settings()
+    settings = Settings()
     storage = Storage(settings)
     service = ContextAssetService(storage)
 
@@ -235,7 +236,7 @@ def promote_context_asset(asset_id, target_state, promoted_by, change_note):
             console.print(f"[green]✔ Asset promoted to published[/green]")
 
         if asset:
-            console.print(f"Asset: {asset.get('name', asset_id)}")
+            console.print(f"Asset: {asset.name or asset_id}")
             console.print(f"New state: {target_state}")
 
     except LifecyclePolicyError as e:
@@ -265,10 +266,10 @@ def deprecate_context_asset(asset_id, promoted_by, reason):
         return
 
     from app.data.db.storage import Storage
-    from app.server.config import get_settings
+    from app.server.config import Settings
     from app.modules.context_platform.services.asset_service import ContextAssetService
 
-    settings = get_settings()
+    settings = Settings()
     storage = Storage(settings)
     service = ContextAssetService(storage)
 
@@ -277,7 +278,7 @@ def deprecate_context_asset(asset_id, promoted_by, reason):
 
         if asset:
             console.print(f"[green]✔ Asset deprecated[/green]")
-            console.print(f"Asset: {asset.get('name', asset_id)}")
+            console.print(f"Asset: {asset.name or asset_id}")
             console.print(f"New state: deprecated")
 
     except Exception as e:
@@ -313,11 +314,11 @@ def create_context_asset(db, asset_type, canonical_key, name, description, conte
         return
 
     from app.data.db.storage import Storage
-    from app.server.config import get_settings
+    from app.server.config import Settings
     from app.modules.context_platform.services.asset_service import ContextAssetService
     from app.modules.autonomous_agent.modules import get_db_connection_repository
 
-    settings = get_settings()
+    settings = Settings()
     storage = Storage(settings)
     service = ContextAssetService(storage)
     db_repo = get_db_connection_repository(storage)
@@ -401,10 +402,10 @@ def update_context_asset(asset_id, name, description, content_file, content, tag
         return
 
     from app.data.db.storage import Storage
-    from app.server.config import get_settings
+    from app.server.config import Settings
     from app.modules.context_platform.services.asset_service import ContextAssetService
 
-    settings = get_settings()
+    settings = Settings()
     storage = Storage(settings)
     service = ContextAssetService(storage)
 
@@ -469,11 +470,11 @@ def delete_context_asset(db_connection_id, asset_type, canonical_key, version, f
         return
 
     from app.data.db.storage import Storage
-    from app.server.config import get_settings
+    from app.server.config import Settings
     from app.modules.context_platform.services.asset_service import ContextAssetService
     from app.modules.autonomous_agent.modules import get_db_connection_repository
 
-    settings = get_settings()
+    settings = Settings()
     storage = Storage(settings)
     service = ContextAssetService(storage)
     db_repo = get_db_connection_repository(storage)
@@ -534,11 +535,11 @@ def search_context_assets(db, query, limit):
         return
 
     from app.data.db.storage import Storage
-    from app.server.config import get_settings
+    from app.server.config import Settings
     from app.modules.context_platform.services.asset_service import ContextAssetService
     from app.modules.autonomous_agent.modules import get_db_connection_repository
 
-    settings = get_settings()
+    settings = Settings()
     storage = Storage(settings)
     service = ContextAssetService(storage)
     db_repo = get_db_connection_repository(storage)
@@ -577,13 +578,13 @@ def search_context_assets(db, query, limit):
         table.add_column("Score", style="yellow")
 
         for result in results[:limit]:
-            asset = result.get("asset", result)
-            score = result.get("score", 0.0)
+            asset = result.asset
+            score = result.score
 
             table.add_row(
-                asset.get("asset_type", "unknown"),
-                asset.get("canonical_key", "unknown")[:30],
-                asset.get("name", "Unknown")[:40],
+                str(asset.asset_type.value if hasattr(asset.asset_type, 'value') else asset.asset_type),
+                (asset.canonical_key or "unknown")[:30],
+                (asset.name or "Unknown")[:40],
                 f"{score:.2f}"
             )
 
@@ -614,10 +615,10 @@ def list_tags(category):
         return
 
     from app.data.db.storage import Storage
-    from app.server.config import get_settings
+    from app.server.config import Settings
     from app.modules.context_platform.services.asset_service import ContextAssetService
 
-    settings = get_settings()
+    settings = Settings()
     storage = Storage(settings)
     service = ContextAssetService(storage)
 
@@ -634,9 +635,9 @@ def list_tags(category):
         table.add_column("Usage", style="yellow")
 
         for tag in tags:
-            tag_name = tag.get("name", "unknown")
-            tag_category = tag.get("category", "none")
-            usage_count = tag.get("usage_count", 0)
+            tag_name = tag.name or "unknown"
+            tag_category = tag.category or "none"
+            usage_count = tag.usage_count
 
             table.add_row(tag_name, tag_category, str(usage_count))
 
@@ -648,3 +649,100 @@ def list_tags(category):
 
     except Exception as e:
         console.print(f"[red]✖ Error fetching tags:[/red] {e}")
+
+
+# ============================================================================
+# Sync Context to Filesystem
+# ============================================================================
+
+@context.command("sync")
+@click.option("--db", "-d", required=True, help="Database connection ID or alias")
+@click.option(
+    "--output-dir",
+    default=None,
+    help="Output directory (default: CONTEXT_DIR env var or ./context)",
+)
+@click.option(
+    "--include-preview/--no-preview",
+    default=True,
+    show_default=True,
+    help="Include sample data preview files",
+)
+@click.option(
+    "--preview-rows",
+    type=int,
+    default=5,
+    show_default=True,
+    help="Number of sample rows in preview files",
+)
+def sync_context(db, output_dir, include_preview, preview_rows):
+    """Sync context assets to the local filesystem as Markdown files.
+
+    Exports table schemas, glossary terms, and instruction assets
+    into a structured directory for offline agent use.
+
+    Examples:
+
+        kai context sync --db mydb
+
+        kai context sync --db mydb --output-dir ./context --no-preview
+
+        kai context sync --db mydb --preview-rows 10
+    """
+    import os
+
+    if not ensure_typesense_or_prompt():
+        return
+
+    from app.data.db.storage import Storage
+    from app.server.config import Settings
+    from app.modules.autonomous_agent.modules import get_db_connection_repository, _resolve_db_identifier
+    from app.modules.autonomous_agent.context_sync import ContextSyncService
+
+    if output_dir is None:
+        output_dir = os.environ.get("CONTEXT_DIR", "./context")
+
+    settings = Settings()
+    storage = Storage(settings)
+    db_repo = get_db_connection_repository(storage)
+
+    db_conn = _resolve_db_identifier(db, db_repo)
+    if not db_conn:
+        console.print(f"[red]✖ Database '{db}' not found[/red]")
+        console.print("[dim]Use 'kai connection list' to see available connections[/dim]")
+        return
+
+    db_connection_id = db_conn["id"] if isinstance(db_conn, dict) else db_conn.id
+    db_alias = db_conn.get("alias") if isinstance(db_conn, dict) else db_conn.alias
+
+    service = ContextSyncService(storage)
+
+    console.print(f"\n[cyan]Syncing context for:[/cyan] {db_alias or db_connection_id}")
+    console.print(f"[dim]Output directory:[/dim] {output_dir}")
+    if include_preview:
+        console.print(f"[dim]Preview rows:[/dim] {preview_rows}")
+
+    try:
+        with console.status("[bold cyan]Writing context files...[/bold cyan]"):
+            result = service.sync(
+                db_connection_id=db_connection_id,
+                output_dir=output_dir,
+                include_preview=include_preview,
+                preview_rows=preview_rows,
+                db_alias=db_alias,
+            )
+
+        summary = Table(show_header=True, header_style="bold magenta")
+        summary.add_column("Category", style="cyan")
+        summary.add_column("Count", style="white", justify="right")
+        summary.add_row("Tables", str(result.table_count))
+        summary.add_row("Glossary terms", str(result.glossary_count))
+        summary.add_row("Instructions", str(result.instruction_count))
+        summary.add_row("Total files written", str(result.file_count))
+
+        console.print(f"\n[green]✔ Context sync complete[/green]")
+        console.print(summary)
+        console.print(f"[dim]Files written to:[/dim] {output_dir}/")
+
+    except Exception as e:
+        console.print(f"[red]✖ Sync failed:[/red] {e}")

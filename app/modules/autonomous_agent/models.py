@@ -43,10 +43,15 @@ class AgentTask:
     id: str
     prompt: str
     db_connection_id: str
+    session_id: str = ""
     mode: Literal["analysis", "query", "script", "full_autonomy"] = "full_autonomy"
     context: dict | None = None
     metadata: dict | None = None
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+
+    def __post_init__(self):
+        if not self.session_id:
+            self.session_id = self.id
 
 
 @dataclass
@@ -193,9 +198,9 @@ class SuggestedQuestion:
 class AgentResult:
     """Result from autonomous agent execution."""
     task_id: str
-    mission_id: str  # New: Mission run ID for traceability
-    status: Literal["completed", "failed", "partial"]
-    final_answer: str
+    mission_id: str = ""  # Mission run ID for traceability
+    status: Literal["completed", "failed", "partial"] = "completed"
+    final_answer: str = ""
     # Mission-level metadata
     overall_confidence: float = 0.0  # Overall mission confidence (0-1)
     stages_completed: list[str] = field(default_factory=list)  # Completed stage IDs
