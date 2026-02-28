@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Bot, User } from 'lucide-react';
 import { TodoList } from './todo-list';
 import { ToolCallBlock, useToolPairs } from './tool-calls';
 import { SqlBlock } from './sql-block';
@@ -58,36 +57,27 @@ export function AgentMessage({ message }: AgentMessageProps) {
 
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end gap-2 sm:gap-3 group">
-        <div className="max-w-[85%] sm:max-w-[80%] rounded-2xl rounded-tr-none bg-primary px-4 py-3 sm:px-5 sm:py-3 text-primary-foreground shadow-sm relative">
+      <div className="flex justify-end group">
+        <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl bg-primary/10 px-4 py-3 text-foreground relative">
           <p className="text-sm sm:text-base leading-relaxed break-words">{message.content}</p>
-          <div className="absolute top-2 right-2">
+          <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <MessageActions message={message} />
           </div>
-        </div>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 mt-1">
-          <User className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex gap-2 sm:gap-4 group">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20 mt-1 relative">
-        <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 dark:text-emerald-400" />
-        {/* Online indicator for streaming */}
-        {message.isStreaming && (
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-          </span>
-        )}
-      </div>
-
-      <div className="flex-1 space-y-2 sm:space-y-3 overflow-hidden min-w-0 relative">
+    <div className="group">
+      <div
+        className="space-y-3 overflow-hidden min-w-0 relative"
+        aria-live="polite"
+        aria-busy={message.isStreaming}
+        aria-label={message.isStreaming ? 'AI is responding' : 'AI response'}
+      >
         {/* Message Actions - positioned in top right */}
-        <div className="absolute top-0 right-0 z-10">
+        <div className="absolute top-0 right-0 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
           <MessageActions message={message} />
         </div>
 
@@ -123,12 +113,12 @@ export function AgentMessage({ message }: AgentMessageProps) {
         {/* Summary/Answer Block */}
         {(displayContent || structured?.summary || structured?.reasoning) && (
           <div
-            className={`prose prose-sm dark:prose-invert max-w-none rounded-xl border bg-card/50 px-3 py-3 sm:px-5 sm:py-4 shadow-sm prose-headings:text-base sm:prose-headings:text-lg prose-p:text-sm sm:prose-p:text-base relative overflow-hidden${message.isStreaming ? ' streaming-cursor' : ''}`}
+            className={`prose prose-sm dark:prose-invert max-w-none rounded-xl border border-border/50 bg-card/50 px-3 py-3 sm:px-5 sm:py-4 shadow-sm prose-headings:text-base sm:prose-headings:text-lg prose-p:text-sm sm:prose-p:text-base relative overflow-hidden${message.isStreaming ? ' streaming-cursor' : ''}`}
           >
             {/* Streaming shimmer effect */}
             {message.isStreaming && (
               <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-foreground/5 to-transparent animate-shimmer" />
               </div>
             )}
             <ReactMarkdown>
@@ -163,7 +153,7 @@ export function AgentMessage({ message }: AgentMessageProps) {
         {/* Follow-up suggestions (shown after streaming completes) */}
         {!message.isStreaming && structured?.followUpSuggestions && structured.followUpSuggestions.length > 0 && (
           <FollowUpSuggestions
-            suggestions={structured.followUpSuggestions}
+            suggestions={structured.followUpSuggestions.slice(0, 4)}
             onSelect={sendMessage}
           />
         )}

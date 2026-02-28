@@ -1,11 +1,15 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Send, Square, Mic } from 'lucide-react';
+import { ArrowUp, Square } from 'lucide-react';
 import { useKeyboardShortcuts } from '@/lib/hooks/use-keyboard-shortcuts';
 import { cn } from '@/lib/utils';
+import {
+  InputGroup,
+  InputGroupTextarea,
+  InputGroupAddon,
+  InputGroupButton,
+} from '@/components/ui/input-group';
 import { ModelSelector } from './model-selector';
 
 interface ChatInputProps {
@@ -25,27 +29,23 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, selectedModel
     if (!input.trim() || disabled) return;
     onSend(input.trim());
     setInput('');
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
   };
 
-  // Auto-resize textarea based on content
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
     if (textareaRef.current) {
-      // Reset height to auto to get the correct scrollHeight
       textareaRef.current.style.height = 'auto';
-      // Set new height based on scrollHeight, with max height constraint
-      const newHeight = Math.min(textareaRef.current.scrollHeight, 150);
+      const newHeight = Math.min(textareaRef.current.scrollHeight, 256);
       textareaRef.current.style.height = `${newHeight}px`;
     }
   };
@@ -56,7 +56,6 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, selectedModel
     }
   }, [isStreaming]);
 
-  // Register keyboard shortcuts
   useKeyboardShortcuts([
     {
       key: 'Enter',
@@ -81,27 +80,24 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, selectedModel
   ], true);
 
   return (
-    <div className="flex gap-2 items-end">
-      <div className="flex-1 relative">
-        <Textarea
-          ref={textareaRef}
-          value={input}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask a question about your data... (Cmd+Enter to send)"
-          className={cn(
-            "min-h-[48px] max-h-[150px] resize-none overflow-y-auto",
-            "py-3 px-4 text-base",
-            "touch-manipulation" // Improves touch responsiveness
-          )}
-          disabled={disabled}
-          rows={1}
-          style={{
-            height: 'auto',
-          } as React.CSSProperties}
-        />
-      </div>
-      <div className="flex gap-1 shrink-0 items-center">
+    <InputGroup className="min-h-[52px]">
+      <InputGroupTextarea
+        ref={textareaRef}
+        value={input}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        placeholder="Ask a question about your data..."
+        className={cn(
+          'min-h-[52px] max-h-64 touch-manipulation',
+          'placeholder:text-muted-foreground/60'
+        )}
+        disabled={disabled}
+        rows={1}
+        style={{ height: 'auto' }}
+      />
+
+      {/* Bottom bar with model selector and send button */}
+      <InputGroupAddon align="inline-start" className="absolute bottom-2 left-2">
         {selectedModel !== undefined && onModelChange && (
           <ModelSelector
             value={selectedModel}
@@ -109,42 +105,34 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled, selectedModel
             disabled={isStreaming || disabled}
           />
         )}
-        {/* Voice input button - placeholder for future implementation */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-11 w-11 shrink-0 sm:hidden"
-          aria-label="Voice input"
-          type="button"
-          tabIndex={-1}
-        >
-          <Mic className="h-5 w-5" />
-        </Button>
+        <span className="text-[10px] text-muted-foreground/40 hidden sm:inline ml-1">
+          Enter to send
+        </span>
+      </InputGroupAddon>
 
+      <InputGroupAddon align="inline-end" className="absolute bottom-2 right-2">
         {isStreaming ? (
-          <Button
+          <InputGroupButton
             variant="destructive"
-            size="icon"
+            size="icon-xs"
             onClick={onStop}
             aria-label="Stop generation"
-            className="h-11 w-11 shrink-0 sm:h-10 sm:w-10"
             type="button"
           >
-            <Square className="h-4 w-4 sm:h-4 sm:w-4" aria-hidden="true" />
-          </Button>
+            <Square className="h-3.5 w-3.5" aria-hidden="true" />
+          </InputGroupButton>
         ) : (
-          <Button
-            size="icon"
+          <InputGroupButton
+            size="icon-xs"
             onClick={handleSubmit}
             disabled={!input.trim() || disabled}
             aria-label="Send message"
-            className="h-11 w-11 shrink-0 sm:h-10 sm:w-10"
             type="submit"
           >
-            <Send className="h-4 w-4 sm:h-4 sm:w-4" aria-hidden="true" />
-          </Button>
+            <ArrowUp className="h-4 w-4" aria-hidden="true" />
+          </InputGroupButton>
         )}
-      </div>
-    </div>
+      </InputGroupAddon>
+    </InputGroup>
   );
 }
