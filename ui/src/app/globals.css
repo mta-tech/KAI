@@ -241,19 +241,28 @@
   to { background-position: -200% 0; }
 }
 
-/* Text shimmer utility class */
-.text-shimmer {
-  color: transparent;
-  background-clip: text;
-  -webkit-background-clip: text;
-  animation: text-shimmer 1.5s linear infinite;
-  background: linear-gradient(
-    90deg,
-    var(--muted-foreground) 0%,
-    var(--foreground) 50%,
-    var(--muted-foreground) 100%
-  );
-  background-size: 200% 100%;
+/* Text shimmer utility class - respects reduced motion preference */
+@media (prefers-reduced-motion: no-preference) {
+  .text-shimmer {
+    color: transparent;
+    background-clip: text;
+    -webkit-background-clip: text;
+    animation: text-shimmer 1.5s linear infinite;
+    background: linear-gradient(
+      90deg,
+      var(--muted-foreground) 0%,
+      var(--foreground) 50%,
+      var(--muted-foreground) 100%
+    );
+    background-size: 200% 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-shimmer {
+    /* Static fallback for users who prefer reduced motion */
+    color: var(--muted-foreground);
+  }
 }
 
 @keyframes streaming-fade-in {
