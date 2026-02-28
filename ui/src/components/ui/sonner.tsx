@@ -21,8 +21,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
             "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
           cancelButton:
             "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
+          success: "group-[.toast]:border-green-500 group-[.toast]:bg-green-50 dark:group-[.toast]:bg-green-950",
+          error: "group-[.toast]:border-red-500 group-[.toast]:bg-red-50 dark:group-[.toast]:bg-red-950",
+          warning: "group-[.toast]:border-yellow-500 group-[.toast]:bg-yellow-50 dark:group-[.toast]:bg-yellow-950",
+          info: "group-[.toast]:border-blue-500 group-[.toast]:bg-blue-50 dark:group-[.toast]:bg-blue-950",
         },
       }}
+      closeButton
+      richColors
       {...props}
     />
   )

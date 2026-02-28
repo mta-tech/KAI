@@ -135,9 +135,7 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
             sql_generation_id=self.sql_generation_id,
             db_connection=self.db_connection,
             database=self.database,
-            context=context,
             tool_context=tool_context,
-            metadata=metadata,
             extra_instructions=extra_instr,
             llm_config=self.llm_config,
         )
@@ -238,9 +236,7 @@ class DeepAgentSQLGeneratorProxy(SQLGenerator):
             sql_generation_id=self.sql_generation_id,
             db_connection=self.db_connection,
             database=self.database,
-            context=context,
             tool_context=tool_context,
-            metadata=metadata,
             extra_instructions=extra_instr,
             llm_config=self.llm_config,
         )

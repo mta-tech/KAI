@@ -193,7 +193,13 @@ class TagStreamParser:
 from deepagents import create_deep_agent
 from deepagents.backends import CompositeBackend, StateBackend, FilesystemBackend
 
-from app.modules.autonomous_agent.models import AgentTask, AgentResult
+from app.modules.autonomous_agent.models import (
+    AgentTask,
+    AgentResult,
+    MissionStage,
+    MissionState,
+    MissionStreamEvent,
+)
 from app.modules.autonomous_agent.learning import (
     capture_with_correction_detection,
     get_memory_context_async,
@@ -243,8 +249,21 @@ from app.modules.autonomous_agent.tools import (
     create_explore_mdl_views_tool,
     create_search_mdl_columns_tool,
     create_get_mdl_join_path_tool,
+    create_suggest_follow_ups_tool,
+    create_search_context_files_tool,
+    create_read_context_file_tool,
 )
 from app.data.db.storage import Storage
+from app.modules.autonomous_agent.tools.context_platform_tools import (
+    create_get_published_instructions_tool,
+    create_get_published_glossary_tool,
+    create_search_published_assets_tool,
+    create_submit_asset_feedback_tool,
+)
+from app.modules.autonomous_agent.tools.context_file_tools import (
+    create_search_context_files_tool,
+    create_read_context_file_tool,
+)
 from app.modules.autonomous_agent.subagents import get_analysis_subagents
 from app.modules.autonomous_agent.prompts import get_system_prompt
 from app.modules.autonomous_agent.learning import (
@@ -274,7 +293,7 @@ class AutonomousAgentService:
         base_results_dir: str = "./agent_results",
         llm_config=None,
         checkpointer=None,
-        storage: Storage = None,
+        storage: Storage | None = None,
         language: str | None = None,
     ):
         self.db_connection = db_connection
@@ -310,6 +329,31 @@ class AutonomousAgentService:
         self._max_empty_sql_before_stop = 5  # Stop after 5 consecutive empty results
         self._no_data_stop_triggered = False
 
+        # =====================================================================
+        # Mission Tracking (Phase 2: Proactive Flow)
+        # =====================================================================
+        # Mission budget constraints for safety
+        self._mission_max_runtime_seconds = 180
+        self._mission_max_tool_calls = 40
+        self._mission_max_sql_retries = 3
+        self._mission_max_identical_failures = 2
+
+        # Mission budget counters (reset per mission)
+        self._mission_start_time: float | None = None
+        self._mission_tool_call_count = 0
+        self._mission_sql_retry_count = 0
+        self._mission_identical_failure_count = 0
+
+        # Current mission stage tracking
+        self._mission_current_stage: str | None = None  # MissionStage value
+        self._mission_stage_sequence: int = 0
+        self._mission_stages_completed: list[str] = []
+
+    @property
+    def _conn_id(self) -> str:
+        """Return the database connection ID, coerced to str."""
+        return self.db_connection.id or ""
+
     def _get_session_results_dir(self, session_id: str) -> str:
         """Get results directory for a specific session.
 
@@ -321,7 +365,7 @@ class AutonomousAgentService:
         """
         return os.path.join(
             self.base_results_dir,
-            self.db_connection.id,
+            self.db_connection.id or "unknown",
             session_id
         )
 
@@ -346,6 +390,9 @@ class AutonomousAgentService:
         Args:
             results_dir: Directory for output files (session-scoped)
         """
+        # db_connection.id is Optional[str] — coerce to str for tools that require it
+        conn_id: str = self.db_connection.id or ""
+
         tools = [
             # Schema/context tools - CALL THESE FIRST before writing SQL
             create_schema_context_tool(self.db_connection, self.storage),
@@ -373,7 +420,7 @@ class AutonomousAgentService:
             # SQL and analysis tools
             create_sql_query_tool(self.database),
             create_pandas_analysis_tool(),
-            create_python_execute_tool(database=self.database),
+            create_python_execute_tool(),
             create_report_tool(output_dir=results_dir),
             create_excel_tool(output_dir=results_dir),
             create_read_excel_tool(base_dir=results_dir),
@@ -385,20 +432,37 @@ class AutonomousAgentService:
             create_get_notebook_tool(self.storage),
             create_export_notebook_tool(self.storage, output_dir=results_dir),
             # Context store tools - lookup/save verified SQL queries
-            create_lookup_verified_sql_tool(self.db_connection.id, self.storage),
-            create_save_verified_sql_tool(self.db_connection.id, self.storage),
-            create_list_verified_queries_tool(self.db_connection.id, self.storage),
-            create_search_verified_queries_tool(self.db_connection.id, self.storage),
-            create_delete_verified_sql_tool(self.db_connection.id, self.storage),
+            create_lookup_verified_sql_tool(conn_id, self.storage),
+            create_save_verified_sql_tool(conn_id, self.storage),
+            create_list_verified_queries_tool(conn_id, self.storage),
+            create_search_verified_queries_tool(conn_id, self.storage),
+            create_delete_verified_sql_tool(conn_id, self.storage),
             # MDL manifest explorer tools - explore semantic layer
-            create_get_mdl_manifest_tool(self.db_connection.id, self.storage),
-            create_explore_mdl_model_tool(self.db_connection.id, self.storage),
-            create_explore_mdl_relationships_tool(self.db_connection.id, self.storage),
-            create_explore_mdl_metrics_tool(self.db_connection.id, self.storage),
-            create_explore_mdl_views_tool(self.db_connection.id, self.storage),
-            create_search_mdl_columns_tool(self.db_connection.id, self.storage),
-            create_get_mdl_join_path_tool(self.db_connection.id, self.storage),
+            create_get_mdl_manifest_tool(conn_id, self.storage),
+            create_explore_mdl_model_tool(conn_id, self.storage),
+            create_explore_mdl_relationships_tool(conn_id, self.storage),
+            create_explore_mdl_metrics_tool(conn_id, self.storage),
+            create_explore_mdl_views_tool(conn_id, self.storage),
+            create_search_mdl_columns_tool(conn_id, self.storage),
+            create_get_mdl_join_path_tool(conn_id, self.storage),
+            # Context platform tools - published, lifecycle-managed assets
+            create_get_published_instructions_tool(self.db_connection, self.storage),
+            create_get_published_glossary_tool(self.db_connection, self.storage),
+            create_search_published_assets_tool(self.db_connection, self.storage),
+            create_submit_asset_feedback_tool(self.storage),
+            # Follow-up suggestion tool - LLM-powered contextual next questions
+            create_suggest_follow_ups_tool(self.db_connection, self.storage),
         ]
+
+        # Conditionally add file-based context tools if synced context directory exists
+        context_dir = os.environ.get("CONTEXT_DIR", "./context")
+        db_alias = getattr(self.db_connection, "alias", "") or self._conn_id
+        if os.path.isdir(os.path.join(context_dir, db_alias)):
+            tools.extend([
+                create_search_context_files_tool(context_dir, db_alias),
+                create_read_context_file_tool(context_dir, db_alias),
+            ])
+            logger.info(f"Added context file tools for '{db_alias}'")
 
         # Load MCP tools if enabled
         mcp_tools = self._load_mcp_tools()
@@ -492,7 +556,7 @@ class AutonomousAgentService:
 
         # Append default instructions if any
         custom_instructions = get_default_instructions(
-            self.db_connection.id, self.storage
+            self.db_connection.id or "", self.storage
         )
         system_prompt = base_prompt + custom_instructions
 
@@ -544,7 +608,7 @@ class AutonomousAgentService:
             # Manually retrieve Letta memory context (LangChain isn't intercepted by SDK)
             # This mimics the SDK's inject_memory_context() behavior
             letta_memory = await get_memory_context_async(
-                self.db_connection.id,
+                self._conn_id,
                 session_id=task.session_id,
             )
             if letta_memory:
@@ -563,7 +627,7 @@ class AutonomousAgentService:
 
             # Also inject corrections from Typesense
             corrections_context = self.memory_service.get_corrections_for_prompt(
-                db_connection_id=self.db_connection.id,
+                db_connection_id=self._conn_id,
                 query=task.prompt,
                 session_id=task.session_id,
                 limit=10,
@@ -598,7 +662,7 @@ class AutonomousAgentService:
         try:
             # Wrap with async learning context for memory injection (retrieval only)
             # Note: LangChain is not intercepted, so we manually capture after execution
-            async with async_learning_context(self.db_connection.id, session_id=task.session_id):
+            async with async_learning_context(self._conn_id, session_id=task.session_id):
                 # Use ainvoke for proper async execution (non-blocking)
                 result = await agent.ainvoke(input_state, config=config)
 
@@ -614,7 +678,7 @@ class AutonomousAgentService:
             # Uses correction detection to automatically learn from human feedback
             if auto_learning_active:
                 await capture_with_correction_detection(
-                    db_connection_id=self.db_connection.id,
+                    db_connection_id=self._conn_id,
                     session_id=task.session_id,
                     user_message=task.prompt,
                     assistant_message=final_answer,
@@ -631,7 +695,7 @@ class AutonomousAgentService:
                 # Detect and store corrections using Typesense
                 previous_answer = task.context.get("previous_answer") if task.context else None
                 self.memory_service.detect_and_store_correction(
-                    db_connection_id=self.db_connection.id,
+                    db_connection_id=self._conn_id,
                     user_message=task.prompt,
                     previous_answer=previous_answer,
                     session_id=task.session_id,
@@ -708,7 +772,7 @@ class AutonomousAgentService:
             # Manually retrieve Letta memory context (LangChain isn't intercepted by SDK)
             # This mimics the SDK's inject_memory_context() behavior
             letta_memory = await get_memory_context_async(
-                self.db_connection.id,
+                self._conn_id,
                 session_id=task.session_id,
             )
             if letta_memory:
@@ -742,7 +806,7 @@ class AutonomousAgentService:
 
             # Also inject corrections from Typesense
             corrections_context = self.memory_service.get_corrections_for_prompt(
-                db_connection_id=self.db_connection.id,
+                db_connection_id=self._conn_id,
                 query=task.prompt,
                 session_id=task.session_id,
                 limit=10,
@@ -785,7 +849,7 @@ class AutonomousAgentService:
 
         try:
             # Wrap with async learning context for automatic memory injection
-            async with async_learning_context(self.db_connection.id, session_id=task.session_id):
+            async with async_learning_context(self._conn_id, session_id=task.session_id):
                 async for event in agent.astream_events(
                     input_state, config=config, version="v2"
                 ):
@@ -878,7 +942,7 @@ class AutonomousAgentService:
                 id=f"session_save_{session_id}",
                 session_id=session_id,
                 prompt="Session save",
-                db_connection_id=self.db_connection.id,
+                db_connection_id=self._conn_id,
             )
             
             # Get the final answer (last assistant message)
@@ -1450,7 +1514,7 @@ Return ONLY the JSON object, no other text."""
 
                         if key and content:
                             memory_service.remember(
-                                db_connection_id=self.db_connection.id,
+                                db_connection_id=self._conn_id,
                                 namespace=namespace,
                                 key=key,
                                 value={
@@ -1467,7 +1531,7 @@ Return ONLY the JSON object, no other text."""
             if "session_summary" in insights and insights["session_summary"]:
                 session_key = f"session_{task.id[:8]}_{timestamp[:10]}"
                 memory_service.remember(
-                    db_connection_id=self.db_connection.id,
+                    db_connection_id=self._conn_id,
                     namespace="session_summaries",
                     key=session_key,
                     value={
@@ -1495,7 +1559,7 @@ Return ONLY the JSON object, no other text."""
         try:
             memory_service = MemoryService(self.storage)
             results = memory_service.recall(
-                db_connection_id=self.db_connection.id,
+                db_connection_id=self._conn_id,
                 query=question,
                 namespace=None,  # Search all namespaces
                 limit=10,
@@ -1589,7 +1653,7 @@ Return ONLY the JSON object, no other text."""
         try:
             skill_service = SkillService(self.storage)
             skills = skill_service.find_relevant_skills(
-                db_connection_id=self.db_connection.id,
+                db_connection_id=self._conn_id,
                 query=question,
                 limit=3,
             )
@@ -1659,3 +1723,223 @@ Return ONLY the JSON object, no other text."""
             formatted.append(f"{role.upper()}: {content}")
 
         return "\n\n".join(formatted)
+
+    # =====================================================================
+    # Mission Stage & Budget Helpers (Phase 2.2a/2.2b)
+    # =====================================================================
+
+    def _initialize_mission_tracking(self) -> None:
+        """Initialize mission budget counters and stage tracking."""
+        self._mission_start_time = time.time()
+        self._mission_tool_call_count = 0
+        self._mission_sql_retry_count = 0
+        self._mission_identical_failure_count = 0
+        self._mission_current_stage = None
+        self._mission_stage_sequence = 0
+        self._mission_stages_completed = []
+
+    def _check_mission_budget(self) -> tuple[bool, str | None]:
+        """Check if mission has exceeded any budget constraints.
+
+        Returns:
+            (can_continue: bool, error_message: str | None)
+        """
+        # Check runtime
+        if self._mission_start_time:
+            elapsed = time.time() - self._mission_start_time
+            if elapsed > self._mission_max_runtime_seconds:
+                return False, f"Mission exceeded maximum runtime of {self._mission_max_runtime_seconds}s (elapsed: {elapsed:.1f}s)"
+
+        # Check tool calls
+        if self._mission_tool_call_count >= self._mission_max_tool_calls:
+            return False, f"Mission exceeded maximum tool calls ({self._mission_max_tool_calls})"
+
+        # Check SQL retries
+        if self._mission_sql_retry_count >= self._mission_max_sql_retries:
+            return False, f"Mission exceeded maximum SQL retries ({self._mission_max_sql_retries})"
+
+        # Check identical failures
+        if self._mission_identical_failure_count >= self._mission_max_identical_failures:
+            return False, f"Mission exceeded maximum identical failures ({self._mission_max_identical_failures})"
+
+        return True, None
+
+    def _transition_mission_stage(
+        self,
+        new_stage: str,
+        confidence: float = 0.0,
+        output_summary: str | None = None,
+        artifacts: list[str] | None = None,
+    ) -> dict:
+        """Transition to a new mission stage and emit stage event.
+
+        Args:
+            new_stage: The new MissionStage value (plan, explore, execute, synthesize, finalize, failed)
+            confidence: Stage-level confidence (0-1)
+            output_summary: Optional summary of stage output
+            artifacts: Optional list of artifact IDs produced
+
+        Returns:
+            Stage event dict for yielding
+        """
+        from app.modules.autonomous_agent.models import MissionStage
+
+        old_stage = self._mission_current_stage
+        self._mission_current_stage = new_stage
+        self._mission_stage_sequence += 1
+
+        if old_stage and old_stage != new_stage:
+            self._mission_stages_completed.append(old_stage)
+
+        # Emit stage transition event
+        return {
+            "version": "v1",
+            "type": "mission_stage",
+            "stage": new_stage,
+            "mission_id": "",  # Will be set by caller
+            "session_id": "",  # Will be set by caller
+            "timestamp": datetime.now().isoformat(),
+            "payload": {
+                "old_stage": old_stage,
+                "new_stage": new_stage,
+                "stage_id": f"{new_stage}_{self._mission_stage_sequence}",
+                "confidence": confidence,
+                "output_summary": output_summary,
+                "artifacts_produced": artifacts or [],
+                "tool_calls_so_far": self._mission_tool_call_count,
+                "runtime_seconds": time.time() - (self._mission_start_time or time.time()),
+            },
+            "sequence_number": self._mission_stage_sequence,
+            "confidence": confidence,
+            "stage_id": f"{new_stage}_{self._mission_stage_sequence}",
+            "output_summary": output_summary,
+            "artifacts_produced": artifacts or [],
+        }
+
+    def _emit_mission_complete_event(
+        self,
+        mission_id: str,
+        session_id: str,
+        final_status: str,
+        overall_confidence: float,
+        execution_time_ms: int,
+        stages_completed: list[str],
+        final_stage: str | None = None,
+    ) -> dict:
+        """Emit mission complete event.
+
+        Args:
+            mission_id: Mission run ID
+            session_id: Session ID
+            final_status: Final status (completed, failed, partial)
+            overall_confidence: Overall mission confidence (0-1)
+            execution_time_ms: Total execution time in milliseconds
+            stages_completed: List of completed stage IDs
+            final_stage: The stage where mission ended
+
+        Returns:
+            Mission complete event dict
+        """
+        return {
+            "version": "v1",
+            "type": "mission_complete",
+            "stage": final_stage,
+            "mission_id": mission_id,
+            "session_id": session_id,
+            "timestamp": datetime.now().isoformat(),
+            "payload": {
+                "final_status": final_status,
+                "overall_confidence": overall_confidence,
+                "stages_completed": stages_completed,
+                "final_stage": final_stage,
+                "tool_calls_total": self._mission_tool_call_count,
+                "runtime_seconds": execution_time_ms / 1000,
+            },
+            "sequence_number": self._mission_stage_sequence + 1,
+            "confidence": overall_confidence,
+            "final_status": final_status,
+            "execution_time_ms": execution_time_ms,
+        }
+
+    def _emit_mission_error_event(
+        self,
+        mission_id: str,
+        session_id: str,
+        error: str,
+        retry_count: int = 0,
+        can_retry: bool = False,
+        current_stage: str | None = None,
+    ) -> dict:
+        """Emit mission error event.
+
+        Args:
+            mission_id: Mission run ID
+            session_id: Session ID
+            error: Error message
+            retry_count: Number of retries attempted
+            can_retry: Whether this error is retryable
+            current_stage: Current stage when error occurred
+
+        Returns:
+            Mission error event dict
+        """
+        return {
+            "version": "v1",
+            "type": "mission_error",
+            "stage": current_stage,
+            "mission_id": mission_id,
+            "session_id": session_id,
+            "timestamp": datetime.now().isoformat(),
+            "payload": {
+                "error": error,
+                "can_retry": can_retry,
+            },
+            "sequence_number": self._mission_stage_sequence + 1,
+            "error": error,
+            "retry_count": retry_count,
+            "can_retry": can_retry,
+        }
+
+    def _increment_tool_calls(self) -> tuple[bool, str | None]:
+        """Increment tool call counter and check budget.
+
+        Returns:
+            (can_continue: bool, error_message: str | None)
+        """
+        self._mission_tool_call_count += 1
+        return self._check_mission_budget()
+
+    def _increment_sql_retry(self) -> None:
+        """Increment SQL retry counter."""
+        self._mission_sql_retry_count += 1
+
+    def _increment_identical_failure(self) -> tuple[bool, str | None]:
+        """Increment identical failure counter and check budget.
+
+        Returns:
+            (can_continue: bool, error_message: str | None)
+        """
+        self._mission_identical_failure_count += 1
+        return self._check_mission_budget()
+
+    def _get_mission_status_snapshot(self) -> dict:
+        """Get current mission status snapshot for monitoring.
+
+        Returns:
+            Dict with current mission state
+        """
+        elapsed = time.time() - (self._mission_start_time or time.time())
+        return {
+            "current_stage": self._mission_current_stage,
+            "stages_completed": self._mission_stages_completed.copy(),
+            "tool_calls": self._mission_tool_call_count,
+            "sql_retries": self._mission_sql_retry_count,
+            "identical_failures": self._mission_identical_failure_count,
+            "runtime_seconds": elapsed,
+            "budget_remaining": {
+                "runtime_seconds": max(0, self._mission_max_runtime_seconds - elapsed),
+                "tool_calls": max(0, self._mission_max_tool_calls - self._mission_tool_call_count),
+                "sql_retries": max(0, self._mission_max_sql_retries - self._mission_sql_retry_count),
+                "identical_failures": max(0, self._mission_max_identical_failures - self._mission_identical_failure_count),
+            },
+        }

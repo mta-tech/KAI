@@ -64,7 +64,10 @@ async def _render_stream(service, task, console):
                             icon = "[yellow]○[/yellow]"
                             style = ""
 
-                        todo_lines.append(f"{icon} [{style}]{content}[/{style}]")
+                        if style:
+                            todo_lines.append(f"{icon} [{style}]{content}[/{style}]")
+                        else:
+                            todo_lines.append(f"{icon} {content}")
 
                     if todo_lines:
                         console.print(
@@ -156,6 +159,11 @@ async def _render_stream(service, task, console):
                     console.print(f"{prefix}[bold green]✔ {tool_name} result:[/bold green]")
                     console.print(f"{prefix}[dim]{display_output}[/dim]")
 
+            elif event["type"] == "suggestions":
+                console.print("\n[bold cyan]Suggested follow-ups:[/bold cyan]")
+                for q in event.get("questions", []):
+                    console.print(f"  [dim]>[/dim] {q['question']}")
+
         # End of stream - Final Result
         if output_text.strip():
             # Clear the live component one last time
@@ -195,8 +203,8 @@ async def _run_task(prompt: str, db_connection_id: str, mode: str, output: str, 
 
     # Configure LLM
     llm_config = LLMConfig(
-        model_family=settings.CHAT_FAMILY,
-        model_name=settings.CHAT_MODEL,
+        model_family=settings.CHAT_FAMILY or "google",
+        model_name=settings.CHAT_MODEL or "gemini-2.0-flash",
     )
 
     # Patch connection for CLI use (host networking)
@@ -219,7 +227,7 @@ async def _run_task(prompt: str, db_connection_id: str, mode: str, output: str, 
             db_connection.connection_uri = fernet.encrypt(patched_uri)
 
             # Also patch alias to force new connection creation in pool
-            db_connection.id = db_connection.id + "_cli_patched"
+            db_connection.id = (db_connection.id or "") + "_cli_patched"
     except Exception as e:
         console.print(f"[yellow]Warning: Failed to patch connection URI: {e}[/yellow]")
 
@@ -287,8 +295,8 @@ async def _interactive_session(db_identifier: str):
 
     # Configure LLM
     llm_config = LLMConfig(
-        model_family=settings.CHAT_FAMILY,
-        model_name=settings.CHAT_MODEL,
+        model_family=settings.CHAT_FAMILY or "google",
+        model_name=settings.CHAT_MODEL or "gemini-2.0-flash",
     )
 
     # Patch connection for CLI use (host networking)
@@ -304,7 +312,7 @@ async def _interactive_session(db_identifier: str):
                 patched_uri = patched_uri.replace("@localhost/", "@localhost:5433/")
 
             db_connection.connection_uri = fernet.encrypt(patched_uri)
-            db_connection.id = db_connection.id + "_cli_patched"
+            db_connection.id = (db_connection.id or "") + "_cli_patched"
     except Exception as e:
         console.print(f"[yellow]Warning: Failed to patch connection URI: {e}[/yellow]")
 
@@ -451,7 +459,7 @@ def debug(session_id: str, db_connection_id: str):
         return
 
     try:
-        from agentic_learning import AgenticLearning
+        from agentic_learning import AgenticLearning  # type: ignore[import-untyped]
 
         client = AgenticLearning(
             api_key=settings.LETTA_API_KEY,

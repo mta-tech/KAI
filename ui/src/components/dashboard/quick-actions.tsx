@@ -15,7 +15,7 @@ export function QuickActions() {
         <Button asChild variant="outline" className="justify-start h-auto py-4 hover:bg-accent hover:text-accent-foreground transition-all duration-200 border-dashed hover:border-solid group">
           <Link href="/connections">
             <div className="flex items-center gap-3">
-                <div className="bg-primary/10 p-2 rounded-md group-hover:bg-primary/20 transition-colors">
+                <div className="bg-primary/10 p-2 rounded-md group-hover:bg-primary/20 transition-colors" aria-hidden="true">
                     <Database className="h-5 w-5 text-primary" />
                 </div>
                 <div className="flex flex-col items-start">
@@ -28,7 +28,7 @@ export function QuickActions() {
         <Button asChild variant="outline" className="justify-start h-auto py-4 hover:bg-accent hover:text-accent-foreground transition-all duration-200 border-dashed hover:border-solid group">
           <Link href="/chat">
             <div className="flex items-center gap-3">
-                <div className="bg-primary/10 p-2 rounded-md group-hover:bg-primary/20 transition-colors">
+                <div className="bg-primary/10 p-2 rounded-md group-hover:bg-primary/20 transition-colors" aria-hidden="true">
                     <MessageSquare className="h-5 w-5 text-primary" />
                 </div>
                 <div className="flex flex-col items-start">
@@ -41,7 +41,7 @@ export function QuickActions() {
         <Button asChild variant="outline" className="justify-start h-auto py-4 hover:bg-accent hover:text-accent-foreground transition-all duration-200 border-dashed hover:border-solid group">
           <Link href="/schema">
             <div className="flex items-center gap-3">
-                <div className="bg-primary/10 p-2 rounded-md group-hover:bg-primary/20 transition-colors">
+                <div className="bg-primary/10 p-2 rounded-md group-hover:bg-primary/20 transition-colors" aria-hidden="true">
                      <Table2 className="h-5 w-5 text-primary" />
                 </div>
                 <div className="flex flex-col items-start">
@@ -54,7 +54,7 @@ export function QuickActions() {
         <Button asChild variant="outline" className="justify-start h-auto py-4 hover:bg-accent hover:text-accent-foreground transition-all duration-200 border-dashed hover:border-solid group">
           <Link href="/mdl">
             <div className="flex items-center gap-3">
-                <div className="bg-primary/10 p-2 rounded-md group-hover:bg-primary/20 transition-colors">
+                <div className="bg-primary/10 p-2 rounded-md group-hover:bg-primary/20 transition-colors" aria-hidden="true">
                     <Layers className="h-5 w-5 text-primary" />
                 </div>
                 <div className="flex flex-col items-start">

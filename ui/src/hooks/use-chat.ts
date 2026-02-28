@@ -12,12 +12,15 @@ export function useChat() {
     messages,
     currentTodos,
     isStreaming,
+    selectedModel,
     setSession,
+    setSelectedModel,
     addUserMessage,
     startAssistantMessage,
     appendToAssistantMessage,
     appendStructuredContent,
     updateProcessStatus,
+    updateFollowUpSuggestions,
     updateTodos,
     addEvent,
     finishAssistantMessage,
@@ -77,6 +80,12 @@ export function useChat() {
             }
             break;
 
+          case 'suggestions':
+            if (event.suggestions && event.suggestions.length > 0) {
+              updateFollowUpSuggestions(assistantId, event.suggestions);
+            }
+            break;
+
           case 'todo_update':
             if (event.todos) {
               updateTodos(event.todos);
@@ -103,12 +112,14 @@ export function useChat() {
         finishAssistantMessage(assistantId);
       };
 
+      const { selectedModel: currentModel } = useChatStore.getState();
       abortRef.current = agentApi.streamTask(
         currentSessionId,
         content,
         handleEvent,
         handleError,
-        handleComplete
+        handleComplete,
+        currentModel
       );
     },
     [
@@ -117,6 +128,7 @@ export function useChat() {
       appendToAssistantMessage,
       appendStructuredContent,
       updateProcessStatus,
+      updateFollowUpSuggestions,
       updateTodos,
       addEvent,
       finishAssistantMessage,
@@ -137,7 +149,9 @@ export function useChat() {
     messages,
     currentTodos,
     isStreaming,
+    selectedModel,
     setSession,
+    setSelectedModel,
     sendMessage,
     stopStreaming,
     clearMessages,

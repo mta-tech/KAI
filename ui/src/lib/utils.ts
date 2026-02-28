@@ -4,3 +4,39 @@ import { twMerge } from 'tailwind-merge';
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+/**
+ * Add tailwind classes to hide/show an element based on a condition
+ * by changing the opacity and visibility
+ */
+export function hideIf(condition: boolean): string {
+  return condition ? 'opacity-0 invisible' : 'opacity-100 visible';
+}
+
+/**
+ * Check if an item is the last item in an array
+ */
+export function isLast<T>(item: T, array: T[]): boolean {
+  return item === array.at(-1);
+}
+
+/**
+ * Format bytes to human readable string
+ */
+export function formatBytes(bytes: number): string {
+  if (bytes === 0) {
+    return '0 B';
+  }
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const value = bytes / Math.pow(k, i);
+  return `${value % 1 === 0 ? value : value.toFixed(1)} ${sizes[i]}`;
+}
+
+/**
+ * Capitalize the first letter of a string
+ */
+export function capitalize(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}

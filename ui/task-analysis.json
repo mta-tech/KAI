@@ -1,0 +1,415 @@
+{
+  "decisions": [
+    {
+      "category": "Architecture",
+      "decision": "Next.js 14 App Router with React Server Components",
+      "rationale": "Chosen for built-in SSR/SSG, optimized performance, and streaming capabilities. Enables progressive rendering and better SEO.",
+      "files": [
+        "next.config.mjs",
+        "src/app/layout.tsx"
+      ]
+    },
+    {
+      "category": "Architecture",
+      "decision": "Standalone output deployment mode",
+      "rationale": "Enables containerized deployment with minimal dependencies. Reduces Docker image size by excluding unnecessary Node.js modules.",
+      "files": [
+        "next.config.mjs"
+      ]
+    },
+    {
+      "category": "State Management",
+      "decision": "Zustand for client-side state",
+      "rationale": "Lightweight alternative to Redux with built-in TypeScript support. No providers needed, better performance.",
+      "files": [
+        "src/lib/stores/theme-store.ts",
+        "src/stores/sidebar-store.ts",
+        "src/stores/chat-store.ts"
+      ]
+    },
+    {
+      "category": "State Management",
+      "decision": "React Query (@tanstack/react-query) for server state",
+      "rationale": "Handles caching, background refetching, and stale data. Reduces boilerplate for API interactions.",
+      "files": [
+        "package.json",
+        "src/lib/api/"
+      ]
+    },
+    {
+      "category": "Design System",
+      "decision": "Design tokens with centralized configuration",
+      "rationale": "Single source of truth for colors, spacing, typography. Enables consistent theming and easy design updates.",
+      "files": [
+        "src/lib/tokens.ts",
+        "tailwind.config.ts"
+      ]
+    },
+    {
+      "category": "Design System",
+      "decision": "Deep Indigo (#6366f1) as primary brand color",
+      "rationale": "Modern, professional appearance suitable for analytic engineering tool. High contrast ratio for accessibility.",
+      "files": [
+        "src/lib/tokens.ts"
+      ]
+    },
+    {
+      "category": "Design System",
+      "decision": "shadcn/ui + Radix UI primitives as component foundation",
+      "rationale": "Fully accessible, unstyled components with complete keyboard navigation. Full control over styling while maintaining a11y.",
+      "files": [
+        "src/components/ui/",
+        "package.json"
+      ]
+    },
+    {
+      "category": "Theming",
+      "decision": "Dark mode as native design with system preference detection",
+      "rationale": "Target users (analytic engineers) prefer dark mode. System preference provides seamless experience.",
+      "files": [
+        "src/lib/stores/theme-store.ts",
+        "src/components/providers/theme-provider.tsx"
+      ]
+    },
+    {
+      "category": "SSR Safety",
+      "decision": "Browser environment checks before window/document access",
+      "rationale": "Prevents hydration errors in Next.js SSR. Ensures theme and localStorage only accessed in browser.",
+      "files": [
+        "src/lib/stores/theme-store.ts",
+        "src/components/providers/theme-provider.tsx",
+        "src/lib/performance-monitoring.ts"
+      ]
+    },
+    {
+      "category": "Error Handling",
+      "decision": "Global toast notification system with Sonner",
+      "rationale": "Lightweight, accessible toast library. Handles stacking, auto-dismiss, and rich content out of the box.",
+      "files": [
+        "package.json",
+        "src/lib/api/errors.ts"
+      ]
+    },
+    {
+      "category": "Error Handling",
+      "decision": "Error boundaries at route level",
+      "rationale": "Catches React errors without crashing entire app. Provides fallback UI and error recovery options.",
+      "files": [
+        "src/app/layout.tsx",
+        "src/components/error-boundary.tsx"
+      ]
+    },
+    {
+      "category": "Accessibility",
+      "decision": "Suspense boundaries around dynamic content",
+      "rationale": "Prevents layout shift, provides loading states. Works with Next.js App Router streaming.",
+      "files": [
+        "src/components/analytics-provider.tsx",
+        "src/app/layout.tsx"
+      ]
+    },
+    {
+      "category": "Accessibility",
+      "decision": "Skip links and semantic landmarks",
+      "rationale": "WCAG 2.1 AA requirement. Enables keyboard navigation to main content. Essential for screen reader users.",
+      "files": [
+        "src/components/layout/skip-link.tsx",
+        "src/app/layout.tsx"
+      ]
+    },
+    {
+      "category": "Performance",
+      "decision": "Bundle splitting with vendor chunking",
+      "rationale": "Reduces initial load time. Vendor changes don't invalidate app cache. Enables parallel loading.",
+      "files": [
+        "next.config.mjs"
+      ]
+    },
+    {
+      "category": "Performance",
+      "decision": "Image optimization with AVIF/WebP support",
+      "rationale": "Next-gen formats provide 30%+ size reduction. Automatic format selection based on browser support.",
+      "files": [
+        "next.config.mjs"
+      ]
+    },
+    {
+      "category": "Performance",
+      "decision": "Modular imports for icon libraries",
+      "rationale": "Lucide icons tree-shaken to only used icons. Reduces bundle by ~200KB compared to full imports.",
+      "files": [
+        "next.config.mjs"
+      ]
+    },
+    {
+      "category": "Testing",
+      "decision": "Vitest for unit tests, Playwright for E2E",
+      "rationale": "Vitest provides fast unit testing with native ESM support. Playwright offers cross-browser E2E with parallel execution.",
+      "files": [
+        "package.json",
+        "vitest.config.ts"
+      ]
+    },
+    {
+      "category": "Testing",
+      "decision": "Storybook for component development",
+      "rationale": "Isolated component development. Visual regression testing with Chromatic. Accessibility testing addon.",
+      "files": [
+        ".storybook/",
+        "src/components/ui/*.stories.tsx"
+      ]
+    },
+    {
+      "category": "CI/CD",
+      "decision": "Accessibility audit in CI pipeline with axe-core",
+      "rationale": "Automated WCAG compliance checking. PR comments with violations. Fails build on critical issues.",
+      "files": [
+        ".github/workflows/accessibility.yml"
+      ]
+    },
+    {
+      "category": "CI/CD",
+      "decision": "Visual regression testing with Chromatic",
+      "rationale": "Catches unintended visual changes. Approval workflow for design changes. Integrated with PR workflow.",
+      "files": [
+        ".github/workflows/chromatic.yml"
+      ]
+    },
+    {
+      "category": "Logging",
+      "decision": "Environment-gated logger utility",
+      "rationale": "Prevents console.log in production. Enables debug logging in development. Structured logging with timestamps.",
+      "files": [
+        "src/lib/logger.ts"
+      ]
+    },
+    {
+      "category": "Analytics",
+      "decision": "Dynamic import for analytics to avoid SSR issues",
+      "rationale": "Analytics libraries often assume browser environment. Dynamic import prevents hydration errors.",
+      "files": [
+        "src/components/analytics-provider.tsx"
+      ]
+    },
+    {
+      "category": "Type Safety",
+      "decision": "Strict TypeScript configuration",
+      "rationale": "Catches type errors at compile time. Enables better IDE support. Reduces runtime errors.",
+      "files": [
+        "tsconfig.json"
+      ]
+    },
+    {
+      "category": "CSS",
+      "decision": "Tailwind CSS with CVA for variant management",
+      "rationale": "Utility-first approach with design token integration. CVA provides type-safe component variants.",
+      "files": [
+        "tailwind.config.ts",
+        "src/components/ui/button.tsx"
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "error": "Hydration mismatch with theme detection",
+      "solution": "Added isBrowser() checks before accessing window.matchMedia. Theme defaults to 'light' during SSR.",
+      "files": [
+        "src/lib/stores/theme-store.ts"
+      ],
+      "prevention": "Always check typeof window !== 'undefined' before browser APIs"
+    },
+    {
+      "error": "useSearchParams/usePathname used outside Suspense boundary",
+      "solution": "Wrapped AnalyticsTracker component in Suspense boundary with fallback={null}",
+      "files": [
+        "src/components/analytics-provider.tsx"
+      ],
+      "prevention": "Always wrap next/navigation hooks in Suspense when used in client components"
+    },
+    {
+      "error": "Module not found errors with icon imports",
+      "solution": "Enabled optimizePackageImports and modularizeImports in next.config.mjs for lucide-react",
+      "files": [
+        "next.config.mjs"
+      ],
+      "prevention": "Use modular imports for large libraries, configure tree-shaking"
+    },
+    {
+      "error": "Next.js metadata warnings for themeColor and viewport",
+      "solution": "Need to move themeColor and viewport from metadata export to viewport export (currently unimplemented)",
+      "files": [
+        "src/app/layout.tsx"
+      ],
+      "prevention": "Follow Next.js 14 metadata API, use separate viewport export"
+    },
+    {
+      "error": "Console.log statements in production",
+      "solution": "Created logger utility that gates debug logs behind NODE_ENV check. Only errors logged in production.",
+      "files": [
+        "src/lib/logger.ts"
+      ],
+      "prevention": "Use logger utility instead of console methods, add ESLint rule to prevent console.log"
+    },
+    {
+      "error": "API errors not user-friendly",
+      "solution": "Created handleApiError function that maps HTTP status codes to user-friendly toast messages",
+      "files": [
+        "src/lib/api/errors.ts"
+      ],
+      "prevention": "Centralize error handling, use toast notifications for user-facing errors"
+    },
+    {
+      "error": "No loading states for async actions",
+      "solution": "Created LoadingButton and Skeleton components. Added Suspense boundaries with fallback UI.",
+      "files": [
+        "src/components/ui/",
+        "src/app/layout.tsx"
+      ],
+      "prevention": "Always provide loading feedback for async operations, use Suspense for data fetching"
+    },
+    {
+      "error": "Focus management issues with modals",
+      "solution": "Implemented FocusTrap component and useFocusTrap hook. Ensures focus cycles within modal and returns to trigger.",
+      "files": [
+        "src/lib/hooks/use-focus-trap.ts"
+      ],
+      "prevention": "Use Radix UI primitives which include focus management, or wrap modals in FocusTrap"
+    },
+    {
+      "error": "Performance monitoring hydration errors",
+      "solution": "Added browser checks in performance-monitoring.ts before using PerformanceObserver API",
+      "files": [
+        "src/lib/performance-monitoring.ts"
+      ],
+      "prevention": "Always check for browser availability before using browser-only APIs"
+    },
+    {
+      "error": "Zustand persist middleware hydration issues",
+      "solution": "Theme store checks isBrowser() before accessing localStorage. Defaults work during SSR.",
+      "files": [
+        "src/lib/stores/theme-store.ts"
+      ],
+      "prevention": "Provide SSR-safe defaults, only hydrate persisted state in browser"
+    }
+  ],
+  "deployment": {
+    "environment": {
+      "node_version": "20.x",
+      "platform": "Docker container with standalone output",
+      "base_url": "http://localhost:8000 (configurable via NEXT_PUBLIC_API_URL)"
+    },
+    "build_configuration": {
+      "output_mode": "standalone",
+      "image_optimization": "AVIF/WebP with device size breakpoints",
+      "bundle_splitting": {
+        "vendor_chunk": true,
+        "common_chunk": true
+      },
+      "compression": true,
+      "source_maps": false
+    },
+    "optimization_features": {
+      "modular_imports": ["lucide-react"],
+      "optimized_packages": ["lucide-react", "@radix-ui/react-icons"],
+      "font_optimization": true,
+      "css_optimization": true
+    },
+    "security_headers": [
+      "X-DNS-Prefetch-Control: on",
+      "X-Frame-Options: SAMEORIGIN",
+      "X-Content-Type-Options: nosniff",
+      "Referrer-Policy: origin-when-cross-origin"
+    ],
+    "caching_strategy": {
+      "static_assets": "public, max-age=31536000, immutable",
+      "next_static": "public, max-age=31536000, immutable"
+    },
+    "performance_targets": {
+      "lcp": "< 2.5s",
+      "fid": "< 100ms", 
+      "cls": "< 0.1",
+      "fcp": "< 1.8s",
+      "ttfb": "< 800ms"
+    },
+    "docker_deployment": {
+      "base_image": "node:20-alpine (recommended)",
+      "working_dir": "/app",
+      "build_command": "npm run build",
+      "start_command": "npm start",
+      "port": 3000,
+      "standalone_mode": true
+    }
+  },
+  "patterns": [
+    {
+      "name": "SSR-Safe Store Pattern",
+      "description": "Zustand store with browser checks and SSR-safe defaults",
+      "usage": "Client state that needs persistence or browser APIs",
+      "example": "src/lib/stores/theme-store.ts",
+      "code_snippet": "function isBrowser(): boolean {\n  return typeof window !== 'undefined' && typeof document !== 'undefined';\n}\n\ngetResolvedTheme: () => {\n  if (!isBrowser()) return 'light';\n  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';\n}"
+    },
+    {
+      "name": "Suspense Boundary for Next.js Hooks",
+      "description": "Wrap components using useSearchParams/usePathname in Suspense to prevent errors",
+      "usage": "Client components that use next/navigation hooks",
+      "example": "src/components/analytics-provider.tsx",
+      "code_snippet": "<Suspense fallback={null}>\n  <AnalyticsTracker />\n</Suspense>"
+    },
+    {
+      "name": "API Client with Error Handling",
+      "description": "Fetch wrapper with error parsing and toast notifications",
+      "usage": "Type-safe API calls with consistent error handling",
+      "example": "src/lib/api/fetch.ts",
+      "code_snippet": "async function request<T>(method: string, endpoint: string, data?: unknown): Promise<T> {\n  try {\n    const response = await fetch(url, config);\n    if (!response.ok) {\n      throw new Error(`API Error (${response.status})`);\n    }\n    return response.json();\n  } catch (error) {\n    if (!skipErrorHandling) {\n      handleApiError(error, endpoint);\n    }\n    throw error;\n  }\n}"
+    },
+    {
+      "name": "Environment-Gated Logger",
+      "description": "Logger that only outputs in development, errors only in production",
+      "usage": "Replace console.log throughout application",
+      "example": "src/lib/logger.ts",
+      "code_snippet": "const isDevelopment = process.env.NODE_ENV === 'development';\n\nlog(message: string, ...args: unknown[]): void {\n  if (isDevelopment) {\n    console.log(this.formatMessage('log', message), ...args);\n  }\n}"
+    },
+    {
+      "name": "Design Token Integration",
+      "description": "Centralized tokens exported to Tailwind config",
+      "usage": "Consistent spacing, colors, typography across app",
+      "example": "src/lib/tokens.ts, tailwind.config.ts",
+      "code_snippet": "export const designTokens = {\n  colors: { brand: colorTokens, ... },\n  spacing: spacingTokens,\n  typography: { fontFamily, fontSize, ... }\n};\n\n// tailwind.config.ts\ntheme: {\n  extend: {\n    spacing: designTokens.spacing,\n    fontFamily: designTokens.typography.fontFamily\n  }\n}"
+    },
+    {
+      "name": "Component Variant Pattern",
+      "description": "CVA for type-safe component variants with Tailwind classes",
+      "usage": "Buttons, cards, inputs with multiple visual states",
+      "example": "src/components/ui/button.tsx",
+      "code_snippet": "const buttonVariants = cva(\n  \"inline-flex items-center...\",\n  {\n    variants: {\n      variant: {\n        default: \"bg-primary text-primary-foreground\",\n        destructive: \"bg-destructive...\",\n        outline: \"border border-input...\"\n      },\n      size: {\n        default: \"h-9 px-4\",\n        sm: \"h-8 px-3\",\n        lg: \"h-10 px-8\"\n      }\n    }\n  }\n);"
+    },
+    {
+      "name": "Dynamic Import for Analytics",
+      "description": "Lazy load analytics to avoid SSR assumptions",
+      "usage": "Browser-only libraries in Next.js",
+      "example": "src/components/analytics-provider.tsx",
+      "code_snippet": "trackEvent: (name: string, properties?: Record<string, unknown>) => {\n  import('@/lib/analytics').then(({ trackEvent }) => {\n    trackEvent(name, properties);\n  });\n}"
+    },
+    {
+      "name": "Error Boundary Wrapper",
+      "description": "Route-level error boundaries with fallback UI",
+      "usage": "Prevent app crashes from component errors",
+      "example": "src/app/layout.tsx",
+      "code_snippet": "<ErrorBoundary>\n  <Suspense fallback={<PageLoadingFallback />}>\n    <PageTransition>\n      {children}\n    </PageTransition>\n  </Suspense>\n</ErrorBoundary>"
+    },
+    {
+      "name": "Loading File Pattern",
+      "description": "loading.tsx files for route-level loading states",
+      "usage": "Show loading UI during route transitions",
+      "example": "src/app/*/loading.tsx",
+      "code_snippet": "export default function Loading() {\n  return <Skeleton className=\"h-40 w-full\" />;\n}"
+    },
+    {
+      "name": "Storybook Documentation Pattern",
+      "description": "Component stories with auto-docs and accessibility testing",
+      "usage": "Document component variants and catch a11y issues",
+      "example": "src/components/ui/*.stories.tsx",
+      "code_snippet": "export default {\n  title: 'UI/Button',\n  component: Button,\n  parameters: { layout: 'centered' },\n  tags: ['autodocs', 'a11y']\n};"
+    }
+  ]
+}

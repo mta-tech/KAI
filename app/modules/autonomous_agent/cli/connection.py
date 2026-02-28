@@ -20,7 +20,7 @@ def connection():
 @connection.command("create")
 @click.argument("connection_uri")
 @click.option("--alias", "-a", required=True, help="Human-readable name for the connection")
-@click.option("--schema", "-s", "schemas", multiple=True, default=["public"], help="Database schema(s) to use (can be specified multiple times)")
+@click.option("--schema", "-s", "schemas", multiple=True, help="Database schema(s) to use (can be specified multiple times)")
 @click.option("--metadata", "-m", type=str, help="JSON metadata for the connection")
 def create(connection_uri: str, alias: str, schemas: tuple, metadata: str):
     """Create a new database connection.

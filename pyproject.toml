@@ -1,6 +1,6 @@
 [project]
 name = "kai"
-version = "0.1.0"
+version = "1.0.0"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.112.2",
@@ -49,6 +49,7 @@ dependencies = [
     "marshmallow>=3.26.2", # CVE: DoS in Schema.load(many)
     "psycopg2-binary>=2.9.11",
     "google-genai>=1.62.0",
+    "jinja2>=3.0.0",
 ]
 
 [project.scripts]
@@ -61,3 +62,6 @@ packages = ["app"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.ty.environment]
+python = ".venv"

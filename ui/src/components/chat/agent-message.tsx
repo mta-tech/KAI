@@ -2,98 +2,27 @@
 
 import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Bot, User, Sparkles, Loader2 } from 'lucide-react';
 import { TodoList } from './todo-list';
-import { ToolCallBlock } from './tool-call-block';
+import { ToolCallBlock, useToolPairs } from './tool-calls';
 import { SqlBlock } from './sql-block';
+import { SqlResultsTable, useQueryResults } from './sql-results-table';
 import { InsightsBlock, ChartRecommendationsBlock } from './insights-block';
+import { Visualizations } from './visualizations';
+import { ProcessStatus, StreamingMessage } from './streaming-indicator';
+import { MessageActions } from './message-actions';
+import { FollowUpSuggestions } from './follow-up-suggestions';
+import { useChat } from '@/hooks/use-chat';
 import type { ChatMessage, StructuredContent } from '@/stores/chat-store';
-import type { AgentEvent } from '@/lib/api/types';
+import { formatToMarkdown, parseJsonContent } from './chat-message-utils';
 
 interface AgentMessageProps {
   message: ChatMessage;
 }
 
-// Helper to format array/object to markdown string
-function formatToMarkdown(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) {
-    return value.map((item) => {
-      if (typeof item === 'string') return `- ${item}`;
-      if (typeof item === 'object' && item !== null) {
-        // Handle objects with title/description or similar structure
-        const obj = item as Record<string, unknown>;
-        if (obj.title && obj.description) {
-          return `**${obj.title}**: ${obj.description}`;
-        }
-        if (obj.chart_type && obj.reason) {
-          return `**${obj.chart_type}**: ${obj.reason}`;
-        }
-        return `- ${JSON.stringify(item)}`;
-      }
-      return `- ${String(item)}`;
-    }).join('\n');
-  }
-  if (typeof value === 'object' && value !== null) {
-    return JSON.stringify(value, null, 2);
-  }
-  return String(value);
-}
-
-// Parse JSON from content if it's a JSON code block
-function parseJsonContent(content: string): { parsed: Record<string, unknown> | null; text: string } {
-  // Check for JSON code block pattern: ```json\n{...}\n```
-  const jsonBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
-  if (jsonBlockMatch) {
-    try {
-      const parsed = JSON.parse(jsonBlockMatch[1]);
-      // Remove the JSON block from content
-      const text = content.replace(/```json\s*[\s\S]*?\s*```/, '').trim();
-      return { parsed, text };
-    } catch {
-      // Not valid JSON, return as-is
-    }
-  }
-
-  // Check if content is just raw JSON
-  const trimmed = content.trim();
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      return { parsed, text: '' };
-    } catch {
-      // Not valid JSON
-    }
-  }
-
-  return { parsed: null, text: content };
-}
-
 export function AgentMessage({ message }: AgentMessageProps) {
-  const toolPairs = useMemo(() => {
-    if (!message.events) return [];
-
-    const pairs: { start: AgentEvent; end?: AgentEvent }[] = [];
-    const pending: AgentEvent[] = [];
-
-    for (const event of message.events) {
-      if (event.type === 'tool_start') {
-        pending.push(event);
-      } else if (event.type === 'tool_end') {
-        const start = pending.find((p) => p.tool === event.tool);
-        if (start) {
-          pairs.push({ start, end: event });
-          pending.splice(pending.indexOf(start), 1);
-        }
-      }
-    }
-
-    for (const start of pending) {
-      pairs.push({ start });
-    }
-
-    return pairs;
-  }, [message.events]);
+  const queryResults = useQueryResults(message.events);
+  const toolPairs = useToolPairs(message.events);
+  const { sendMessage } = useChat();
 
   // Parse JSON from content and merge with structured content
   const { displayContent, structured } = useMemo(() => {
@@ -128,34 +57,37 @@ export function AgentMessage({ message }: AgentMessageProps) {
 
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end gap-3">
-        <div className="max-w-[80%] rounded-2xl rounded-tr-none bg-primary px-5 py-3 text-primary-foreground shadow-sm">
-          <p className="leading-relaxed">{message.content}</p>
-        </div>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20">
-            <User className="h-5 w-5 text-primary" />
+      <div className="flex justify-end group">
+        <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl bg-primary/10 px-4 py-3 text-foreground relative">
+          <p className="text-sm sm:text-base leading-relaxed break-words">{message.content}</p>
+          <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <MessageActions message={message} />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex gap-4">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20 mt-1">
-          <Bot className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-      </div>
+    <div className="group">
+      <div
+        className="space-y-3 overflow-hidden min-w-0 relative"
+        aria-live="polite"
+        aria-busy={message.isStreaming}
+        aria-label={message.isStreaming ? 'AI is responding' : 'AI response'}
+      >
+        {/* Message Actions - positioned in top right */}
+        <div className="absolute top-0 right-0 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+          <MessageActions message={message} />
+        </div>
 
-      <div className="flex-1 space-y-3 overflow-hidden">
         {/* Process status indicator during streaming */}
         {message.isStreaming && structured?.processStatus && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>{structured.processStatus}</span>
-          </div>
+          <ProcessStatus status={structured.processStatus} />
         )}
 
         {message.todos && message.todos.length > 0 && (
-          <div className="rounded-lg border bg-card p-2 shadow-sm">
+          <div className="rounded-lg border bg-card p-2 sm:p-3 shadow-sm">
             <TodoList todos={message.todos} />
           </div>
         )}
@@ -170,12 +102,25 @@ export function AgentMessage({ message }: AgentMessageProps) {
 
         {/* SQL Query Block */}
         {structured?.sql && (
-          <SqlBlock sql={structured.sql} />
+          <SqlBlock sql={structured.sql} isStreaming={message.isStreaming} />
+        )}
+
+        {/* SQL Results Table */}
+        {queryResults && !message.isStreaming && (
+          <SqlResultsTable results={queryResults} />
         )}
 
         {/* Summary/Answer Block */}
         {(displayContent || structured?.summary || structured?.reasoning) && (
-          <div className="prose prose-sm dark:prose-invert max-w-none rounded-xl border bg-card/50 px-5 py-4 shadow-sm">
+          <div
+            className={`prose prose-sm dark:prose-invert max-w-none rounded-xl border border-border/50 bg-card/50 px-3 py-3 sm:px-5 sm:py-4 shadow-sm prose-headings:text-base sm:prose-headings:text-lg prose-p:text-sm sm:prose-p:text-base relative overflow-hidden${message.isStreaming ? ' streaming-cursor' : ''}`}
+          >
+            {/* Streaming shimmer effect */}
+            {message.isStreaming && (
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-foreground/5 to-transparent animate-shimmer" />
+              </div>
+            )}
             <ReactMarkdown>
               {structured?.summary || displayContent || structured?.reasoning || ''}
             </ReactMarkdown>
@@ -192,12 +137,25 @@ export function AgentMessage({ message }: AgentMessageProps) {
           <ChartRecommendationsBlock recommendations={structured.chartRecommendations} />
         )}
 
-        {/* Streaming indicator */}
+        {/* Visualizations */}
+        {structured?.chartRecommendations && !message.isStreaming && (
+          <Visualizations
+            recommendations={structured.chartRecommendations}
+            data={[]} // Data will be extracted from events by the component
+          />
+        )}
+
+        {/* Streaming indicator at bottom */}
         {message.isStreaming && !structured?.processStatus && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse">
-            <Sparkles className="h-4 w-4" />
-            <span className="font-mono text-xs">PROCESSING_REQUEST...</span>
-          </div>
+          <StreamingMessage message="AI is responding" />
+        )}
+
+        {/* Follow-up suggestions (shown after streaming completes) */}
+        {!message.isStreaming && structured?.followUpSuggestions && structured.followUpSuggestions.length > 0 && (
+          <FollowUpSuggestions
+            suggestions={structured.followUpSuggestions.slice(0, 4)}
+            onSelect={sendMessage}
+          />
         )}
       </div>
     </div>

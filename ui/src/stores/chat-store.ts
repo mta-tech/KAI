@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 import type { AgentEvent, AgentTodo, ChunkType } from '@/lib/api/types';
+import { createLogger } from '@/lib/logger';
+import { DEFAULT_MODEL } from '@/lib/llm-providers';
+
+const logger = createLogger('ChatStore');
 
 // Structured content from SSE events
 export interface StructuredContent {
@@ -9,6 +13,7 @@ export interface StructuredContent {
   chartRecommendations?: string;
   reasoning?: string;
   processStatus?: string;
+  followUpSuggestions?: string[];
 }
 
 export interface ChatMessage {
@@ -29,18 +34,28 @@ interface ChatState {
   messages: ChatMessage[];
   currentTodos: AgentTodo[];
   isStreaming: boolean;
+  selectedModel: string;
 
   setSession: (sessionId: string, connectionId: string) => void;
+  setSelectedModel: (model: string) => void;
   addUserMessage: (content: string) => string;
   startAssistantMessage: (id: string) => void;
   appendToAssistantMessage: (id: string, content: string) => void;
   appendStructuredContent: (id: string, chunkType: ChunkType, content: string) => void;
   updateProcessStatus: (id: string, status: string) => void;
+  updateFollowUpSuggestions: (id: string, suggestions: string[]) => void;
   updateTodos: (todos: AgentTodo[]) => void;
   addEvent: (messageId: string, event: AgentEvent) => void;
   finishAssistantMessage: (id: string) => void;
   setStreaming: (streaming: boolean) => void;
   clearMessages: () => void;
+}
+
+const SELECTED_MODEL_KEY = 'kai-selected-model';
+
+function getPersistedModel(): string {
+  if (typeof window === 'undefined') return DEFAULT_MODEL;
+  return localStorage.getItem(SELECTED_MODEL_KEY) || DEFAULT_MODEL;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -49,8 +64,16 @@ export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   currentTodos: [],
   isStreaming: false,
+  selectedModel: getPersistedModel(),
 
   setSession: (sessionId, connectionId) => set({ sessionId, connectionId, messages: [] }),
+
+  setSelectedModel: (model) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SELECTED_MODEL_KEY, model);
+    }
+    set({ selectedModel: model });
+  },
 
   addUserMessage: (content) => {
     const id = `user-${Date.now()}`;
@@ -64,10 +87,9 @@ export const useChatStore = create<ChatState>((set) => ({
   },
 
   startAssistantMessage: (id) => {
-    console.log('[Chat Store] startAssistantMessage called:', { id });
+    logger.debug('startAssistantMessage called:', { id });
     set((state) => {
       const newMessage = { id, role: 'assistant' as const, content: '', timestamp: new Date(), events: [], isStreaming: true };
-      console.log('[Chat Store] Creating new message:', newMessage);
       return {
         messages: [...state.messages, newMessage],
         isStreaming: true,
@@ -76,31 +98,16 @@ export const useChatStore = create<ChatState>((set) => ({
   },
 
   appendToAssistantMessage: (id, content) => {
-    console.log('[Chat Store] appendToAssistantMessage called:', { id, content, contentLength: content.length });
     set((state) => {
       const message = state.messages.find((m) => m.id === id);
-      console.log('[Chat Store] Current message:', {
-        messageId: message?.id,
-        currentContentLength: message?.content.length,
-        isStreaming: message?.isStreaming
-      });
-
       const updatedMessages = state.messages.map((m) =>
         m.id === id ? { ...m, content: m.content + content } : m
       );
-
-      const updatedMessage = updatedMessages.find((m) => m.id === id);
-      console.log('[Chat Store] Updated message:', {
-        messageId: updatedMessage?.id,
-        newContentLength: updatedMessage?.content.length
-      });
-
       return { messages: updatedMessages };
     });
   },
 
   appendStructuredContent: (id, chunkType, content) => {
-    console.log('[Chat Store] appendStructuredContent called:', { id, chunkType, contentLength: content.length });
     set((state) => ({
       messages: state.messages.map((m) => {
         if (m.id !== id) return m;
@@ -129,12 +136,21 @@ export const useChatStore = create<ChatState>((set) => ({
   },
 
   updateProcessStatus: (id, status) => {
-    console.log('[Chat Store] updateProcessStatus called:', { id, status });
     set((state) => ({
       messages: state.messages.map((m) => {
         if (m.id !== id) return m;
         const structured = m.structured || {};
         return { ...m, structured: { ...structured, processStatus: status } };
+      })
+    }));
+  },
+
+  updateFollowUpSuggestions: (id, suggestions) => {
+    set((state) => ({
+      messages: state.messages.map((m) => {
+        if (m.id !== id) return m;
+        const structured = m.structured || {};
+        return { ...m, structured: { ...structured, followUpSuggestions: suggestions } };
       })
     }));
   },
@@ -150,9 +166,7 @@ export const useChatStore = create<ChatState>((set) => ({
   },
 
   finishAssistantMessage: (id) => {
-    console.log('[Chat Store] finishAssistantMessage called:', { id });
     set((state) => {
-      console.log('[Chat Store] Setting isStreaming to false, current state:', { isStreaming: state.isStreaming });
       return {
         messages: state.messages.map((m) =>
           m.id === id ? { ...m, isStreaming: false, todos: state.currentTodos } : m

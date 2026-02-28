@@ -22,7 +22,7 @@ import { MoreHorizontal, Trash2, Table2, Layers, Scan, Sparkles, Loader2 } from 
 import Link from 'next/link';
 import type { DatabaseConnection } from '@/lib/api/types';
 import { useDeleteConnection } from '@/hooks/use-connections';
-import { ScanDialog } from './scan-dialog';
+import { ScanWizard } from '@/components/schema/scan-wizard';
 import { MDLBuildDialog } from './mdl-build-dialog';
 import { useScanProgress } from '@/lib/stores/scan-progress';
 
@@ -131,8 +131,8 @@ export function ConnectionTable({ connections }: ConnectionTableProps) {
                       onClick={() => handleScanWithAI(connection)}
                       disabled={scanning}
                     >
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      {scanning ? 'Scanning...' : 'Scan with AI'}
+                      <Scan className="mr-2 h-4 w-4" />
+                      {scanning ? 'Scanning...' : 'Scan Database...'}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
@@ -162,7 +162,7 @@ export function ConnectionTable({ connections }: ConnectionTableProps) {
         </TableBody>
       </Table>
 
-      <ScanDialog
+      <ScanWizard
         open={scanDialogOpen}
         onOpenChange={setScanDialogOpen}
         connection={selectedConnection}

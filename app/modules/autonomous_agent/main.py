@@ -115,8 +115,10 @@ from rich.spinner import Spinner
 console = Console()
 
 # Import command groups
+from app.modules.autonomous_agent.cli.benchmark import benchmark
 from app.modules.autonomous_agent.cli.config import config
 from app.modules.autonomous_agent.cli.connection import connection
+from app.modules.autonomous_agent.cli.context import context
 from app.modules.autonomous_agent.cli.dashboard import dashboard
 from app.modules.autonomous_agent.cli.knowledge import knowledge
 from app.modules.autonomous_agent.cli.mdl import mdl
@@ -278,6 +280,8 @@ def cli():
     pass
 
 # Register command groups
+cli.add_command(benchmark)
+cli.add_command(context)
 cli.add_command(config)
 cli.add_command(connection)
 cli.add_command(dashboard)
