@@ -54,23 +54,23 @@ class DocumentService:
     def get_document(self, document_id) -> DocumentStore:
         document = self.repository.find_by_id(document_id)
         if not document:
-            raise HTTPException(f"Prompt {document_id} not found")
+            raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
         return document
 
     def get_documents(self) -> list[DocumentStore]:
         return self.repository.find_all()
 
-    def delete_document(self, document_id) -> bool:
+    def delete_document(self, document_id) -> DocumentStore:
         document = self.repository.find_by_id(document_id)
         if not document:
-            raise HTTPException(f"Prompt {document_id} not found")
+            raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
 
         is_deleted = self.repository.delete_by_id(document_id)
 
         if not is_deleted:
-            raise HTTPException(f"Failed to delete document {document_id}")
+            raise HTTPException(status_code=500, detail=f"Failed to delete document {document_id}")
 
-        return True
+        return is_deleted
 
 
 # TODO Embedding Service should use by Settings and Embedding Factory not initiate by itself

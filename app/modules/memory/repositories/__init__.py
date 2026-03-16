@@ -295,7 +295,7 @@ class MemoryRepository:
         if updates:
             self.storage.bulk_update(DB_COLLECTION, updates)
 
-    def delete(self, id: str) -> int:
+    def delete(self, id: str) -> dict | None:
         """Delete a memory by ID."""
         return self.storage.delete_by_id(DB_COLLECTION, id)
 
@@ -316,7 +316,7 @@ class MemoryRepository:
         """
         memory = self.find_by_key(db_connection_id, namespace, key, session_id)
         if memory and memory.id:
-            return self.delete(memory.id) > 0
+            return bool(self.delete(memory.id))
         return False
 
     def delete_by_namespace(self, db_connection_id: str, namespace: str) -> int:

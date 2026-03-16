@@ -135,7 +135,7 @@ class SkillRepository:
         else:
             return self.insert(skill)
 
-    def delete(self, id: str) -> int:
+    def delete(self, id: str) -> dict | None:
         """Delete a skill by ID."""
         return self.storage.delete_by_id(DB_COLLECTION, id)
 
@@ -143,5 +143,5 @@ class SkillRepository:
         """Delete a skill by its skill_id."""
         skill = self.find_by_skill_id(db_connection_id, skill_id)
         if skill and skill.id:
-            return self.delete(skill.id) > 0
+            return bool(self.delete(skill.id))
         return False
