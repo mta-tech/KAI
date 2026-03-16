@@ -60,7 +60,7 @@ class InstructionRepository:
 
     def delete_by_id(self, id: str) -> bool:
         deleted_count = self.storage.delete_by_id(DB_COLLECTION, id)
-        return deleted_count > 0
+        return bool(deleted_count)
 
     def update(self, instruction: Instruction) -> Instruction:
         self.storage.update_or_create(

@@ -81,7 +81,7 @@ class DatabaseConnectionService:
         db_connection = self.repository.find_by_id(db_connection_id)
 
         if db_connection is None:
-            raise HTTPException(f"Prompt {db_connection_id} not found")
+            raise HTTPException(status_code=404, detail=f"Database connection {db_connection_id} not found")
 
         database_connection = DatabaseConnection(
             id=db_connection_id,
@@ -132,13 +132,13 @@ class DatabaseConnectionService:
         db_connection = self.repository.find_by_id(db_connection_id)
 
         if db_connection is None:
-            raise HTTPException(f"Prompt {db_connection_id} not found")
-        # Delete DB connection
-        db_connections = self.repository.delete_by_id(db_connection_id)
+            raise HTTPException(status_code=404, detail=f"Database connection {db_connection_id} not found")
 
-        if not db_connections:
+        deleted_connection = self.repository.delete_by_id(db_connection_id)
+
+        if not deleted_connection:
             raise HTTPException(
-                f"Failed to delete database connections {db_connection_id}"
+                status_code=500, detail=f"Failed to delete database connection {db_connection_id}"
             )
 
         scanner_repository = TableDescriptionRepository(self.storage)
@@ -147,7 +147,7 @@ class DatabaseConnectionService:
             str(db_connection.id), scanner_repository
         )
 
-        return DatabaseConnection(**db_connections.model_dump())
+        return deleted_connection
 
     def remove_schema_in_uri(self, connection_uri: str, dialect: str) -> str:
         if dialect in ["postgresql"]:

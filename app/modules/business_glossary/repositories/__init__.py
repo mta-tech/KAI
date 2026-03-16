@@ -73,5 +73,5 @@ class BusinessGlossaryRepository:
         )
         return business_glossary
 
-    def delete(self, id: str) -> int:
+    def delete(self, id: str) -> dict | None:
         return self.storage.delete_by_id(DB_COLLECTION, id)

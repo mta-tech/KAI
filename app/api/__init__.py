@@ -113,6 +113,7 @@ class API:
             "/api/v1/database-connections/{db_connection_id}",
             self.delete_database_connection,
             methods=["DELETE"],
+            status_code=204,
             tags=["Database Connections"],
         )
 
@@ -157,6 +158,7 @@ class API:
             "/api/v1/table-descriptions/{table_description_id}",
             self.delete_table_description,
             methods=["DELETE"],
+            status_code=204,
             tags=["Table Descriptions"],
         )
 
@@ -193,6 +195,7 @@ class API:
             "/api/v1/instructions/{instruction_id}",
             self.delete_instruction,
             methods=["DELETE"],
+            status_code=204,
             tags=["Instructions"],
         )
 
@@ -236,6 +239,7 @@ class API:
             "/api/v1/context-stores/{context_store_id}",
             self.delete_context_store,
             methods=["DELETE"],
+            status_code=204,
             tags=["Context Stores"],
         )
 
@@ -272,6 +276,7 @@ class API:
             "/api/v1/business_glossaries/{business_glossary_id}",
             self.delete_business_glossary,
             methods=["DELETE"],
+            status_code=204,
             tags=["Business Glossaries"],
         )
 
@@ -446,6 +451,7 @@ class API:
             "/api/v1/rags/documents/{document_id}",
             self.delete_document,
             methods=["DELETE"],
+            status_code=204,
             tags=["RAGs"],
         )
 
@@ -504,6 +510,7 @@ class API:
             "/api/v1/aliases/{alias_id}",
             self.delete_alias,
             methods=["DELETE"],
+            status_code=204,
             tags=["Aliases"],
         )
 
@@ -569,11 +576,11 @@ class API:
     def delete_database_connection(
         self,
         db_connection_id: str,
-    ) -> DatabaseConnectionResponse:
-        db_connection = self.database_connection_service.delete_database_connection(
+    ) -> None:
+        self.database_connection_service.delete_database_connection(
             db_connection_id
         )
-        return DatabaseConnectionResponse(**db_connection.model_dump())
+        return None
 
     def scan_db(
         self, scanner_request: ScannerRequest, background_tasks: BackgroundTasks
@@ -631,12 +638,12 @@ class API:
 
     def delete_table_description(
         self, table_description_id: str
-    ) -> TableDescriptionResponse:
+    ) -> None:
         """Delete description"""
-        table_description = self.table_description_service.delete_table_description(
+        self.table_description_service.delete_table_description(
             table_description_id
         )
-        return TableDescriptionResponse(**table_description.model_dump())
+        return None
 
     def create_prompt(self, prompt_request: PromptRequest) -> PromptResponse:
         prompt = self.prompt_service.create_prompt(prompt_request)
@@ -681,11 +688,10 @@ class API:
         )
         return InstructionResponse(**instruction.model_dump())
 
-    def delete_instruction(self, instruction_id: str) -> dict:
+    def delete_instruction(self, instruction_id: str) -> None:
         try:
-            is_deleted = self.instruction_service.delete_instruction(instruction_id)
-            if is_deleted:
-                return {"message": f"Instruction {instruction_id} successfully deleted"}
+            self.instruction_service.delete_instruction(instruction_id)
+            return None
         except Exception as e:
             if "not found" in str(e):
                 raise HTTPException(status_code=404, detail=str(e))
@@ -735,13 +741,12 @@ class API:
 
         return [context_store for context_store in semantic_context_stores]
 
-    def delete_context_store(self, context_store_id: str) -> dict:
+    def delete_context_store(self, context_store_id: str) -> None:
         try:
-            is_deleted = self.context_store_service.delete_context_store(
+            self.context_store_service.delete_context_store(
                 context_store_id
             )
-            if is_deleted:
-                return {"message": f"Context {context_store_id} successfully deleted"}
+            return None
         except Exception as e:
             if "not found" in str(e):
                 raise HTTPException(status_code=404, detail=str(e))
@@ -788,11 +793,11 @@ class API:
     def delete_business_glossary(
         self,
         business_glossary_id: str,
-    ) -> dict:
-        deleted = self.business_glossary_service.delete_business_glossary(
+    ) -> None:
+        self.business_glossary_service.delete_business_glossary(
             business_glossary_id
         )
-        return deleted
+        return None
 
     def create_sql_generation(
         self, prompt_id: str, sql_generation_request: SQLGenerationRequest
@@ -971,11 +976,10 @@ class API:
         document = self.document_service.get_document(document_id)
         return DocumentResponse(**document.model_dump())
 
-    def delete_document(self, document_id: str) -> dict:
+    def delete_document(self, document_id: str) -> None:
         try:
-            is_deleted = self.document_service.delete_document(document_id)
-            if is_deleted:
-                return {"message": f"Document {document_id} successfully deleted"}
+            self.document_service.delete_document(document_id)
+            return None
         except Exception as e:
             if "not found" in str(e):
                 raise HTTPException(status_code=404, detail=str(e))
@@ -1060,8 +1064,9 @@ class API:
             created_at=alias.created_at,
         )
 
-    def delete_alias(self, alias_id: str) -> AliasResponse:
-        return self.alias_service.delete_alias(alias_id)
+    def delete_alias(self, alias_id: str) -> None:
+        self.alias_service.delete_alias(alias_id)
+        return None
 
     async def generate_synthetic_questions(
         self, request: SyntheticQuestionRequest
