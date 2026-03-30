@@ -148,7 +148,8 @@ class SQLDatabase:
         if database_info.id in existing_connection and not refresh_connection:
             try:
                 sql_database = existing_connection[database_info.id]
-                sql_database.engine.connect()  # Test if the connection is still valid
+                with sql_database.engine.connect() as test_conn:
+                    test_conn.execute(text("SELECT 1"))  # Test if the connection is still valid
                 return sql_database
             except Exception as e:
                 logger.warning(
@@ -165,7 +166,8 @@ class SQLDatabase:
         try:
             db_uri = unquote(fernet_encrypt.decrypt(database_info.connection_uri))
             engine = cls.from_uri(db_uri)
-            engine.engine.connect()
+            with engine.engine.connect() as test_conn:
+                test_conn.execute(text("SELECT 1"))  # Verify connection is valid
             DBConnections.add(database_info.id, engine)
             return engine
         except Exception as e:

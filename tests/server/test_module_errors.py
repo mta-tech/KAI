@@ -49,16 +49,6 @@ from app.modules.dashboard.exceptions import (
     WidgetQueryGenerationError,
 )
 
-# ChartViz module exceptions
-from app.modules.chartviz.exceptions import (
-    AnalysisDataExtractionError,
-    AutoChartGenerationError,
-    ChartVizError,
-    ChartVizGenerationError,
-    ChartVizRecommendationError,
-    InvalidChartTypeError as ChartVizInvalidChartTypeError,
-)
-
 
 class TestCustomError:
     """Tests for CustomError base class."""
@@ -225,41 +215,6 @@ class TestDashboardExceptions:
         assert isinstance(error, DashboardError)
 
 
-class TestChartVizExceptions:
-    """Tests for chartviz module exception classes."""
-
-    def test_chartviz_error_inherits_from_custom_error(self) -> None:
-        """ChartVizError should inherit from CustomError."""
-        error = ChartVizError("ChartViz error")
-        assert isinstance(error, CustomError)
-        assert isinstance(error, Exception)
-
-    def test_chartviz_generation_error(self) -> None:
-        """ChartVizGenerationError should inherit from ChartVizError."""
-        error = ChartVizGenerationError("Generation failed")
-        assert isinstance(error, ChartVizError)
-        assert isinstance(error, CustomError)
-
-    def test_chartviz_recommendation_error(self) -> None:
-        """ChartVizRecommendationError should inherit from ChartVizError."""
-        error = ChartVizRecommendationError("Recommendation failed")
-        assert isinstance(error, ChartVizError)
-
-    def test_auto_chart_generation_error(self) -> None:
-        """AutoChartGenerationError should inherit from ChartVizError."""
-        error = AutoChartGenerationError("Auto generation failed")
-        assert isinstance(error, ChartVizError)
-
-    def test_analysis_data_extraction_error(self) -> None:
-        """AnalysisDataExtractionError should inherit from ChartVizError."""
-        error = AnalysisDataExtractionError("Extraction failed")
-        assert isinstance(error, ChartVizError)
-
-    def test_chartviz_invalid_chart_type_error(self) -> None:
-        """InvalidChartTypeError should inherit from ChartVizError."""
-        error = ChartVizInvalidChartTypeError("Invalid chart type")
-        assert isinstance(error, ChartVizError)
-
 
 class TestErrorMapping:
     """Tests for ERROR_MAPPING dictionary."""
@@ -312,21 +267,6 @@ class TestErrorMapping:
         }
 
         for error_class, error_code in dashboard_mappings.items():
-            assert error_class in ERROR_MAPPING, f"{error_class} not in ERROR_MAPPING"
-            assert (
-                ERROR_MAPPING[error_class] == error_code
-            ), f"Expected {error_code}, got {ERROR_MAPPING[error_class]}"
-
-    def test_error_mapping_contains_chartviz_errors(self) -> None:
-        """ERROR_MAPPING should contain all chartviz error codes."""
-        chartviz_mappings = {
-            "ChartVizGenerationError": "chartviz_generation_failed",
-            "ChartVizRecommendationError": "chartviz_recommendation_failed",
-            "AutoChartGenerationError": "auto_chart_generation_failed",
-            "AnalysisDataExtractionError": "analysis_data_extraction_failed",
-        }
-
-        for error_class, error_code in chartviz_mappings.items():
             assert error_class in ERROR_MAPPING, f"{error_class} not in ERROR_MAPPING"
             assert (
                 ERROR_MAPPING[error_class] == error_code
@@ -546,29 +486,6 @@ class TestModuleExceptionsDecorator:
         body = json.loads(response.body)
         assert body["error_code"] == "dashboard_not_found"
 
-    @pytest.mark.asyncio
-    async def test_async_decorator_returns_normal_value(self) -> None:
-        """Async decorator should return normal value when no exception."""
-
-        @module_exceptions(ChartVizError)
-        async def async_return_value():
-            return {"status": "success"}
-
-        result = await async_return_value()
-
-        assert result == {"status": "success"}
-
-    @pytest.mark.asyncio
-    async def test_async_decorator_with_reraise(self) -> None:
-        """Async decorator should re-raise when reraise=True."""
-
-        @module_exceptions(ChartVizError, reraise=True)
-        async def async_raise_error():
-            raise ChartVizGenerationError("Generation failed")
-
-        with pytest.raises(ChartVizGenerationError):
-            await async_raise_error()
-
 
 class TestExceptionRaisingAndCatching:
     """Integration tests for raising and catching module exceptions."""
@@ -632,35 +549,12 @@ class TestExceptionRaisingAndCatching:
                 error_code = ERROR_MAPPING.get(e.__class__.__name__)
                 assert error_code is not None
 
-    def test_catch_chartviz_base_exception(self) -> None:
-        """Should catch any ChartVizError subclass with base class."""
-        errors_to_test = [
-            ChartVizGenerationError("Generation failed"),
-            ChartVizRecommendationError("Recommendation failed"),
-            AutoChartGenerationError("Auto gen failed"),
-            AnalysisDataExtractionError("Extraction failed"),
-            ChartVizInvalidChartTypeError("Invalid type"),
-        ]
-
-        for error in errors_to_test:
-            try:
-                raise error
-            except ChartVizError as e:
-                assert str(e) == str(error)
-                # Note: InvalidChartTypeError in chartviz module is separate
-                # and may not be in ERROR_MAPPING (only viz module's is)
-                error_code = ERROR_MAPPING.get(e.__class__.__name__)
-                # ChartVizInvalidChartTypeError is not mapped, others should be
-                if not isinstance(e, ChartVizInvalidChartTypeError):
-                    assert error_code is not None
-
     def test_catch_custom_error_base(self) -> None:
         """Should catch any module exception with CustomError base."""
         all_errors = [
             InsufficientDataError("Analytics"),
             ChartGenerationError("Visualization"),
             DashboardNotFoundError("Dashboard"),
-            ChartVizGenerationError("ChartViz"),
         ]
 
         for error in all_errors:
