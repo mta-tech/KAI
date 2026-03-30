@@ -233,7 +233,7 @@ class Storage(TypeSenseDB):
 
         return None
 
-    def delete_by_id(self, collection: str, id: str) -> list[dict]:
+    def delete_by_id(self, collection: str, id: str) -> dict | None:
         self.ensure_collection_exists(collection)
         deleted = self.client.collections[collection].documents[id].delete()
 

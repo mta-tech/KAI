@@ -36,7 +36,7 @@ class TableDescriptionService:
         for table_id in scanner_request.table_description_ids:
             table_description = scanner_repository.find_by_id(table_id)
             if not table_description:
-                raise HTTPException("Table description not found")
+                raise HTTPException(status_code=404, detail="Table description not found")
             if table_description.db_connection_id not in data.keys():
                 data[table_description.db_connection_id] = {}
             if (
@@ -158,11 +158,11 @@ class TableDescriptionService:
         table_description = self.repository.find_by_id(table_description_id)
 
         if table_description is None:
-            raise HTTPException(f"Prompt {table_description_id} not found")
+            raise HTTPException(status_code=404, detail=f"Table description {table_description_id} not found")
 
-        table_description = self.repository.delete_by_id(table_description_id)
+        deleted = self.repository.delete_by_id(table_description_id)
 
-        if not table_description:
-            raise HTTPException(f"Failed to delete instruction {table_description_id}")
+        if not deleted:
+            raise HTTPException(status_code=500, detail=f"Failed to delete table description {table_description_id}")
 
-        return TableDescription(**table_description.model_dump())
+        return deleted

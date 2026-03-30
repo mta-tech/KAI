@@ -23,14 +23,14 @@ class BusinessGlossaryService:
         db_connection_repository = DatabaseConnectionRepository(self.storage)
         db_connection = db_connection_repository.find_by_id(db_connection_id)
         if not db_connection:
-            raise HTTPException(f"Database connection {db_connection_id} not found")
+            raise HTTPException(status_code=404, detail=f"Database connection {db_connection_id} not found")
 
         try:
             Parser(business_glossary_request.sql).tables  # noqa: B018
         except Exception as e:
             raise HTTPException(
-                404,
-                f"SQL {business_glossary_request.sql} is malformed. Please check the syntax.",
+                status_code=404,
+                detail=f"SQL {business_glossary_request.sql} is malformed. Please check the syntax.",
             ) from e
 
         business_glossary = BusinessGlossary(
@@ -45,7 +45,7 @@ class BusinessGlossaryService:
     def get_business_glossary(self, business_glossary_id) -> BusinessGlossary:
         business_glossary = self.repository.find_by_id(business_glossary_id)
         if not business_glossary:
-            raise HTTPException(f"Business Glossary {business_glossary_id} not found")
+            raise HTTPException(status_code=404, detail=f"Business glossary {business_glossary_id} not found")
         return business_glossary
 
     def retrieve_business_metrics_for_question(self, prompt: Prompt) -> list:
@@ -57,7 +57,7 @@ class BusinessGlossaryService:
     ) -> BusinessGlossary:
         business_glossary = self.repository.find_by_id(business_glossary_id)
         if not business_glossary:
-            raise HTTPException(f"Business Glossary {business_glossary_id} not found")
+            raise HTTPException(status_code=404, detail=f"Business glossary {business_glossary_id} not found")
 
         for key, value in request.model_dump(exclude_unset=True).items():
             setattr(business_glossary, key, value)
@@ -65,11 +65,11 @@ class BusinessGlossaryService:
         self.repository.update(business_glossary_id, business_glossary)
         return business_glossary
 
-    def delete_business_glossary(self, business_glossary_id) -> dict:
+    def delete_business_glossary(self, business_glossary_id) -> BusinessGlossary:
         business_glossary = self.repository.find_by_id(business_glossary_id)
         if not business_glossary:
-            raise HTTPException(f"Business Glossary {business_glossary_id} not found")
+            raise HTTPException(status_code=404, detail=f"Business glossary {business_glossary_id} not found")
         deleted = self.repository.delete(business_glossary_id)
-        if deleted == 0:
-            raise HTTPException(status_code=404, detail="Business Glossary not deleted")
-        return {"status": "success"}
+        if not deleted:
+            raise HTTPException(status_code=500, detail=f"Failed to delete business glossary {business_glossary_id}")
+        return deleted

@@ -40,8 +40,8 @@ class ContextStoreService:
             Parser(context_store_request.sql).tables  # noqa: B018
         except Exception as e:
             raise HTTPException(
-                404,
-                f"SQL {context_store_request.sql} is malformed. Please check the syntax.",
+                status_code=404,
+                detail=f"SQL {context_store_request.sql} is malformed. Please check the syntax.",
             ) from e
 
         db_connection_repository = DatabaseConnectionRepository(self.storage)
@@ -50,7 +50,7 @@ class ContextStoreService:
         )
         if not db_connection:
             raise HTTPException(
-                f"Database connection {context_store_request.db_connection_id} not found"
+                status_code=404, detail=f"Database connection {context_store_request.db_connection_id} not found"
             )
 
         if db_connection.schemas:
@@ -62,8 +62,8 @@ class ContextStoreService:
                     break
             if schema_not_found:
                 raise HTTPException(
-                    404,
-                    f"SQL {context_store_request.sql} does not contain any of the schemas {db_connection.schemas}",
+                    status_code=404,
+                    detail=f"SQL {context_store_request.sql} does not contain any of the schemas {db_connection.schemas}",
                 )
 
         # Get Embedding Vector from Prompt, used in SQL Generation as Few Show Examples
@@ -113,7 +113,7 @@ class ContextStoreService:
     def get_context_store(self, context_store_id) -> ContextStore:
         context_store = self.repository.find_by_id(context_store_id)
         if not context_store:
-            raise HTTPException(f"Prompt {context_store_id} not found")
+            raise HTTPException(status_code=404, detail=f"Context store {context_store_id} not found")
         return context_store
 
     def get_context_stores(self, db_connection_id) -> list[ContextStore]:
@@ -155,7 +155,7 @@ class ContextStoreService:
     ) -> ContextStore:
         context_store = self.repository.find_by_id(context_store_id)
         if not context_store:
-            raise HTTPException(f"ContextStore {context_store_id} not found")
+            raise HTTPException(status_code=404, detail=f"Context store {context_store_id} not found")
 
         for key, value in update_request.model_dump(exclude_unset=True).items():
             setattr(context_store, key, value)
@@ -163,17 +163,17 @@ class ContextStoreService:
         self.repository.update(context_store_id, context_store)
         return context_store
 
-    def delete_context_store(self, context_store_id) -> bool:
+    def delete_context_store(self, context_store_id) -> ContextStore:
         context_store = self.repository.find_by_id(context_store_id)
         if not context_store:
-            raise HTTPException(f"Prompt {context_store_id} not found")
+            raise HTTPException(status_code=404, detail=f"Context store {context_store_id} not found")
 
         is_deleted = self.repository.delete_by_id(context_store_id)
 
         if not is_deleted:
-            raise HTTPException(f"Failed to delete context_store {context_store_id}")
+            raise HTTPException(status_code=500, detail=f"Failed to delete context store {context_store_id}")
 
-        return True
+        return is_deleted
 
     def retrieve_exact_prompt(self, db_connection_id, prompt) -> ContextStore:
         return self.repository.find_by_prompt(db_connection_id, prompt)
